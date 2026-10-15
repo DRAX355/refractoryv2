@@ -1,16 +1,20 @@
 const fs = require('fs');
-const html = fs.readFileSync('ui/index.html', 'utf-8');
-const scriptMatch = html.match(/<script>([\s\S]*?)<\/script>/);
-if (scriptMatch) {
-  const code = scriptMatch[1];
-  const vm = require('vm');
+const vm = require('vm');
+// usage: node check_syntax.js [path]   (default: ui/app.html, the wizard)
+const file = process.argv[2] || 'ui/app.html';
+const html = fs.readFileSync(file, 'utf-8');
+const re = /<script>([\s\S]*?)<\/script>/g;
+let m, n = 0, bad = 0;
+while ((m = re.exec(html)) !== null) {
+  n++;
   try {
-    new vm.Script(code);
-    console.log("No syntax errors!");
+    new vm.Script(m[1]);
   } catch (e) {
-    console.log(e.message);
+    bad++;
+    console.log(`script #${n}: ${e.message}`);
     console.log(e.stack);
   }
-} else {
-  console.log("No script tag found");
 }
+if (!n) console.log("No script tag found");
+else if (!bad) console.log(`No syntax errors! (${file}, ${n} script block${n > 1 ? 's' : ''})`);
+process.exit(bad ? 1 : 0);

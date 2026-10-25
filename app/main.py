@@ -38,16 +38,19 @@ async def lifespan(app: FastAPI):
     logger.info(f"  RefractoryAI API  v{settings.app_version}")
     logger.info(f"  Environment: {settings.app_env}")
     logger.info(f"  Device: {settings.device}")
-    import threading
-    def _warmup():
-        try:
-            logger.info("Pre-warming Grounding DINO model in background...")
-            from app.services.part2_extraction.dino_detector import _get_model_and_processor
-            _get_model_and_processor()
-            logger.info("Grounding DINO pre-warmed and ready in memory.")
-        except Exception as e:
-            logger.warning(f"Grounding DINO warmup failed: {e}")
-    threading.Thread(target=_warmup, daemon=True).start()
+    if getattr(settings, "device", "cpu") == "cuda":
+        import threading
+        def _warmup():
+            try:
+                logger.info("Pre-warming Grounding DINO model in background...")
+                from app.services.part2_extraction.dino_detector import _get_model_and_processor
+                _get_model_and_processor()
+                logger.info("Grounding DINO pre-warmed and ready in memory.")
+            except Exception as e:
+                logger.warning(f"Grounding DINO warmup failed: {e}")
+        threading.Thread(target=_warmup, daemon=True).start()
+    else:
+        logger.info("Running on CPU: Skipping Grounding DINO warmup to conserve RAM.")
 
     yield
     logger.info("RefractoryAI API shutting down.")
@@ -102,6 +105,8 @@ async def global_exception_handler(request: Request, exc: Exception) -> JSONResp
 app.include_router(ingestion_router, prefix="/api/v1")
 app.include_router(extraction_router, prefix="/api/v1")
 app.include_router(lining_router, prefix="/api/v1")
+from app.api.v1.routes_core import router as core_router
+app.include_router(core_router, prefix="/api/v1")
 app.mount("/ui", StaticFiles(directory="ui", html=True), name="ui")
 import os
 os.makedirs("data/outputs", exist_ok=True)

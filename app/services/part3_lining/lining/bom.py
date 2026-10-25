@@ -21,28 +21,30 @@ def _note(b):
     return " ".join(str(x) for x in (b.get("note"), (b.get("dimensions_mm") or {}).get("note")) if x)
 
 
+def _F(fid, variables):
+    """Evaluate a user-editable formula from refractory_core (defaults in refractory_core/defaults/formulas.json)."""
+    from refractory_core import get_core
+    return get_core().formulas.evaluate(fid, variables)
+
+
+_VOL_FORMULA = {"standard_trapezoidal": "vol_standard_trapezoidal", "steel_cladded": "vol_standard_trapezoidal",
+                "bottom_dish_wedge": "vol_bottom_dish_wedge", "center_block": "vol_center_block",
+                "safety_lining_std": "vol_safety_lining_std", "safety_lining_rect": "vol_safety_lining_rect",
+                "seating_block": "vol_seating_block"}
+
+
 def unit_volume(b):
-    """(dm3, how) for one library brick; (None, reason) if it cannot be computed."""
+    """(dm3, how) for one library brick; (None, reason) if it cannot be computed.
+    The volume formula per shape family is user-editable (refractory_core formulas 'vol_<family>')."""
     fam, d = b.get("shape_family"), b.get("dimensions_mm") or {}
-    try:
-        if fam in ("standard_trapezoidal", "steel_cladded"):
-            return d["length"] * d["thickness"] * (d["width_top"] + d["width_bottom"]) / 2 / 1e6, "L x H x (cold+hot)/2"
-        if fam == "bottom_dish_wedge":
-            at = d["face_width_top"] * (d["A"] + d["B"]) / 2
-            ab = d["face_width_bottom"] * (d["C"] + d["D"]) / 2
-            am = (d["face_width_top"] + d["face_width_bottom"]) / 2 * (d["A"] + d["B"] + d["C"] + d["D"]) / 4
-            return d["overall_length"] / 6 * (at + 4 * am + ab) / 1e6, "prismoid of hot / cold faces"
-        if fam == "center_block":
-            d1, d2, h = d["inner_dia"], d["outer_dia"], d["height"]
-            return math.pi * h / 12 * (d1 * d1 + d1 * d2 + d2 * d2) / 1e6, "conical frustum"
-        if fam == "safety_lining_std" and "thickness" in d:
-            return d["length"] * d["width"] * d["thickness"] / 1e6, "L x W x T"
-        if fam == "safety_lining_rect":
-            return d["width"] * (d["face_a"] + d["face_b"]) / 2 * d["depth"] / 1e6, "W x (a+b)/2 x depth (roles inferred)"
-        if fam == "seating_block":
-            return math.pi / 4 * (d["outer_dia"] ** 2 - d["inner_dia"] ** 2) * d["height"] / 1e6, "annulus x height"
-    except (KeyError, TypeError):
-        pass
+    fid = _VOL_FORMULA.get(fam)
+    if fid and not (fam == "safety_lining_std" and "thickness" not in d):
+        try:
+            from refractory_core import get_core
+            v = _F(fid, {k: float(x) for k, x in d.items() if isinstance(x, (int, float))})
+            return v, "formula " + fid + ": " + get_core().formulas.get(fid)["expression"]
+        except Exception:                 # missing dimensions / invalid formula -> fall back to quoted volume
+            pass
     m = VOL_NOTE.search(_note(b))
     if m:
         return float(m.group(1)), "volume quoted in library (BOM sheet)"
@@ -172,7 +174,7 @@ def build_bom(sheet, lib, courses, rings, vols, nozzles, st, densities, cone_gap
                 # junction course (knuckle / transition): built with the special pieces chosen in step 12;
                 # the quantity is the drawn volume of these courses (the step-12 estimate is not added again)
                 a0, a1 = [float(x) for x in r["sector"].split("-")]
-                v = math.radians(a1 - a0) / 2 * (r["r_cold"] ** 2 - r["r_hot"] ** 2) * r["h"] / 1e9
+                v = _F("sector_course_volume", {"angle_from": a0, "angle_to": a1, "r_cold": r["r_cold"], "r_hot": r["r_hot"], "course_height": r["h"]})
                 k = (r["band"], r.get("zone") or r["sector"], r["grade"], "junction:" + str(j.get("mark") or "special"))
                 mj = missing.setdefault(k, {"vol": 0.0, "courses": []})
                 mj["vol"] += v
@@ -181,8 +183,7 @@ def build_bom(sheet, lib, courses, rings, vols, nozzles, st, densities, cone_gap
                 covered.setdefault(j.get("name", ""), []).append(r["course"])
                 continue
         a0, a1 = [float(x) for x in r["sector"].split("-")]
-        phi = math.radians(a1 - a0)
-        v = phi / 2 * (r["r_cold"] ** 2 - r["r_hot"] ** 2) * r["h"] / 1e9
+        v = _F("sector_course_volume", {"angle_from": a0, "angle_to": a1, "r_cold": r["r_cold"], "r_hot": r["r_hot"], "course_height": r["h"]})
         k = (r["band"], r.get("zone") or r["sector"], r["grade"],
              "transition" if "transition" in (r.get("flag") or "") else f"L{r['L']:g}")
         m = missing.setdefault(k, {"vol": 0.0, "courses": []})
@@ -218,8 +219,8 @@ def build_bom(sheet, lib, courses, rings, vols, nozzles, st, densities, cone_gap
     for l in lines.values():
         if l["group"] == "Permanent lining":
             l["qty"] = math.ceil(l["qty"] - 1e-9)
-        q_order = math.ceil(l["qty"] * (1 + l["allow_pct"] / 100))
-        uw = None if l["unit_vol_dm3"] is None else l["unit_vol_dm3"] * l["density"]
+        q_order = int(_F("order_qty", {"qty": l["qty"], "allow_pct": l["allow_pct"]}))
+        uw = None if l["unit_vol_dm3"] is None else _F("unit_weight", {"unit_vol_dm3": l["unit_vol_dm3"], "density": l["density"]})
         out.append({**l, "order_qty": q_order, "unit_wt_kg": None if uw is None else round(uw, 2),
                     "total_t": None if uw is None else round(q_order * uw / 1000, 3)})
     for name, cs in covered.items():

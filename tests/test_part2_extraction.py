@@ -209,12 +209,16 @@ class TestGeometryAssembler:
 # ── API Endpoint Tests ────────────────────────────────────────────────────────
 
 class TestExtractionAPI:
-    @patch("app.services.part2_extraction.dino_detector.detect_drawing_elements")
-    @patch("pytesseract.image_to_string")
+    @patch("app.services.part2_extraction.extraction_service.detect_drawing_elements")
+    @patch("app.services.part2_extraction.extraction_service.run_ocr")
     def test_process_endpoint(self, mock_ocr, mock_dino, sample_png_bytes):
         """Test full Part 1 + Part 2 pipeline via API with mocked DINO + OCR."""
+        from app.services.part2_extraction.ocr_extractor import OCRResult
+        ocr_res = OCRResult()
+        ocr_res.raw_texts = ["180T BOF", "ZZ-BOF-180-001", "Rev B", "O10000", "O7570", "97948"]
+        ocr_res.vessel_type_hint = "BOF"
         mock_dino.return_value = []
-        mock_ocr.return_value = "180T BOF\nZZ-BOF-180-001\nRev B\nO10000\nO7570\n97948"
+        mock_ocr.return_value = ocr_res
 
         response = client.post(
             "/api/v1/extraction/process",

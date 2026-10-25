@@ -27,7 +27,7 @@ import uuid
 from typing import Any
 
 import ezdxf
-from fastapi import APIRouter, Body, HTTPException, status
+from fastapi import APIRouter, Body, Header, HTTPException, status
 from loguru import logger
 
 from app.core.config import settings
@@ -72,7 +72,7 @@ def _run(job_id: str, payload: dict, out_dir, url_prefix: str) -> None:
 
 
 @router.post("/generate", summary="Start lining, brick and layer drawing generation (background job)")
-async def generate_lining(payload: dict[str, Any] = Body(...)) -> dict:
+async def generate_lining(payload: dict[str, Any] = Body(...), x_user: str = Header("anonymous")) -> dict:
     if not isinstance(payload.get("vessel"), dict) or not isinstance(payload.get("design"), dict):
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                             detail={"errors": ["Request needs 'vessel' and 'design' objects."]})
@@ -86,6 +86,11 @@ async def generate_lining(payload: dict[str, Any] = Body(...)) -> dict:
     out_dir = settings.outputs_dir / job / run
     url_prefix = f"/outputs/{job}/{run}"
     job_id = uuid.uuid4().hex[:12]
+    from refractory_core import get_core                       # audit: who generated what, with which formulas
+    core = get_core()
+    core.audit.record("lining.generate", f"job:{job}", actor=x_user,
+                      meta={"job_id": job_id, "output": str(out_dir),
+                            "modified_formulas": {k: v["expression"] for k, v in core.formulas.overrides.items()}})
     with _LOCK:
         _JOBS[job_id] = {"job_id": job_id, "status": "running", "stage": "Queued", "percent": 0, "elapsed_s": 0,
                          "out_dir": str(out_dir), "started": datetime.datetime.now().isoformat(timespec="seconds")}

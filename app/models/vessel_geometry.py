@@ -69,6 +69,10 @@ class Nozzle(BaseModel):
     diameter_mm: float | None = None
     position_mm: float | None = None   # axial position from reference end
     angle_deg: float | None = None     # angular position
+    count: int | None = None
+    pcd_mm: float | None = None
+    orientation_deg: float | None = None
+    inclination_deg: float | None = None
     bounding_box: BoundingBox | None = None
 
 

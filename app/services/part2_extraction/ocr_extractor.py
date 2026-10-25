@@ -93,81 +93,127 @@ class OCRResult:
         self.text_polygons: list[Polygon] = []
 
 
+_RE_DIA_MISREAD = re.compile(r"^[0689OQGq@#]([1-9]\d{3})$")
+
+
+def _normalise_ocr_line(line: str) -> str | None:
+    """
+    Clean one Tesseract line.
+      - 'Ø' is often read as a leading 9/0/6/8/O/Q/G/@/# → '97570' becomes 'Ø7570'.
+      - Tokens with leading zeros ('00001' = mirrored '10000' from a wrong rotation)
+        are not valid dimensions and are dropped (returns None).
+    """
+    line = line.strip()
+    if not line:
+        return None
+    m = _RE_DIA_MISREAD.match(line)
+    if m:
+        return f"Ø{m.group(1)}"
+    if re.fullmatch(r"0\d{3,}", line):
+        return None
+    return line
+
+
+def run_tesseract_ocr(image_bgr: np.ndarray) -> OCRResult:
+    """Run lightweight multi-angle Tesseract OCR on a drawing image."""
+    _configure_tesseract()
+    import cv2
+    result = OCRResult()
+    
+    rotations = [
+        (0, image_bgr),
+        (90, cv2.rotate(image_bgr, cv2.ROTATE_90_CLOCKWISE)),
+        (180, cv2.rotate(image_bgr, cv2.ROTATE_180)),
+        (270, cv2.rotate(image_bgr, cv2.ROTATE_90_COUNTERCLOCKWISE)),
+    ]
+    
+    seen = set()
+    for angle, rimg in rotations:
+        gray = cv2.cvtColor(rimg, cv2.COLOR_BGR2GRAY)
+        txt = pytesseract.image_to_string(gray, config=TESSERACT_CONFIG_SPARSE)
+        for line in txt.splitlines():
+            cleaned = _normalise_ocr_line(line)
+            if cleaned and cleaned not in seen:
+                seen.add(cleaned)
+                result.raw_texts.append(cleaned)
+                
+    _parse_all_texts(result)
+    logger.info(
+        f"[OCR] Tesseract complete — raw_lines={len(result.raw_texts)}, "
+        f"dimensions={len(result.parsed_dimensions)}, "
+        f"vessel_type={result.vessel_type_hint or 'unknown'}"
+    )
+    return result
+
+
 def run_ocr(
     image_bgr: np.ndarray,
     dino_regions: list[BoundingBox] | None = None,
 ) -> OCRResult:
     """
-    Run full OCR pipeline on a drawing image using DocTR.
+    Run full OCR pipeline on a drawing image.
+    Uses lightweight multi-angle Tesseract on CPU, and DocTR on CUDA/GPU.
     """
-    result = OCRResult()
-    
-    logger.info("[OCR] Running DocTR on drawing image...")
-    from app.services.part2_extraction.doctr_extractor import run_doctr_on_image
-    
-    # Downscale image if too large (DocTR is slow on huge images)
-    h, w = image_bgr.shape[:2]
-    import cv2
-    img_for_doctr = image_bgr
-    scale = 1.0
-    if max(h, w) > 2500:
-        scale = 2500 / max(h, w)
-        img_for_doctr = cv2.resize(image_bgr, (int(w * scale), int(h * scale)))
-        
-    doctr_result = run_doctr_on_image(img_for_doctr)
-    logger.info(f"[OCR] Pass 1 (horizontal) extracted {len(doctr_result.words)} words. Running Pass 2 (vertical text)...")
-    
-    # 1. Add words from standard orientation
-    from shapely.affinity import scale as shapely_scale
-    for word in doctr_result.words:
-        poly = word.polygon
-        if scale != 1.0:
-            poly = shapely_scale(poly, xfact=1/scale, yfact=1/scale, origin=(0,0))
-            
-        result.text_polygons.append(poly)
-        result.raw_texts.append(word.value)
-        
-    # 2. Add words from 90-degree CCW rotated orientation (for vertical text like diameters)
-    img_rot = cv2.rotate(img_for_doctr, cv2.ROTATE_90_COUNTERCLOCKWISE)
-    doctr_rot_result = run_doctr_on_image(img_rot)
-    
-    h_rot, w_rot = img_rot.shape[:2]
-    # Original (scaled) dimensions
-    orig_w, orig_h = img_for_doctr.shape[1], img_for_doctr.shape[0]
-    
-    for word in doctr_rot_result.words:
-        # Map polygon back to unrotated space
-        # Transformation: orig_x = orig_w - y_rot, orig_y = x_rot
-        mapped_coords = []
-        for (x_rot, y_rot) in word.polygon.exterior.coords:
-            orig_x = orig_w - y_rot
-            orig_y = x_rot
-            mapped_coords.append((orig_x, orig_y))
-            
-        from shapely.geometry import Polygon
-        poly = Polygon(mapped_coords)
-        if scale != 1.0:
-            poly = shapely_scale(poly, xfact=1/scale, yfact=1/scale, origin=(0,0))
-            
-        result.text_polygons.append(poly)
-        result.raw_texts.append(word.value)
-        
-    logger.info(f"[OCR] Full image complete — {len(result.raw_texts)} text blocks extracted via DocTR")
+    if getattr(settings, "device", "cpu") != "cuda":
+        logger.info("[OCR] Running lightweight multi-angle Tesseract OCR...")
+        return run_tesseract_ocr(image_bgr)
 
-    # ── Region-specific OCR (DINO crops) ─────────────────────────────────────
-    # Not needed with DocTR since it natively detects all dense text globally.
-    if dino_regions:
-        logger.debug(f"[OCR] Skipping regional DINO OCR, DocTR handles full image.")
+    try:
+        from app.services.part2_extraction.doctr_extractor import run_doctr_on_image
+        import cv2
 
-    # ── Parse extracted text ──────────────────────────────────────────────────
-    _parse_all_texts(result)
-
-    logger.info(
-        f"[OCR] Complete — raw_lines={len(result.raw_texts)}, "
-        f"dimensions={len(result.parsed_dimensions)}, "
-        f"vessel_type={result.vessel_type_hint or 'unknown'}"
-    )
-    return result
+        result = OCRResult()
+        logger.info("[OCR] Running DocTR on drawing image...")
+        
+        # Downscale image if too large (DocTR is slow on huge images)
+        h, w = image_bgr.shape[:2]
+        img_for_doctr = image_bgr
+        scale = 1.0
+        if max(h, w) > 2500:
+            scale = 2500 / max(h, w)
+            img_for_doctr = cv2.resize(image_bgr, (int(w * scale), int(h * scale)))
+            
+        doctr_result = run_doctr_on_image(img_for_doctr)
+        logger.info(f"[OCR] Pass 1 (horizontal) extracted {len(doctr_result.words)} words. Running Pass 2 (vertical text)...")
+        
+        from shapely.affinity import scale as shapely_scale
+        for word in doctr_result.words:
+            poly = word.polygon
+            if scale != 1.0:
+                poly = shapely_scale(poly, xfact=1/scale, yfact=1/scale, origin=(0,0))
+                
+            result.text_polygons.append(poly)
+            result.raw_texts.append(word.value)
+            
+        img_rot = cv2.rotate(img_for_doctr, cv2.ROTATE_90_COUNTERCLOCKWISE)
+        doctr_rot_result = run_doctr_on_image(img_rot)
+        
+        orig_w, orig_h = img_for_doctr.shape[1], img_for_doctr.shape[0]
+        for word in doctr_rot_result.words:
+            mapped_coords = []
+            for (x_rot, y_rot) in word.polygon.exterior.coords:
+                orig_x = orig_w - y_rot
+                orig_y = x_rot
+                mapped_coords.append((orig_x, orig_y))
+                
+            from shapely.geometry import Polygon
+            poly = Polygon(mapped_coords)
+            if scale != 1.0:
+                poly = shapely_scale(poly, xfact=1/scale, yfact=1/scale, origin=(0,0))
+                
+            result.text_polygons.append(poly)
+            result.raw_texts.append(word.value)
+            
+        _parse_all_texts(result)
+        logger.info(
+            f"[OCR] DocTR complete — raw_lines={len(result.raw_texts)}, "
+            f"dimensions={len(result.parsed_dimensions)}, "
+            f"vessel_type={result.vessel_type_hint or 'unknown'}"
+        )
+        return result
+    except Exception as exc:
+        logger.warning(f"[OCR] DocTR error ({exc}). Falling back to multi-angle Tesseract...")
+        return run_tesseract_ocr(image_bgr)
 
 
 def _classify_text(line: str, result: "OCRResult") -> None:

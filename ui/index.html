@@ -163,7 +163,8 @@ section.tint{background:var(--soft)}
 .chrome button{background:none;border:1px solid var(--border-dark);color:#fff;font:inherit;border-radius:6px;padding:4px 9px;cursor:pointer}
 .chrome button:hover{border-color:#2fc488;color:#2fc488}
 .frame iframe{display:block;width:100%;height:min(860px,82vh);min-height:620px;border:0;background:#fff}
-.frame:fullscreen iframe{height:calc(100vh - 44px)}
+.frame:fullscreen, .frame:-webkit-full-screen, .frame.frame-maximized {position:fixed !important;top:0 !important;left:0 !important;width:100vw !important;height:100vh !important;max-width:100vw !important;max-height:100vh !important;margin:0 !important;padding:0 !important;border-radius:0 !important;z-index:999999 !important;background:var(--dark) !important}
+.frame:fullscreen iframe, .frame:-webkit-full-screen iframe, .frame.frame-maximized iframe {width:100vw !important;height:calc(100vh - 44px) !important;min-height:0 !important}
 .narrow-note{display:none;font-size:13.5px;color:var(--amber);margin-bottom:12px}
 @media (max-width:820px){.narrow-note{display:block}}
 .tries{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;margin-top:26px}
@@ -264,13 +265,14 @@ footer a{color:var(--on-dark-muted);text-decoration:none}footer a:hover{color:#2
   <div class="wrap">
     <a class="logo" href="https://zerozeta.com">Zero<b>Zeta</b></a>
     <ul>
+      <li><a href="#workbench">Workbench</a></li>
       <li><a href="https://zerozeta.com/enterprise">Enterprise</a></li>
       <li><a href="https://zerozeta.com/industrial-ai">Industrial AI</a></li>
       <li><a href="https://zerozeta.com/programs">Programs</a></li>
       <li><a href="https://zerozeta.com/about-us">About</a></li>
     </ul>
     <span class="sp"></span>
-    <a class="btn solid sm" href="https://zerozeta.com/ai-readiness-assessment">Check AI Readiness</a><a class="btn sm login" id="loginBtn" href="app.html">Login · Open Workbench</a>
+    <a class="btn sm login" id="openWorkbenchNavBtn" href="app.html">Open Full App ↗</a>
   </div>
 </nav>
 
@@ -393,7 +395,7 @@ footer a{color:var(--on-dark-muted);text-decoration:none}footer a:hover{color:#2
         <h2>Design a converter lining yourself</h2>
         <p class="lede">Not a screenshot. The workbench below is running. Confirm the extracted dimensions, move a zone boundary, change a wear rate or a brick pair, and every course, check and BOM line recalculates.</p>
       </div>
-      <a class="btn" href="app.html" target="_blank" rel="noopener">Open full screen ↗</a>
+      <button type="button" class="btn" id="openFsBtn">Open full screen ⤢</button>
     </div>
     <div class="notice">
       <span class="tag">Sample data</span>
@@ -403,16 +405,16 @@ footer a{color:var(--on-dark-muted);text-decoration:none}footer a:hover{color:#2
     <div class="frame" id="frame">
       <div class="chrome">
         <span class="dots"><i></i><i></i><i></i></span>
-        <span class="ttl">liningops-copilot · BOF converter · sample job LC/BOF/2026/018</span>
+        <span class="ttl">liningops-copilot · BOF converter · sample job NVX/BOF/2026/018</span>
         <span class="live">LIVE</span>
         <button type="button" id="fsbtn">Full screen</button>
       </div>
-      <iframe src="app.html" title="LiningOps Copilot design workbench" loading="lazy"></iframe>
+      <iframe id="workbenchFrame" src="app.html" title="LiningOps Copilot design workbench" loading="lazy" allow="fullscreen"></iframe>
     </div>
     <div class="tries">
       <div class="try"><b>Start at step 1</b>Load the sample drawing, then confirm each section of the shell. Red rows show where the extracted value disagrees with the text on the drawing.</div>
       <div class="try"><b>Break a check on purpose</b>In Lining concept, raise a barrel thickness. Watch specific volume and lining weight respond, and use a suggested fix to recover.</div>
-      <div class="try"><b>Skip to the result</b>Use "Demo: confirm all" in the top bar to jump to the summary: tonnes by grade, expected life per zone, full BOM and every validation check.</div>
+      <div class="try"><b>Save and resume anytime</b>Use "💾 Save session" in the top bar to export your progress to a file at any step, and "📂 Open session" to resume right where you left off.</div>
     </div>
   </div>
 </section>
@@ -556,12 +558,104 @@ pair A 140→160 mm · B 110→190 mm · hot radius 2.5 m
 
 <script>
 (function(){
-  var b=document.getElementById('fsbtn'),f=document.getElementById('frame');
-  if(!f.requestFullscreen){b.hidden=true;return;}
-  b.addEventListener('click',function(){
-    if(document.fullscreenElement){document.exitFullscreen().catch(function(){});}
-    else{f.requestFullscreen().catch(function(){b.hidden=true;});}
+  // Dynamic Application URL Resolution (Zero Hardcoding)
+  // Reads appUrl from URL query (?appUrl=...), window.LINING_APP_CONFIG, localStorage, or defaults to './app.html'
+  var frameEl = document.getElementById('workbenchFrame') || document.querySelector('#frame iframe');
+  if (frameEl) {
+    try {
+      var searchParams = new URLSearchParams(window.location.search);
+      var configuredAppUrl = searchParams.get('appUrl') ||
+        (window.LINING_APP_CONFIG && window.LINING_APP_CONFIG.appUrl) ||
+        (function(){ try { return localStorage.getItem('liningops_app_url'); } catch(e){ return null; } })() ||
+        'app.html';
+
+      // Forward API backend override (?api=...) to the app if present
+      var apiOverride = searchParams.get('api');
+      if (apiOverride && configuredAppUrl.indexOf('api=') === -1) {
+        configuredAppUrl += (configuredAppUrl.indexOf('?') === -1 ? '?' : '&') + 'api=' + encodeURIComponent(apiOverride);
+      }
+
+      if (frameEl.getAttribute('src') !== configuredAppUrl) {
+        frameEl.src = configuredAppUrl;
+      }
+
+      // If app is externally hosted and openTab parameter is set, allow nav button to open it
+      var navBtn = document.getElementById('openWorkbenchNavBtn');
+      if (navBtn && configuredAppUrl !== 'app.html') {
+        if (searchParams.get('openTab') === 'true') {
+          navBtn.setAttribute('href', configuredAppUrl);
+          navBtn.setAttribute('target', '_blank');
+          navBtn.setAttribute('rel', 'noopener');
+        }
+      }
+    } catch (err) {
+      console.warn('Dynamic appUrl resolution fallback to default:', err);
+    }
+  }
+
+  var b = document.getElementById('fsbtn');
+  var bTop = document.getElementById('openFsBtn');
+  var f = document.getElementById('frame');
+  if (!f) return;
+
+  function isFrameFull() {
+    return !!(document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement || f.classList.contains('frame-maximized'));
+  }
+
+  function updateButtons() {
+    var full = isFrameFull();
+    if (b) b.textContent = full ? '✕ Exit full screen' : 'Full screen';
+    if (bTop) bTop.textContent = full ? '✕ Exit full screen' : 'Open full screen ⤢';
+  }
+
+  function toggleFrameFullscreen() {
+    var isNative = !!(document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement);
+    var isMax = f.classList.contains('frame-maximized');
+
+    if (isNative) {
+      if (document.exitFullscreen) document.exitFullscreen().catch(function(){});
+      else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+      f.classList.remove('frame-maximized');
+      document.body.style.overflow = '';
+    } else if (isMax) {
+      f.classList.remove('frame-maximized');
+      document.body.style.overflow = '';
+      updateButtons();
+    } else {
+      var req = f.requestFullscreen || f.webkitRequestFullscreen || f.msRequestFullscreen;
+      if (req) {
+        req.call(f).catch(function() {
+          f.classList.add('frame-maximized');
+          document.body.style.overflow = 'hidden';
+          updateButtons();
+        });
+      } else {
+        f.classList.add('frame-maximized');
+        document.body.style.overflow = 'hidden';
+        updateButtons();
+      }
+    }
+  }
+
+  if (b) b.addEventListener('click', toggleFrameFullscreen);
+  if (bTop) bTop.addEventListener('click', toggleFrameFullscreen);
+
+  ['fullscreenchange', 'webkitfullscreenchange', 'msfullscreenchange'].forEach(function(evt) {
+    document.addEventListener(evt, function() {
+      if (!document.fullscreenElement && !document.webkitFullscreenElement && !document.msFullscreenElement) {
+        f.classList.remove('frame-maximized');
+        document.body.style.overflow = '';
+      }
+      updateButtons();
+    });
   });
-  document.addEventListener('fullscreenchange',function(){b.textContent=document.fullscreenElement?'Exit full screen':'Full screen';});
+
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && f.classList.contains('frame-maximized')) {
+      f.classList.remove('frame-maximized');
+      document.body.style.overflow = '';
+      updateButtons();
+    }
+  });
 })();
 </script>

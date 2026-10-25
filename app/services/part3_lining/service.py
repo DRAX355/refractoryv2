@@ -154,6 +154,8 @@ def _aci_colors(colors):
 
 def volumes(sheet):
     """Structured version of report.build_report (same maths)."""
+    from refractory_core import get_core
+    f = get_core().formulas
     k = 1e-9 if sheet.vessel.get("units", "mm") == "mm" else 1.0
     L = sheet.L
     br = angle_breaks(sheet.design)
@@ -162,16 +164,21 @@ def volumes(sheet):
         paths, _ = sheet.boundary_paths((a + b) / 2)
         hot = paths[L].all()
         pts = sample(hot) + [(0.0, hot[-1][1]), (0.0, hot[0][1])]
-        cavity += 2 * math.pi * region_area_moment(pts)[1] * (b - a) / 360.0
+        cavity += f.evaluate("revolved_volume", {
+            "area_moment": region_area_moment(pts)[1],
+            "angle_from": a, "angle_to": b, "unit_factor": 1.0,
+        })
     rows, by_grade, by_layer = [], {}, {}
     for bi, band in enumerate(sheet.bands):
         i0, i1 = sheet.band_idx[bi]
         for sec in band["sectors"]:
             paths, _ = sheet.boundary_paths((sec["from"] + sec["to"]) / 2)
-            frac = (sec["to"] - sec["from"]) / 360.0
             for j in range(1, L + 1):
                 pts = sample(paths[j - 1].run(i0, i1) + reverse_run(paths[j].run(i0, i1)))
-                vol = 2 * math.pi * region_area_moment(pts)[1] * frac * k
+                vol = f.evaluate("revolved_volume", {
+                    "area_moment": region_area_moment(pts)[1],
+                    "angle_from": sec["from"], "angle_to": sec["to"], "unit_factor": k,
+                })
                 l = sec["layers"][j - 1]
                 rows.append({"band": band["name"], "sector": f"{sec['from']:g}-{sec['to']:g}", "zone": sec.get("name", ""),
                              "layer": sheet.layers[j - 1], "grade": l["grade"], "thickness": l["thickness"],
@@ -179,10 +186,11 @@ def volumes(sheet):
                 by_grade[l["grade"]] = by_grade.get(l["grade"], 0.0) + vol
                 by_layer[sheet.layers[j - 1]] = by_layer.get(sheet.layers[j - 1], 0.0) + vol
     hs = sheet.design.get("heat_size")
+    cav_m3 = cavity * k
     return {"rows": rows, "by_grade": {g: round(v, 3) for g, v in by_grade.items()},
             "by_layer": {g: round(v, 3) for g, v in by_layer.items()},
-            "total_lining_m3": round(sum(by_layer.values()), 3), "inside_volume_m3": round(cavity * k, 3),
-            "specific_volume_m3_per_t": round(cavity * k / float(hs), 4) if hs else None}
+            "total_lining_m3": round(sum(by_layer.values()), 3), "inside_volume_m3": round(cav_m3, 3),
+            "specific_volume_m3_per_t": round(f.evaluate("specific_volume", {"cavity_m3": cav_m3, "heat_size": float(hs)}), 4) if hs else None}
 
 
 def _write_csv(path, header, rows):
@@ -231,8 +239,14 @@ def generate(payload: dict, out_dir: Path, url_prefix: str = "", progress=None) 
     step("Checking the input values", 2)
     out_dir.mkdir(parents=True, exist_ok=True)
     lib = load_library(payload.get("brick_library"))
-    st = {"course_height": 100, "mouth_course_height": 200, "joint": 0.5, "bottom_joint": 0, "min_cut": 40,
-          "cut_allowance": 0,
+    from refractory_core import get_core
+    f = get_core().formulas
+    st = {"course_height": f.evaluate("d_course_height", {}),
+          "mouth_course_height": f.evaluate("d_mouth_course_height", {}),
+          "joint": f.evaluate("d_joint", {}),
+          "bottom_joint": f.evaluate("d_bottom_joint", {}),
+          "min_cut": f.evaluate("d_min_cut", {}),
+          "cut_allowance": f.evaluate("d_cut_allowance", {}),
           **{k: v for k, v in (payload.get("settings") or {}).items() if v not in (None, "")}}
     for k in list(st):
         try:

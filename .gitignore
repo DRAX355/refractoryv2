@@ -55,3 +55,8 @@ ui/index_old.html
 failed_payload.json
 .pytest_cache/
 
+
+# Runtime state of refractory_core (audit log etc.) and private TRL mapping
+data/core/
+scratch/apitest/
+scratch/*.private.json

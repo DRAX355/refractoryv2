@@ -7,6 +7,7 @@
   <title>BOF Lining Copilot</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="fx.js"></script>
   <style>
     :root {
       --bg: #ffffff;
@@ -1310,7 +1311,8 @@
       color: var(--accent)
     }
 
-    .t-trl {
+    .t-nvx,
+    .t-supplier {
       background: var(--info-soft);
       color: var(--info)
     }
@@ -1619,18 +1621,67 @@
     <button class="tb" data-act="sessSave" title="Save the session to a file that is updated at every step">💾 Save session</button>
     <button class="tb" data-act="sessOpen" title="Open a saved session file and continue from its step">📂 Open session</button>
     <input type="file" id="sessin" accept=".json,application/json" hidden>
-    <button class="tb" data-act="fast" title="Demo only: confirm every step with the current values">✓✓ Demo: confirm all</button>
-    <button class="tb" data-act="apiConfig" title="Configure Backend API URL">⚙ API</button>
+
+
+
+
+
     <button class="tb"
       onclick="(function(){var r=document.documentElement;var d=r.getAttribute('data-theme');var dk=d?d==='dark':matchMedia('(prefers-color-scheme: dark)').matches;r.setAttribute('data-theme',dk?'light':'dark');})()"
       aria-label="Toggle theme">◐</button>
   </header>
   <aside class="side">
+
+
+
+
+
     <h5>Workflow</h5>
     <div id="steps"></div>
-    <h5>Tools</h5>
-    <button class="tool" data-act="audit">🕘 Audit log</button>
+    <h5>Session</h5>
+    <button class="tool" data-act="audit">🕘 Step log</button>
   </aside>
+  <style>
+    #ccfab-wrap { position: fixed; right: 18px; bottom: 18px; z-index: 9000; display: flex; flex-direction: column; align-items: flex-end; }
+    .ccfab-menu { display: flex; flex-direction: column; align-items: stretch; gap: 5px; margin-bottom: 8px; padding: 8px; background: var(--side, #101713); border: 1px solid #33443a; border-radius: 14px; box-shadow: 0 8px 28px rgba(0, 0, 0, .35); opacity: 0; visibility: hidden; transform: translateY(10px) scale(.96); transform-origin: bottom right; pointer-events: none; transition: opacity .18s ease, transform .18s ease, visibility .18s; min-width: 185px; }
+    #ccfab-wrap::before { content: ""; position: absolute; left: 0; right: 0; bottom: 38px; height: 18px; }
+    #ccfab-wrap:hover .ccfab-menu, #ccfab-wrap:focus-within .ccfab-menu { opacity: 1; visibility: visible; transform: translateY(0) scale(1); pointer-events: auto; }
+    .ccfab-item { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border: 1px solid transparent; border-radius: 9px; background: transparent; color: var(--side-ink, #dfe8e2); font: inherit; font-size: 13px; font-weight: 600; text-align: left; cursor: pointer; white-space: nowrap; transition: background .15s, border-color .15s, color .15s; }
+    .ccfab-item:hover { background: #1e2a23; border-color: #4b7bec; color: #fff; }
+    .ccfab-item.primary-item { background: rgba(47, 95, 208, .22); border-color: rgba(75, 123, 236, .5); color: #fff; }
+    .ccfab-item.primary-item:hover { background: #2f5fd0; border-color: #4b7bec; }
+    #ccfab { padding: 10px 18px; border: 0; border-radius: 24px; background: #2f5fd0; color: #fff; font: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; box-shadow: 0 4px 14px rgba(0, 0, 0, .3); display: inline-flex; align-items: center; gap: 6px; transition: background .15s, box-shadow .15s; }
+    #ccfab-wrap:hover #ccfab { background: #244eb0; box-shadow: 0 6px 20px rgba(47, 95, 208, .45); }
+  </style>
+  <div id="ccfab-wrap">
+    <div class="ccfab-menu" role="menu" aria-label="Formulas and Control Center options">
+      <button type="button" class="ccfab-item primary-item" onclick="openControlCenter('Formulas')" title="View and edit all 113 calculation formulas">ƒx Formulas (113)</button>
+      <button type="button" class="ccfab-item" onclick="openControlCenter('Properties')" title="Locked chemical properties and grades">🔒 Properties</button>
+      <button type="button" class="ccfab-item" onclick="openControlCenter('Pre-populate')" title="Reuse recent / popular settings">⭐ Presets</button>
+      <button type="button" class="ccfab-item" onclick="openControlCenter('Audit log')" title="Tamper-evident SHA-256 change history">📜 Audit</button>
+    </div>
+    <button type="button" id="ccfab" onclick="openControlCenter('Formulas')" title="Formulas, Properties, Presets &amp; Audit">ƒx Formulas</button>
+  </div>
+  <div id="ccov" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.45)">
+    <div style="position:absolute;inset:3% 4%;background:#fff;border-radius:10px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 10px 40px rgba(0,0,0,.4)">
+      <button onclick="closeControlCenter()" style="align-self:flex-end;margin:6px 10px;border:0;background:none;font-size:20px;cursor:pointer" aria-label="Close">✕</button>
+      <iframe id="ccframe" style="flex:1;border:0;width:100%" title="Control Center"></iframe>
+    </div>
+  </div>
+  <script>
+    function openControlCenter(tab) {
+      var apiParam = typeof getApiBase === 'function' ? '?api=' + encodeURIComponent(getApiBase()) : '';
+      var f = document.getElementById('ccframe'), url = 'control_center.html' + apiParam + '#' + encodeURIComponent(tab);
+      if (f.getAttribute('src') && f.getAttribute('src').split('#')[0].indexOf('control_center.html') !== -1) {
+        f.contentWindow.location.hash = encodeURIComponent(tab);
+      } else {
+        f.src = url;
+      }
+      document.getElementById('ccov').style.display = 'block';
+    }
+    function closeControlCenter() { document.getElementById('ccov').style.display = 'none'; }
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeControlCenter(); });
+  </script>
   <main id="main">
     <div id="view"></div>
   </main>
@@ -1661,15 +1712,15 @@
     }
 
     /* ============ CONSTANTS ============ */
-    const GRADE_LIST = ['TRL HMR C2R', 'TRL HMR C3R', 'TRL HMR C4', 'TRL HMR C5R', 'TRL MC-4', 'Steel-clad (SCB)'];
-    const GCOL = { 'TRL HMR C2R': '#6cae3e', 'TRL HMR C3R': '#2f5fd0', 'TRL HMR C4': '#b8892c', 'TRL HMR C5R': '#f08c86', 'TRL MC-4': '#35b6e8', 'Steel-clad (SCB)': '#8a8f98' };
-    function gcol(g) { if (GCOL[g]) return GCOL[g]; let h = 0; for (const c of String(g)) h = (h * 31 + c.charCodeAt(0)) % 360; return `hsl(${h},55%,55%)`; }
+    const GRADE_LIST = ['GRADE-A', 'GRADE-B', 'GRADE-C', 'GRADE-D', 'GRADE-E', 'Steel-clad (SCB)'];
+    const GCOL = { 'GRADE-A': '#6cae3e', 'GRADE-B': '#2f5fd0', 'GRADE-C': '#b8892c', 'GRADE-D': '#f08c86', 'GRADE-E': '#35b6e8', 'Steel-clad (SCB)': '#8a8f98' };
+    function gcol(g) { const norm = String(g); if (GCOL[norm]) return GCOL[norm]; if (GCOL[g]) return GCOL[g]; let h = 0; for (const c of String(g)) h = (h * 31 + c.charCodeAt(0)) % 360; return `hsl(${h},55%,55%)`; }
     const ZTYPES = ['Bottom', 'Lower cone', 'Barrel', 'Top cone', 'Mouth'];
     const ZCOL = { 'Bottom': '#6cae3e', 'Lower cone': '#9bc46a', 'Barrel': '#2f5fd0', 'Top cone': '#b8892c', 'Mouth': '#8a8f98' };
 
     /* Extraction result from the customer shell drawing (sample: 180 t BOF shell).
        key, group, label, unit, as written on drawing, extracted value, confidence, how found, directly comparable */
-    const EXT_DEF = [
+    const SAMPLE_EXT_DEF = [   /* DEMO ONLY: loaded by the 'built-in sample' button, never used for real jobs */
       ['H', 'Overall', 'Overall vessel height (from bottom axis point 0)', 'mm', '10000', 10000, 0.97, 'Dimension text', 1],
       ['plate', 'Overall', 'Shell plate thickness', 'mm', '—', 70, 0.4, 'Not dimensioned; assumed, used to turn OD into ID', 0],
       ['dishR', 'Bottom dish', 'Bottom Dish Radius (working-lining hot face)', 'mm', 'R8350', 8350, 0.95, 'Arc radius annotation', 1],
@@ -1678,7 +1729,7 @@
       ['dishShellH', 'Bottom dish', 'Bottom dish shell height', 'mm', '529.8', 529.8, 0.97, 'Dimension text', 1],
       ['nStir', 'Bottom dish', 'Stirring Element Count', 'no.', '10 NOS. TUYERE', 10, 0.9, 'Note text', 1],
       ['pcd', 'Bottom dish', 'Stirring Element PCD', 'mm', '2280 P.C.D.', 2280, 0.92, 'Dimension text', 1],
-      ['botGrade', 'Bottom dish', 'Bottom Zone Grade (drawing)', '—', 'Legend: C2R', 'TRL HMR C2R', 0.8, 'Colour legend', 0],
+      ['botGrade', 'Bottom dish', 'Bottom Zone Grade (drawing)', '—', 'Legend: GRADE-A', 'GRADE-A', 0.8, 'Colour legend', 0],
       ['lcH0', 'Lower cone', 'Lower cone bottom elevation', 'mm', '—', 529.8, 0.95, 'Derived: top of bottom dish', 0],
       ['lcH1', 'Lower cone', 'Lower cone top elevation', 'mm', '1965.2 (height)', 2495.0, 0.95, 'Derived: 529.8 + 1965.2', 0],
       ['lcIDb', 'Lower cone', 'Lower cone shell inner diameter at bottom', 'mm', 'Ø5942 (OD)', 5802, 0.8, 'Derived: OD − 2 × plate', 0],
@@ -1688,7 +1739,7 @@
       ['barID', 'Barrel', 'Barrel Shell Inner Diameter', 'mm', 'Ø7570 (OD)', 7430, 0.85, 'Derived: OD − 2 × plate', 0],
       ['trunAng', 'Barrel', 'Trunnion Axis Angle (plan)', '°', '—', 90, 0.7, 'Trunnion centre line on GA', 0],
       ['tapAng', 'Barrel', 'Taphole Angle in Plan', '°', 'Taphole on right', 0, 0.85, 'Taphole position on GA', 0],
-      ['barGrade', 'Barrel', 'Barrel Zone Grades (drawing)', '—', 'Legend: C5R / C3R', 'C5R / C3R', 0.75, 'Colour legend', 0],
+      ['barGrade', 'Barrel', 'Barrel Zone Grades (drawing)', '—', 'Legend: GRADE-D / GRADE-B', 'GRADE-D / GRADE-B', 0.75, 'Colour legend', 0],
       ['topH0', 'Top cone', 'Top Cone Bottom Elevation', 'mm', '—', 7379.3, 0.95, 'Derived: top of barrel', 0],
       ['topH1', 'Top cone', 'Top Cone Top Elevation', 'mm', '2415.7 (height)', 9795.0, 0.95, 'Derived: 7379.3 + 2415.7', 0],
       ['topIDb', 'Top cone', 'Top Cone Shell ID at Bottom', 'mm', 'Ø7570 (OD)', 7430, 0.85, 'Derived: OD − 2 × plate', 0],
@@ -1697,7 +1748,7 @@
       ['tapIncl', 'Top cone', 'Taphole Inclination', '°', '10°', 10, 0.9, 'Angle annotation', 1],
       ['tapElev', 'Top cone', 'Taphole Centre Elevation', 'mm', '—', 8250, 0.55, 'Scaled from drawing', 0],
       ['tapDia', 'Top cone', 'Taphole Opening Diameter (shell)', 'mm', '—', 300, 0.5, 'Scaled from drawing', 0],
-      ['topGrade', 'Top cone', 'Top Cone Zone Grades (drawing)', '—', 'Legend: C4 / C3R', 'C4 / C3R', 0.75, 'Colour legend', 0],
+      ['topGrade', 'Top cone', 'Top Cone Zone Grades (drawing)', '—', 'Legend: GRADE-C / GRADE-B', 'GRADE-C / GRADE-B', 0.75, 'Colour legend', 0],
       ['ringH0', 'Mouth ring', 'Mouth Ring Bottom Elevation', 'mm', '—', 9795.0, 0.95, 'Derived: top of top cone', 0],
       ['ringH1', 'Mouth ring', 'Mouth Ring Top Elevation', 'mm', '10000', 10000, 0.97, 'Dimension text', 1],
       ['ringHt', 'Mouth ring', 'Mouth Ring Height', 'mm', '150', 205, 0.6, 'Derived: 10000 − 9795.0; does not match the note', 1],
@@ -1708,54 +1759,53 @@
       ['mouthGrade', 'Mouth ring', 'Mouth Zone Product (drawing)', '—', 'Steel-clad bricks', 'Steel-clad (SCB)', 0.85, 'Note text', 0],
     ];
     const EXT_GROUPS = ['Overall', 'Bottom dish', 'Lower cone', 'Barrel', 'Top cone', 'Mouth ring'];
-    const SUGGESTED_ZONES = [['Bottom', 'Bottom', 0, 529.8], ['Lower cone', 'Lower cone', 529.8, 2495.0], ['Barrel', 'Barrel', 2495.0, 7379.3], ['Top cone', 'Top cone', 7379.3, 9200], ['Mouth', 'Mouth', 9200, 10000]];
 
     /* ============ STATE ============ */
     const clone = o => JSON.parse(JSON.stringify(o));
     const pr = (A, B, L, aHot, aCold, bHot, bCold) => ({ A, B, L, aHot, aCold, bHot, bCold });
     const wz = (key, name, o) => Object.assign({ key, name, span: 0, centre: 0, h0: '', h1: '', grade: '', wear: 0.1, tOver: '', dens: 3.0, pairs: [] }, o);
-    const wallCommon = () => ({ perm: 'TRL MC-4', tPerm: 150, back: 0, permDens: 2.95, course: 100, joint: 0, expA: 2, expN: 4, expM: 3, expFrom: 1, expTo: 999, minCut: 40, resid: 150, balTol: 15 });
+    const wallCommon = () => ({ perm: 'GRADE-E', tPerm: 150, back: 0, permDens: 2.95, course: 100, joint: 0, expA: 2, expN: 4, expM: 3, expFrom: 1, expTo: 999, minCut: 40, resid: 150, balTol: 15 });
     function defaults() {
-      const ext = {}; EXT_DEF.forEach(([k, g, l, u, d, v, c, how, cmp]) => ext[k] = { grp: g, label: l, unit: u, drawing: d, value: v, conf: c, how, cmp: !!cmp });
+      const ext = {}; SAMPLE_EXT_DEF.forEach(([k, g, l, u, d, v, c, how, cmp]) => ext[k] = { grp: g, label: l, unit: u, drawing: '', value: '', conf: 0, how: 'Awaiting extraction', cmp: !!cmp });
       return {
         step: 0, gates: {}, log: [], extOk: {}, annAll: false, sel: null, splitOpen: false, split: { mode: 'Equal segments', n: 2, els: '', hts: '' }, ext, zones: [], chargeSide: 'Left', draft: { type: 'Bottom', name: 'Bottom', height: '' },
         job: {
-          ref: 'Refractory/BOF/2026/018', customer: '', plant: '', vessel: 'BOF converter', heat: 180, heatMax: 190, drawing: '', rho: 6.85,
-          life: 6000, splash: 'Yes', gunning: 0.8, maxTs: 420, minSV: 0.90, tapT: 1660, tapToTap: 40, slagVol: 7, minFB: 6000, maxW: 650, cusPerm: 'No', cusPermGrade: 'TRL MC-4', cusPermT: 150
+          ref: 'LC/BOF/2026/018', customer: '', plant: 'SMS-2', vessel: 'BOF converter', heat: 180, heatMax: 195, drawing: '', rho: 6.85,
+          life: 6000, splash: 'Yes', gunning: 0.8, maxTs: 420, minSV: 0.90, tapT: 1660, tapToTap: 40, slagVol: 7, minFB: 6000, maxW: 650, cusPerm: 'No', cusPermGrade: 'GRADE-E', cusPermT: 150
         },
         permX: 3, noz: { sel: 0, minWall: 100, minGap: 200, list: [{ id: 'n1', name: 'Taphole', type: 'Taphole', linked: true, purpose: 'Steel tapping' }] },
-        permSrc: { bottom: 'TRL input', lc: 'TRL input', barrel: 'TRL input', cone: 'TRL input' }, permReuse: 'No', permBrick: { w: 150, h: 100, cut: 3 }, permLim: { min: 100, max: 300 },
+        permSrc: { bottom: 'Supplier input', lc: 'Supplier input', barrel: 'Supplier input', cone: 'Supplier input' }, permReuse: 'No', permBrick: { w: 150, h: 100, cut: 3 }, permLim: { min: 100, max: 300 },
         concept: { kW: 8, kP: 3, hOut: 25, tAmb: 40, balTol: 15 }, junc: {},
-        asm: { thBlockKg: 520, thSleeves: 6, thSleeveKg: 180, thRamT: 0.45, stirProd: 'M1811S2', stirKg: 42, surrProd: 'TRL HCH111B', surrPer: 4, surrKg: 6.5, castProd: 'Castable (stirring base)', castKg: 120, custom: [] },
+        asm: { thBlockKg: 520, thSleeves: 6, thSleeveKg: 180, thRamT: 0.45, stirProd: 'GRADE-L', stirKg: 42, surrProd: 'GRADE-K', surrPer: 4, surrKg: 6.5, castProd: 'Castable (stirring base)', castKg: 120, custom: [] },
         bottom: {
-          grade: 'TRL HMR C2R', mand: '', keyR: 160, ringW: 155, tanW: 119, minCut: 40, cutsPerEl: 2, tol: 5, growMin: 6, growMax: 10, depthTol: 2, brickL: 900, wear: 0.125, lengths: '700,800,900,1000', resid: 150, tOver: '', permGrade: 'TRL MC-4', permT: 150, permBack: 0, permDens: 2.95, dens: 3.02, elDia: 250, exact: 'No',
+          grade: 'GRADE-A', mand: '', keyR: 160, ringW: 155, tanW: 119, minCut: 40, cutsPerEl: 2, tol: 5, growMin: 6, growMax: 10, depthTol: 2, brickL: 900, wear: 0.125, lengths: '700,800,900,1000', resid: 150, tOver: '', permGrade: 'GRADE-E', permT: 150, permBack: 0, permDens: 2.95, dens: 3.02, elDia: 250, exact: 'No',
           bands: [['SH-01', 1, 3], ['SH-02', 4, 7], ['SH-03', 8, 8], ['SH-04', 9, 11], ['SH-05', 12, 99]].map(([mark, from, to]) => ({ mark, from, to, aHot: '', aCold: '', bHot: '', bCold: '' }))
         },
         lc: Object.assign(wallCommon(), {
           orient: 'Horizontal (angled brick ends)', endRule: 'Cut to cone angle', taper: 'Constant', steps: '', lengths: '800,900,1000', pairRule: 'Least cut waste',
-          zones: { main: wz('main', 'Lower cone', { span: 360, grade: 'TRL HMR C2R', wear: 0.14, dens: 3.02, pairs: [pr('TSC-8A', 'TSC-8B', 1000, 140, 160, 110, 190), pr('TSC-7A', 'TSC-7B', 900, 140, 160, 120, 180)] }) }
+          zones: { main: wz('main', 'Lower cone', { span: 360, grade: 'GRADE-A', wear: 0.14, dens: 3.02, pairs: [] }) }
         }),
         barrel: Object.assign(wallCommon(), {
           lengths: '700,750,800,850,900,1000', boundary: 'Nearest brick joint', kW: 8, kP: 3, hOut: 25, tAmb: 40, permW: 150, permDens: 2.95,
           sepTrun: 'No', scrap: 18, scrapType: 'Heavy scrap, chute charging',
           zones: {
-            charge: wz('charge', 'Charge pad', { span: 90, centre: 180, grade: 'TRL HMR C5R', wear: 0.125, dens: 3.05, pairs: [pr('BAR-900A', 'BAR-900B', 900, 145, 160, 120, 185)] }),
-            trunL: wz('trunL', 'Trunnion 1', { span: 40, centre: 90, grade: 'TRL HMR C3R', wear: 0.12, dens: 3.0, pairs: [pr('BAR-900A', 'BAR-900B', 900, 145, 160, 120, 185)] }),
-            trunR: wz('trunR', 'Trunnion 2', { span: 40, centre: 270, grade: 'TRL HMR C3R', wear: 0.12, dens: 3.0, pairs: [pr('BAR-900A', 'BAR-900B', 900, 145, 160, 120, 185)] }),
-            tap: wz('tap', 'Trunnion + tap pad', { span: 270, centre: 0, grade: 'TRL HMR C3R', wear: 0.115, dens: 3.0, pairs: [pr('BAR-850A', 'BAR-850B', 850, 145, 160, 125, 180)] }),
+            charge: wz('charge', 'Charge pad', { span: 90, centre: 180, grade: 'GRADE-D', wear: 0.125, dens: 3.05, pairs: [] }),
+            trunL: wz('trunL', 'Trunnion 1', { span: 40, centre: 90, grade: 'GRADE-B', wear: 0.12, dens: 3.0, pairs: [] }),
+            trunR: wz('trunR', 'Trunnion 2', { span: 40, centre: 270, grade: 'GRADE-B', wear: 0.12, dens: 3.0, pairs: [] }),
+            tap: wz('tap', 'Trunnion + tap pad', { span: 270, centre: 0, grade: 'GRADE-B', wear: 0.115, dens: 3.0, pairs: [] }),
           }
         }),
         cone: Object.assign(wallCommon(), {
           orient: 'Horizontal (angled brick ends)', endRule: 'Cut to cone angle', taper: 'Constant', steps: '', lengths: '650,700,750,800', pairRule: 'Least cut waste',
           deskull: 'Mechanical', lance: '',
           zones: {
-            tapSide: wz('tapSide', 'Tap-side area', { span: 60, centre: 0, grade: 'TRL HMR C3R', wear: 0.1, dens: 3.0, pairs: [pr('TPZ-1', 'TPZ-2', 750, 140, 160, 110, 190)] }),
-            rest: wz('rest', 'Rest area', { span: 300, centre: 180, grade: 'TRL HMR C4', wear: 0.09, dens: 2.98, pairs: [pr('TPZ-3', 'TPZ-4', 700, 140, 160, 110, 190)] }),
+            tapSide: wz('tapSide', 'Tap-side area', { span: 60, centre: 0, grade: 'GRADE-B', wear: 0.1, dens: 3.0, pairs: [] }),
+            rest: wz('rest', 'Rest area', { span: 300, centre: 180, grade: 'GRADE-C', wear: 0.09, dens: 2.98, pairs: [] }),
           },
-          th: { block: 'M1611TB', sleeve: 'HU28CTS2', ram: 'TRL RAM M-95', size: 600, bore: 160, exch: 'From outside', fill: 1.1, ramDens: 2.8, tapDur: 6 }
+          th: { block: 'GRADE-H', sleeve: 'GRADE-I', ram: 'GRADE-J', size: 600, bore: 160, exch: 'From outside', fill: 1.1, ramDens: 2.8, tapDur: 6 }
         }),
         mouth: {
-          transCount: 2, transA: 'TM-1', transB: 'TM-2', transL: 600, tAH: 140, tAC: 160, tBH: 110, tBC: 190, transGrade: 'TRL HMR C3R', transDens: 3.0,
+          transCount: 2, transA: 'TM-1', transB: 'TM-2', transL: 600, tAH: 140, tAC: 160, tBH: 110, tBC: 190, transGrade: 'GRADE-B', transDens: 3.0,
           type: 'Steel-clad brick', count: 2, mA: 'SCB-1A', mB: 'SCB-1B', mL: 550, mAH: 140, mAC: 160, mBH: 110, mBC: 190, grade: 'Steel-clad (SCB)', mDens: 2.95,
           course: 200, joint: 0, jointType: 'Steel separator plates', fill: 'Castable (mouth)', minFill: 50, topUp: 'Castable top-up', minCutH: 50, minOpen: 3500, minCut: 40,
           expA: 2, expN: 4, fillFactor: 1.1, fillDens: 2.6, maxStep: 150,
@@ -1784,7 +1834,8 @@
     const CHK = (id, name, st, msg, extra = {}) => Object.assign({ id, name, st, msg }, extra);
 
     /* ============ GEOMETRY ============ */
-    function dishShellR() { const r = XN('lcIDb') / 2, d = XN('dishShellH'); return (r * r + d * d) / (2 * d); }
+    const fxCalc = (id, vars, fb) => (typeof FX !== 'undefined' && FX.registry && FX.registry[id]) ? FX.calc(id, vars, fb) : fb();
+    function dishShellR() { const r = XN('lcIDb') / 2, d = XN('dishShellH'); return fxCalc('ext_dish_sphere_radius', { chord_r: r, dish_h: d }, () => (r * r + d * d) / (2 * d)); }
     function rIn(h) { // inner radius of the steel shell at elevation h (measured from bottom axis point 0)
       const lerp = (a, b, t) => a + (b - a) * Math.max(0, Math.min(1, t));
       const lcH0 = XN('lcH0'), lcH1 = XN('lcH1'), barH1 = XN('barH1'), topH0 = XN('topH0'), topH1 = XN('topH1');
@@ -1831,10 +1882,12 @@
 
     /* ============ RING CLOSURE ============ */
     function closeArc(p, hotArc, coldArc, minCut) {
-      const a1 = +p.aHot, a2 = +p.aCold, b1 = +p.bHot, b2 = +p.bCold; const det = a1 * b2 - b1 * a2;
+      const a1 = +p.aHot, a2 = +p.aCold, b1 = +p.bHot, b2 = +p.bCold;
+      const v = { inner_len: hotArc, outer_len: coldArc, a_hot: a1, a_cold: a2, b_hot: b1, b_cold: b2, joint: 0 };
+      const det = fxCalc('ring_det', v, () => a1 * b2 - b1 * a2);
       if (!det || !(a1 > 0 && a2 > 0 && b1 > 0 && b2 > 0)) return { ok: false, reason: 'Pair dimensions missing' };
       if (!(hotArc > 0 && coldArc > hotArc)) return { ok: false, reason: 'Invalid radius or thickness' };
-      const nA = (hotArc * b2 - b1 * coldArc) / det, nB = (a1 * coldArc - hotArc * a2) / det;
+      const nA = fxCalc('ring_n_a', v, () => (hotArc * b2 - b1 * coldArc) / det), nB = fxCalc('ring_n_b', v, () => (a1 * coldArc - hotArc * a2) / det);
       if (nA < -0.5 || nB < -0.5) {
         const ratio = (nA > 0 && nB <= 0) ? 1.0 : (nB > 0 && nA <= 0) ? 0.0 : 0.5;
         const avgW = ratio * a2 + (1 - ratio) * b2;
@@ -1861,24 +1914,24 @@
     /* ============ BOTTOM ENGINE ============ */
     function bottomDesign() {
       const P = S.bottom, R = XN('dishR'), flat = !(R > 0), Re = XN('botDia') / 2, w = +P.ringW, b = +P.tanW, kr = +P.keyR;
-      const depth = flat ? 0 : R - Math.sqrt(R * R - Re * Re);
-      const arc = flat ? Re : R * Math.asin(Re / R);
-      const area = flat ? Math.PI * Re * Re : 2 * Math.PI * R * depth;
-      const nR = Math.max(1, Math.round((arc - kr) / w));
-      const plan = s => flat ? s : R * Math.sin(s / R);
+      const depth = flat ? 0 : fxCalc('ui_bottom_dish_depth', { dish_r: R, edge_r: Re }, () => R - Math.sqrt(R * R - Re * Re));
+      const arc = flat ? Re : fxCalc('ui_bottom_arc_length', { dish_r: R, edge_r: Re }, () => R * Math.asin(Re / R));
+      const area = flat ? Math.PI * Re * Re : fxCalc('ui_bottom_hot_area', { dish_r: R, depth }, () => 2 * Math.PI * R * depth);
+      const nR = fxCalc('ui_bottom_ring_count', { arc_len: arc, key_r: kr, ring_w: w }, () => Math.max(1, Math.round((arc - kr) / w)));
+      const plan = s => flat ? s : fxCalc('ui_bottom_plan_radius', { dish_r: R, arc_s: s }, () => R * Math.sin(s / R));
       const elR = XN('pcd') / 2, nEl = XN('nStir') || 0, elD = +P.elDia || 0;
       const grade = (P.mand || '').trim() || P.grade;
       const rings = []; let prev = null;
       for (let i = 1; i <= nR; i++) {
-        const s = kr + (i - 0.5) * w, r = plan(s), rin = plan(s - w / 2), rout = plan(s + w / 2);
+        const s = fxCalc('ui_bottom_ring_arc_pos', { key_r: kr, ring_i: i, ring_w: w }, () => kr + (i - 0.5) * w), r = plan(s), rin = plan(s - w / 2), rout = plan(s + w / 2);
         const band = P.bands.find(bd => i >= +bd.from && i <= +bd.to) || P.bands[P.bands.length - 1];
-        let bricks = Math.round(2 * Math.PI * r / b), exact = null, marks = {};
+        let bricks = fxCalc('ui_bottom_ring_bricks_approx', { ring_r: r, tan_w: b }, () => Math.round(2 * Math.PI * r / b)), exact = null, marks = {};
         if (P.exact === 'Yes' && band && +band.aHot > 0) {
           exact = closeArc(band, 2 * Math.PI * rin, 2 * Math.PI * rout, +P.minCut);
           if (exact.ok) { bricks = exact.nA + exact.nB + exact.cut; }
         }
         const crossed = nEl > 0 && Math.abs(r - elR) < elD / 2 + w / 2;
-        const cuts = crossed ? nEl * (+P.cutsPerEl) : 0;
+        const cuts = crossed ? fxCalc('ui_bottom_elem_cuts', { n_elem: nEl, cuts_per_elem: +P.cutsPerEl }, () => nEl * (+P.cutsPerEl)) : 0;
         const adj = bricks - cuts;
         const mk = band ? band.mark : 'SH-?';
         if (exact && exact.ok) { const sA = exact.nA, sB = exact.nB + exact.cut; const tot = sA + sB || 1; marks[mk + 'A'] = Math.round(sA * adj / tot); marks[mk + 'B'] = adj - marks[mk + 'A']; }
@@ -1889,9 +1942,9 @@
       }
       const boq = {}; const add = (m, q) => boq[m] = (boq[m] || 0) + q; add('KEY', 1); rings.forEach(rg => Object.entries(rg.marks).forEach(([m, q]) => add(m, q)));
       const total = Object.values(boq).reduce((a, c) => a + c, 0);
-      const vol = (+P.ringW) * (+P.tanW) * bottomThick().t; // mm3 per brick (approx.)
-      const items = Object.entries(boq).map(([mark, qty]) => ({ zone: 'Bottom', mark, grade, qty, tonnes: qty * vol * (+P.dens) / 1e9 }));
-      const expGrow = 2 * Math.PI * w / b, est = area / (w * b);
+      const vol = fxCalc('ui_bottom_brick_vol_approx', { ring_w: +P.ringW, tan_w: +P.tanW, thickness: bottomThick().t }, () => (+P.ringW) * (+P.tanW) * bottomThick().t); // mm3 per brick (approx.)
+      const items = Object.entries(boq).map(([mark, qty]) => ({ zone: 'Bottom', mark, grade, qty, tonnes: fxCalc('ui_perm_tonnes', { vol_mm3: qty * vol, density: +P.dens }, () => qty * vol * (+P.dens) / 1e9) }));
+      const expGrow = fxCalc('ui_bottom_expected_growth', { ring_w: w, tan_w: b }, () => 2 * Math.PI * w / b), est = area / (w * b);
       const dd = X('dishDepth');
       const checks = [
         CHK('V1', 'Extraction consistency', isFinite(N(dd)) ? (Math.abs(depth - N(dd)) <= +P.depthTol ? 'ok' : 'warn') : 'na', `Calculated dish depth ${f(depth, 1)} mm vs drawing ${f(N(dd), 1)} mm (tolerance ±${P.depthTol}).`),
@@ -1900,7 +1953,7 @@
         CHK('V4', 'Ring fit', Math.abs(nR * w + kr - arc) <= w / 2 ? 'ok' : 'warn', `${nR} rings × ${w} + ${kr} = ${f(nR * w + kr)} mm vs arc length ${f(arc)} mm; leftover ${f(arc - nR * w - kr)} mm goes to the last ring / junction.`),
         CHK('V5', 'Closure', P.exact === 'Yes' ? (rings.every(r => !r.exact || (r.exact.ok && r.exact.cutOk)) ? 'ok' : 'err') : 'na', P.exact === 'Yes' ? 'Exact closure with the band pairs.' : 'Approximate count used (exact closure off).'),
         CHK('V6', 'Mark availability', 'na', 'No shape catalogue in Phase 1. Production to confirm marks and moulds.'),
-        CHK('V7', 'Grade consistency', String(X('botGrade')).includes(grade.replace('TRL HMR ', '')) ? 'ok' : 'warn', `Selected ${grade}; drawing shows ${X('botGrade')}.`),
+        CHK('V7', 'Grade consistency', String(X('botGrade')).includes(grade.replace(/^(GRADE)\s+HMR\s+/, '')) ? 'ok' : 'warn', `Selected ${grade}; drawing shows ${X('botGrade')}.`),
         CHK('V8', 'Golden test', 'na', 'No reference library in Phase 1.'),
       ];
       return { flat, depth, arc, area, nR, rings, boq, total, items, checks, grade, elR };
@@ -1929,21 +1982,24 @@
         const G = S.segz[z.id]; if (!G) return; const Z = G.zones;
         if (z.type === 'Barrel') {
           Z.charge.centre = S.chargeSide === 'Left' ? 180 : 0; Z.trunL.centre = norm(trun); Z.trunR.centre = norm(trun + 180); Z.tap.centre = norm(Z.charge.centre + 180);
-          Z.tap.span = 360 - (+Z.charge.span) - (G.sepTrun === 'Yes' ? (+Z.trunL.span) + (+Z.trunR.span) : 0); Z.tap.name = G.sepTrun === 'Yes' ? 'Tap pad' : 'Trunnion + tap pad';
+          const trunTot = G.sepTrun === 'Yes' ? (+Z.trunL.span) + (+Z.trunR.span) : 0;
+          Z.tap.span = fxCalc('ui_barrel_tap_span', { charge_span: +Z.charge.span, trun_span_total: trunTot }, () => 360 - (+Z.charge.span) - trunTot); Z.tap.name = G.sepTrun === 'Yes' ? 'Tap pad' : 'Trunnion + tap pad';
         }
-        if (z.type === 'Top cone') { Z.tapSide.centre = norm(tapAng); Z.rest.centre = norm(tapAng + 180); Z.rest.span = 360 - (+Z.tapSide.span); }
+        if (z.type === 'Top cone') { Z.tapSide.centre = norm(tapAng); Z.rest.centre = norm(tapAng + 180); Z.rest.span = fxCalc('ui_cone_rest_span', { tap_side_span: +Z.tapSide.span }, () => 360 - (+Z.tapSide.span)); }
         if (z.type === 'Lower cone') Z.main.span = 360;
       });
     }
     function zoneThick(seg, z) {
-      const P = S[seg], Ls = lengthsOf(P.lengths), req = (+S.job.life) * (+z.wear) + (+P.resid);
+      const P = S[seg], Ls = lengthsOf(P.lengths), req = fxCalc('ui_req_thickness', { target_life: +S.job.life, wear_rate: +z.wear, residual: +P.resid }, () => (+S.job.life) * (+z.wear) + (+P.resid));
       const std = Ls.find(l => l >= req); const t = +z.tOver > 0 ? +z.tOver : std;
-      return { req, std, t, life: (t - (+P.resid)) / (+z.wear), over: +z.tOver > 0 };
+      const life = fxCalc('ui_expected_life', { thickness: t, residual: +P.resid, wear_rate: +z.wear }, () => (t - (+P.resid)) / (+z.wear));
+      return { req, std, t, life, over: +z.tOver > 0 };
     }
     function wallDesign(seg) {
       syncSpans();
       const P = S[seg], band = bandOf(SEGTYPE[seg]); if (!band) return null;
-      const ch = (+P.course) + (+P.joint); const nC = Math.floor((band.h1 - band.h0) / ch);
+      const ch = fxCalc('ui_mouth_course_pitch', { course: +P.course, joint: +P.joint }, () => (+P.course) + (+P.joint));
+      const nC = fxCalc('ui_wall_course_count', { h1: band.h1, h0: band.h0, course: +P.course, joint: +P.joint }, () => Math.floor((band.h1 - band.h0) / ch));
       const Ls = lengthsOf(P.lengths), bk = baseKey[seg], multi = segsOf(seg).length > 1;
       const segs = segsOf(seg).map(z => { const zs = wallZones(seg, z.id), th = {}; zs.forEach(q => th[q.key] = zoneThick(seg, q)); return { z, sid: z.id, zs, th, multi, courses: 0 }; });
       const segAt = e => segs.find(s => e >= s.z.h0 && e < s.z.h1) || segs[segs.length - 1];
@@ -1952,17 +2008,17 @@
       const NZ = nozzles(), nozRem = {}, nozC = {}; const TH = seg === 'cone' ? P.th : null; const tapElev = XN('tapElev'), tapIncl = XN('tapIncl');
       const rows = [], items = {}; let allClose = true, cutIssues = 0, noLen = new Set();
       for (let k = 1; k <= nC; k++) {
-        const elev = band.h0 + (k - 0.5) * ch, Rs = rIn(elev), phi = phiAt(elev), cphi = Math.cos(rad(Math.abs(phi)));
+        const elev = fxCalc('ui_wall_course_elev', { h0: band.h0, course_k: k, ch }, () => band.h0 + (k - 0.5) * ch), Rs = rIn(elev), phi = phiAt(elev), cphi = Math.cos(rad(Math.abs(phi)));
         const sg = segAt(elev), zs = sg.zs, th = sg.th; sg.courses++; const lbl = n => multi ? `${sg.z.name} · ${n}` : n;
-        const cold = Rs - ((+P.tPerm) + (+P.back)) / cphi;
+        const cold = fxCalc('ui_wall_cold_radius', { r_shell: Rs, t_perm: +P.tPerm, t_back: +P.back, cos_phi: cphi }, () => Rs - ((+P.tPerm) + (+P.back)) / cphi);
         const inRange = k >= +P.expFrom && k <= +P.expTo;
         const active = zs.filter(z => { const a = z.h0 === '' ? sg.z.h0 : +z.h0, b = z.h1 === '' ? sg.z.h1 : +z.h1; return elev >= a && elev <= b; });
         const spare = zs.filter(z => !active.includes(z)).reduce((a, z) => a + (+z.span), 0);
         const cells = active.map(z => {
           const span = (+z.span) + (z.key === bk ? spare : 0);
           let t = th[z.key].t; if (P.taper === 'Stepped') { const drops = stepList.filter(s => k >= s).length; const idx = Ls.indexOf(t); if (idx >= 0) t = Ls[Math.max(0, idx - drops)]; }
-          const hot = cold - t * (perp ? cphi : 1);
-          const hotArc = 2 * Math.PI * hot * span / 360, coldArc = 2 * Math.PI * cold * span / 360;
+          const hot = fxCalc('ui_wall_hot_radius', { r_cold: cold, thickness: t, proj_factor: perp ? cphi : 1 }, () => cold - t * (perp ? cphi : 1));
+          const hotArc = fxCalc('ui_wall_zone_arc', { radius: hot, span_deg: span }, () => 2 * Math.PI * hot * span / 360), coldArc = fxCalc('ui_wall_zone_arc', { radius: cold, span_deg: span }, () => 2 * Math.PI * cold * span / 360);
           let cands = z.pairs.filter(p => +p.L === t); if (!cands.length) { cands = z.pairs; noLen.add(lbl(z.name)); }
           const avgC = cands.length ? (+cands[0].aCold + +cands[0].bCold) / 2 : 150, avgH = cands.length ? (+cands[0].aHot + +cands[0].bHot) / 2 : 125;
           const gaps = inRange ? Math.floor(coldArc / avgC / (+P.expN)) * (+P.expA) : 0;
@@ -1970,9 +2026,9 @@
           cands.forEach(p => { const c = closeArc(p, hotArc, coldArc - gaps, +P.minCut); if (c.ok && (!best || c.waste < best.waste)) { best = c; bestP = p; } });
           if (!best) { allClose = false; } else if (!best.cutOk) cutIssues++;
           let removed = 0;
-          NZ.forEach(n => { if (!isFinite(n.elev) || !(n.size > 0)) return; if (Math.abs(elev - n.elev) >= (n.size / 2) / Math.cos(rad(n.incl || 0))) return; if (span < 359.99 && angDiff(n.ang, z.centre) > span / 2) return; const q = Math.ceil(n.size / avgH); removed += q; nozRem[n.i] = (nozRem[n.i] || 0) + q; nozC[n.i] = (nozC[n.i] || 0) + 1; });
+          NZ.forEach(n => { if (!isFinite(n.elev) || !(n.size > 0)) return; if (Math.abs(elev - n.elev) >= (n.size / 2) / Math.cos(rad(n.incl || 0))) return; if (span < 359.99 && angDiff(n.ang, z.centre) > span / 2) return; const q = fxCalc('ui_wall_nozzle_removed', { nozzle_size: n.size, avg_hot_w: avgH }, () => Math.ceil(n.size / avgH)); removed += q; nozRem[n.i] = (nozRem[n.i] || 0) + q; nozC[n.i] = (nozC[n.i] || 0) + 1; });
           if (best) {
-            const add = (m, q, L, hF, cF) => { const key = lbl(z.name) + '|' + m + '|' + z.grade; if (!items[key]) items[key] = { zone: lbl(z.name), mark: m, grade: z.grade, qty: 0, vol: L * (+P.course) * (hF + cF) / 2, dens: +z.dens }; items[key].qty += q; };
+            const add = (m, q, L, hF, cF) => { const key = lbl(z.name) + '|' + m + '|' + z.grade; if (!items[key]) items[key] = { zone: lbl(z.name), mark: m, grade: z.grade, qty: 0, vol: fxCalc('ui_wall_brick_vol', { length: L, course: +P.course, hot_w: hF, cold_w: cF }, () => L * (+P.course) * (hF + cF) / 2), dens: +z.dens }; items[key].qty += q; };
             let nB = best.nB, nA = best.nA, rem = removed; const takeB = Math.min(nB, rem); nB -= takeB; rem -= takeB; nA -= Math.min(nA, rem);
             add(bestP.A, nA, +bestP.L, +bestP.aHot, +bestP.aCold); add(bestP.B, nB, +bestP.L, +bestP.bHot, +bestP.bCold);
             if (best.cut) add(bestP.B + '-cut', 1, +bestP.L, +bestP.bHot, +bestP.bCold);
@@ -1981,7 +2037,7 @@
         });
         rows.push({ k, elev, Rs, phi, cold, cells, sg, hExp: inRange && k % (+P.expM) === 0 });
       }
-      const boq = Object.values(items).filter(i => i.qty > 0).map(i => ({ ...i, tonnes: i.qty * i.vol * i.dens / 1e9 }));
+      const boq = Object.values(items).filter(i => i.qty > 0).map(i => ({ ...i, tonnes: fxCalc('ui_perm_tonnes', { vol_mm3: i.qty * i.vol, density: i.dens }, () => i.qty * i.vol * i.dens / 1e9) }));
       return { band, nC, ch, rows, segs, multi, boq, allClose, cutIssues, noLen: [...noLen], perp, nozRem, nozC };
     }
     function wallChecks(seg, D) {
@@ -2020,7 +2076,7 @@
       out.push(CHK('V-M', 'Mark availability', 'na', 'No shape catalogue in Phase 1. Production to confirm marks and moulds.'));
       if (seg === 'barrel') {
         const sv = conceptVessel(); out.push(CHK('V7', 'Inside volume (vessel)', sv.sv >= +S.job.minSV ? 'ok' : 'err', `Approx. inside volume ${f(sv.V, 1)} m³ → specific volume ${f(sv.sv, 3)} m³/t (minimum ${S.job.minSV}).`));
-        const g = String(X('barGrade')), zs = D.segs.flatMap(sg => sg.zs); out.push(CHK('V9', 'Grade consistency', zs.every(z => g.includes(z.grade.replace('TRL HMR ', ''))) ? 'ok' : 'warn', `Drawing shows ${g}; selected ${[...new Set(zs.map(z => z.grade))].join(' / ')}.`));
+        const g = String(X('barGrade')), zs = D.segs.flatMap(sg => sg.zs); out.push(CHK('V9', 'Grade consistency', zs.every(z => g.includes(z.grade.replace(/^(GRADE)\s+HMR\s+/, ''))) ? 'ok' : 'warn', `Drawing shows ${g}; selected ${[...new Set(zs.map(z => z.grade))].join(' / ')}.`));
       }
       if (seg === 'cone') {
         const top = D.rows[D.rows.length - 1]; const minHot = top ? Math.min(...top.cells.map(c => c.hot)) : NaN; const lim = Math.max(+S.mouth.minOpen, +S.mouth.reqOpen || 0);
@@ -2060,7 +2116,7 @@
           const add = (m, q, hF, cF) => { const key = m + '|' + grade; if (!items[key]) items[key] = { zone: 'Mouth', mark: m, grade, qty: 0, vol: L * h * (hF + cF) / 2, dens }; items[key].qty += q; };
           add(p.A, c.nA, +p.aHot, +p.aCold); add(p.B, c.nB, +p.bHot, +p.bCold); if (c.cut) add(p.B + '-cut', 1, +p.bHot, +p.bCold);
         }
-        fillVol += Math.PI * (steel * steel - cold * cold) * h; minFillAct = Math.min(minFillAct, steel - cold);
+        fillVol += fxCalc('ui_mouth_fill_slice_vol', { r_steel: steel, r_cold: cold, course_h: h }, () => Math.PI * (steel * steel - cold * cold) * h); minFillAct = Math.min(minFillAct, steel - cold);
         rows.push({ k, type: isCut ? 'Cut course' : trans ? 'Transition' : 'Mouth', elev, h, steel, cold, hot, L, p, c, grade, inRing: elev >= ringH0 });
       }
       const fillV = fillVol * (+P.fillFactor) / 1e9 + (topUp > 0 && !cutCourse && P.topUp !== 'Adjusted course height' ? Math.PI * ((XN('ringID') / 2) ** 2 - ((XN('ringID') / 2) - (+P.mL) - (+P.minFill)) ** 2) * topUp * (+P.fillFactor) / 1e9 : 0);
@@ -2077,7 +2133,7 @@
       let step = NaN; if (lastCone && lastCone.rows.length && M.rows.length) { const lr = lastCone.rows[lastCone.rows.length - 1]; const avgHot = lr.cells.reduce((a, c) => a + c.hot * c.span, 0) / 360; step = Math.abs(M.rows[0].hot - avgHot); }
       const lipOn = /lip/i.test(X('ringProf'));
       return [
-        CHK('V1', 'Opening size', M.opening >= lim ? 'ok' : 'err', `Mouth opening ${f(M.opening)} mm vs limit ${f(lim)} mm (larger of TRL minimum ${P.minOpen} and customer ${P.reqOpen || '—'}).`, mFix1(M, lim)),
+        CHK('V1', 'Opening size', M.opening >= lim ? 'ok' : 'err', `Mouth opening ${f(M.opening)} mm vs limit ${f(lim)} mm (larger of Supplier minimum ${P.minOpen} and customer ${P.reqOpen || '—'}).`, mFix1(M, lim)),
         CHK('V2', 'Charging clearance', !(+P.clearance > 0) ? 'na' : M.opening >= +P.clearance ? 'ok' : 'warn', `Opening ${f(M.opening)} mm vs clearance ${P.clearance || '—'} mm.`, M.opening < +P.clearance ? { hint: `The mouth opening with 550 mm bricks is ${f(M.opening)} mm. Set clearance to match this vessel or clear it if customer has not specified chute clearance.`, fixes: [{ label: `⚡ Set clearance to ${Math.floor(M.opening)} mm`, spec: `mouth.clearance=${Math.floor(M.opening)}` }, { label: `Clear clearance limit`, spec: `mouth.clearance=0` }] } : {}),
         CHK('V3', 'Filling thickness', M.minFillAct >= +P.minFill - 0.01 ? 'ok' : 'err', `Minimum filling ${f(M.minFillAct)} mm (required ≥ ${P.minFill} mm).`, { hint: 'Increase the clearance by using shorter mouth or transition bricks, or confirm the minimum filling thickness.' }),
         CHK('V4', 'Lip retention', !lipOn ? 'na' : (M.rows.length && M.rows[M.rows.length - 1].cold > XN('ringID') / 2 - XN('lip') ? 'ok' : 'warn'), lipOn ? 'Top mouth course cold face vs lip inner radius.' : 'Ring profile has no lip.'),
@@ -2165,7 +2221,7 @@ function nozInfo(n) {
   let work = L ? L.t : 0, zz = null;
   if (seg && S.segz && S.segz[zone.id]) { const zs = wallZones(seg, zone.id); zz = zs.find(q => +q.span < 359.99 && q.key !== baseKey[seg] && angDiff(n.ang, q.centre) <= q.span / 2) || zs.find(q => q.key === baseKey[seg]) || zs[0]; work = zoneThick(seg, zz).t; }
   const perm = L ? L.perm : 0, back = L ? L.back : 0, tn = perm + back + work;
-  const axis = Math.min(80, Math.abs(phi + n.incl)), len = tn / Math.cos(rad(axis)), halfH = (n.size / 2) / Math.cos(rad(n.incl));
+  const axis = Math.min(80, Math.abs(phi + n.incl)), len = fxCalc('ui_noz_length', { total_lining_t: tn, axis_angle_deg: axis }, () => tn / Math.cos(rad(axis))), halfH = fxCalc('ui_noz_half_height', { nozzle_size: n.size, incl_deg: n.incl }, () => (n.size / 2) / Math.cos(rad(n.incl)));
   let removed = 0, crossed = 0; ['lc', 'barrel', 'cone'].forEach(s => { const D = wallDesignCached(s); if (D && D.nozRem) { removed += D.nozRem[n.i] || 0; crossed += D.nozC[n.i] || 0; } });
   const halfDeg = deg((n.size / 2) / Math.max(1, Rs - perm - back - work / 2));
   return { zone, seg, zz, phi, Rs, perm, back, work, tn, axis, len, halfH, removed, crossed, halfDeg, grade: zz ? zz.grade : '' };
@@ -2175,7 +2231,7 @@ function nozChecks() {
   L.forEach(n => { const I = nozInfo(n), pre = n.name + ' · ', okZ = !!(I.zone && TYPESEG[I.zone.type]);
     out.push(CHK('N1', pre + 'Location', okZ ? 'ok' : 'err', I.zone ? `EL ${fv(n.elev)} is in ${I.zone.name}${okZ ? '' : '; nozzles are designed only in the lower cone, barrel or top cone'}.` : `EL ${fv(n.elev)} is outside the zoned vessel.`, okZ ? {} : { hint: 'Check the nozzle elevation against the drawing, or move the zone boundaries in Zone creation.' }));
     const e2 = !(n.bore < n.dia), w2 = n.size < n.bore + 2 * mw;
-    out.push(CHK('N2', pre + 'Bore, shell opening and block', e2 ? 'err' : w2 ? 'warn' : 'ok', `Bore Ø${fv(n.bore)} · shell opening Ø${fv(n.dia)} · block ${fv(n.size)} mm (wall around bore ${fv((n.size - n.bore) / 2)} mm, TRL minimum ${mw}).`,
+    out.push(CHK('N2', pre + 'Bore, shell opening and block', e2 ? 'err' : w2 ? 'warn' : 'ok', `Bore Ø${fv(n.bore)} · shell opening Ø${fv(n.dia)} · block ${fv(n.size)} mm (wall around bore ${fv((n.size - n.bore) / 2)} mm, Supplier minimum ${mw}).`,
       e2 ? { hint: 'The shell opening must be larger than the bore so the sleeve can pass through the shell.', fixes: [{ label: `Set shell opening to Ø${n.bore + 100}`, spec: `${nP(n.i, 'dia')}=${n.bore + 100}` }] } : w2 ? { fixes: [{ label: `Set block to ${n.bore + 2 * mw} mm`, spec: `${nP(n.i, 'size')}=${n.bore + 2 * mw}` }] } : {}));
     const near = bnd.filter(([, e]) => Math.abs(n.elev - e) < I.halfH);
     out.push(CHK('N3', pre + 'Clear of section boundaries', near.length ? 'warn' : 'ok', `Block spans EL ${fv(Math.round(n.elev - I.halfH))}–${fv(Math.round(n.elev + I.halfH))}${near.length ? ` and crosses the ${near.map(b => `${b[0]} (EL ${fv(b[1])})`).join(', ')}` : '; no section boundary inside'}.`, near.length ? { hint: 'Move the nozzle, or the zone boundary, so the block sits inside one section; otherwise plan special cut bricks at that joint.' } : {}));
@@ -2190,7 +2246,7 @@ function nozChecks() {
 function nozRules(n, I) { return [
   ['NR1', 'Zone and segment', 'Zone = the zone whose elevation band contains the nozzle centre; angular zone = the zone whose span contains the plan angle', `EL ${fv(n.elev)} → ${I.zone ? I.zone.name : '—'}${I.zz ? ' · ' + I.zz.name : ''}`],
   ['NR2', 'Lining at the nozzle', 'Lining = Permanent + Backfill + Working thickness (from Permanent lining and Lining concept steps)', `${fv(I.perm)} + ${fv(I.back)} + ${fv(I.work)} = ${fv(I.tn)} mm`],
-  ['NR3', 'Axis angle to wall normal', 'Axis angle = |wall angle φ + inclination| (inclination: outer end lower; assumption, to confirm with TRL)', `|${f(I.phi, 1)} + ${fv(n.incl)}| = ${f(I.axis, 1)}°`],
+  ['NR3', 'Axis angle to wall normal', 'Axis angle = |wall angle φ + inclination| (inclination: outer end lower; assumption, to confirm with Supplier)', `|${f(I.phi, 1)} + ${fv(n.incl)}| = ${f(I.axis, 1)}°`],
   ['NR4', 'Nozzle length through lining', 'Length = Lining ÷ cos(axis angle)', `${fv(I.tn)} ÷ cos ${f(I.axis, 1)}° = ${fv(Math.round(I.len))} mm`],
   ['NR5', 'Height band of block', 'Half-band = (Block ÷ 2) ÷ cos(inclination); courses whose mid-elevation is inside the band are crossed', `${fv(n.size)} ÷ 2 ÷ cos ${fv(n.incl)}° = ${fv(Math.round(I.halfH))} mm → ${I.crossed} course(s)`],
   ['NR6', 'Plan half-width', 'Half-width = (Block ÷ 2) ÷ r_mid of working lining, in degrees', `${f(I.halfDeg, 1)}°`],
@@ -2238,7 +2294,7 @@ function nozDetailSVG(sel) {
   const ti = rad(n.incl), dr = -Math.cos(ti), dh = Math.sin(ti), nr = Math.sin(ti), nh = Math.cos(ti);
   const pt = (t, o) => [I.Rs + t * dr + o * nr, he + t * dh + o * nh], sp = p => `${X(p[0])},${Y(p[1])}`;
   const rect = (t0, t1, w) => `M${sp(pt(t0, w / 2))} L${sp(pt(t1, w / 2))} L${sp(pt(t1, -w / 2))} L${sp(pt(t0, -w / 2))}Z`;
-  const t0 = -(pl + 400), t1 = I.len + 400, wc = gcol(I.grade || 'TRL HMR C3R'), P = [];
+  const t0 = -(pl + 400), t1 = I.len + 400, wc = gcol(I.grade || 'GRADE-B'), P = [];
   P.push(`<defs><clipPath id="nzw"><path d="${poly(fBack, fHot)}"/></clipPath><clipPath id="nzp"><path d="${poly(fPlate, fShell)}"/></clipPath><clipPath id="nza"><path d="${poly(fPlate, fHot)}"/></clipPath></defs>`);
   P.push(`<rect x="0" y="0" width="${W}" height="${Hh}" fill="var(--bg)"/>`);
   P.push(`<path d="${poly(fPlate, fShell)}" fill="${PCOL.plate}"/><path d="${poly(fShell, fPerm)}" fill="${PCOL.perm}"/>${I.back > 0 ? `<path d="${poly(fPerm, fBack)}" fill="${PCOL.back}"/>` : ''}<path d="${poly(fBack, fHot)}" fill="${wc}" opacity=".8"/>`);
@@ -2271,7 +2327,7 @@ function vNoz() {
   <p class="small">Click a row to edit it. The taphole is linked to the drawing extraction and to the Top cone taphole inputs: a change here changes them too.</p></div>
   ${fgroup(`Nozzle: ${esc(n.name)}`, 'T', [[nm + 'name', 'Nozzle name', '', 'w', 'T', 1, ''], [nm + 'type', 'Nozzle type', '', lk ? 'ro' : 'sel', 'T', 1, lk ? 'Taphole (fixed)' : '', NOZ_TYPES]])}
   ${fgroup('A. From the drawing (confirm or edit)', 'D', [[nP(i, 'elev'), 'Nozzle Centre Elevation', 'mm', 'n', 'D', 1, 'From point 0 (bottom centre axis), at the shell inner surface'], [nP(i, 'ang'), 'Plan Angle', '°', 'n', 'D', 1, '0° = right of GA, counter-clockwise'], [nP(i, 'incl'), 'Inclination', '°', 'n', 'D', 1, 'Outer end lower (positive)'], [nP(i, 'dia'), 'Shell Opening Diameter', 'mm', 'n', 'D', 1, 'Hole cut in the steel shell']], lk ? 'Values come from the drawing extraction (step 2).' : 'Read these from the customer drawing.')}
-  ${fgroup('B. TRL inputs', 'T', [[nP(i, 'block'), 'Nozzle Block Product', '', 'w', 'T', 1, ''], [nP(i, 'size'), 'Block Outer Size', 'mm', 'n', 'T', 1, 'Square block through the working lining'], [nP(i, 'bore'), 'Bore Diameter', 'mm', 'n', 'T', 1, ''], [nP(i, 'sleeve'), 'Sleeve Product', '', 'w', 'T', 1, ''], [nP(i, 'blockKg'), 'Block set weight', 'kg', 'n', 'T', 1, ''], [nP(i, 'sleeveKg'), 'Sleeve weight', 'kg', 'n', 'T', 1, ''], ['noz.minWall', 'Minimum block wall around bore', 'mm', 'n', 'T', 1, 'All nozzles (check N2)'], ['noz.minGap', 'Minimum gap between nozzle blocks', 'mm', 'n', 'T', 1, 'All nozzles (check N6)']])}
+  ${fgroup('B. Supplier inputs', 'T', [[nP(i, 'block'), 'Nozzle Block Product', '', 'w', 'T', 1, ''], [nP(i, 'size'), 'Block Outer Size', 'mm', 'n', 'T', 1, 'Square block through the working lining'], [nP(i, 'bore'), 'Bore Diameter', 'mm', 'n', 'T', 1, ''], [nP(i, 'sleeve'), 'Sleeve Product', '', 'w', 'T', 1, ''], [nP(i, 'blockKg'), 'Block set weight', 'kg', 'n', 'T', 1, ''], [nP(i, 'sleeveKg'), 'Sleeve weight', 'kg', 'n', 'T', 1, ''], ['noz.minWall', 'Minimum block wall around bore', 'mm', 'n', 'T', 1, 'All nozzles (check N2)'], ['noz.minGap', 'Minimum gap between nozzle blocks', 'mm', 'n', 'T', 1, 'All nozzles (check N6)']])}
   ${fgroup('C. Customer', 'C', [[nP(i, 'sleeves'), 'Sleeves per campaign', 'no.', 'n', 'C', 1, ''], [nP(i, 'exch'), 'Sleeve Exchange Method', '', 'sel', 'C', 0, '', ['From outside', 'From inside']], [nm + 'purpose', 'Purpose / remarks', '', 'w', 'C', 0, '']])}
   <div class="card"><h3>Result for ${esc(n.name)}</h3>${kpis([[I.zone ? esc(I.zone.name) : '—', I.zz ? esc(I.zz.name) + ' · ' + esc(I.grade) : 'zone'], [fv(I.tn) + ' mm', 'lining at nozzle (NR2)'], [fv(Math.round(I.len)) + ' mm', 'nozzle length (NR4)'], [String(I.crossed), 'courses crossed'], [fv(I.removed), 'bricks removed']])}
   <h4>Validation (all nozzles)</h4>${checksHTML(cs)}</div>
@@ -2338,7 +2394,7 @@ LIVE.mouth = mouthPic;
 
 
 /* ============ SESSION FILE (save at every step, open to resume) ============ */
-const SESS_APP = 'TRL-BOF-Lining-Copilot', SESS_KEY = 'trlBofSession';
+const SESS_APP = 'Supplier-BOF-Lining-Copilot', SESS_KEY = 'novafraxBofSession';
 const SESS = { handle: null, dir: null, mode: 'none', name: '', at: '', base: '' };
 const canPickFile = () => typeof window !== 'undefined' && typeof window.showSaveFilePicker === 'function';
 const canPickDir = () => typeof window !== 'undefined' && typeof window.showDirectoryPicker === 'function';
@@ -2363,10 +2419,10 @@ function openSessModal() {
   </div></div>`;
   m.classList.add('on'); const i = document.getElementById('sessname'); if (i) { i.focus(); i.select(); }
 }
-let BOOT_LOCAL = null; try { BOOT_LOCAL = JSON.parse(localStorage.getItem(SESS_KEY) || 'null'); } catch (e) { BOOT_LOCAL = null; }
+let BOOT_LOCAL = null; try { BOOT_LOCAL = JSON.parse(localStorage.getItem(SESS_KEY) || localStorage.getItem('refractoryBofSession') || 'null'); } catch (e) { BOOT_LOCAL = null; }
 const refSlug = () => String(S.job.ref || 'job').replace(/\W+/g, '_');
-const sessFileName = () => `TRL_${refSlug()}_session.json`;
-const sessStepFileName = () => `${SESS.base || 'TRL_' + refSlug()}_step${String(S.step + 1).padStart(2, '0')}_${STEPS[S.step].t.replace(/\W+/g, '_')}.json`;
+const sessFileName = () => `LiningCopilot_${refSlug()}_session.json`;
+const sessStepFileName = () => `${SESS.base || 'LiningCopilot_' + refSlug()}_step${String(S.step + 1).padStart(2, '0')}_${STEPS[S.step].t.replace(/\W+/g, '_')}.json`;
 function sessPayload() { return JSON.stringify({ app: SESS_APP, version: 2, savedAt: new Date().toISOString(), step: S.step, stepName: STEPS[S.step].t, confirmedSteps: Object.keys(S.gates).map(Number).sort((a, b) => a - b).map(n => STEPS[n] ? STEPS[n].t : n), state: S, init: INIT }, null, 1); }
 function saveLocal() { try { localStorage.setItem(SESS_KEY, sessPayload()); } catch (e) { /* storage blocked */ } }
 async function autoSave() {
@@ -2406,8 +2462,11 @@ function sessionCard() {
 
     /* ============ MOUTH HEIGHT RULE ============ */
     function mouthPlan() {
-      const M = S.mouth, ch = (+M.course) + (+M.joint), n = (+M.transCount) + (+M.count), h = n * ch, H = XN('H');
-      return { n, ch, h, start: +(H - h).toFixed(1), H };
+      const M = S.mouth, vars = { trans_count: +M.transCount, mouth_count: +M.count, course: +M.course, joint: +M.joint, vessel_h: XN('H') };
+      const ch = fxCalc('ui_mouth_course_pitch', vars, () => (+M.course) + (+M.joint)), n = (+M.transCount) + (+M.count);
+      const h = fxCalc('ui_mouth_height', vars, () => n * ch), H = XN('H');
+      const start = +fxCalc('ui_mouth_start_elev', vars, () => H - h).toFixed(1);
+      return { n, ch, h, start, H };
     }
     function syncMouth() {
       const zs = S.zones; if (!zs.length) return; const last = zs[zs.length - 1]; if (last.type !== 'Mouth') return;
@@ -2417,7 +2476,7 @@ function sessionCard() {
     function mouthRuleCard() {
       const mp = mouthPlan(), M = 'mouth.';
       return `<div class="card" style="border-color:#8a8f98"><h3>Mouth zone height ${tagS('K')}</h3>
-  <p class="small">Rule: <b>Mouth height = (Transition courses + Steel-clad courses) × (Mouth course height + joint)</b>. The mouth runs from that height below the vessel top up to the top of the mouth ring; the zone below it ends where the mouth starts. The inputs below are TRL values (sample defaults until TRL confirms); they are also used on the Mouth step.</p>
+  <p class="small">Rule: <b>Mouth height = (Transition courses + Steel-clad courses) × (Mouth course height + joint)</b>. The mouth runs from that height below the vessel top up to the top of the mouth ring; the zone below it ends where the mouth starts. The inputs below are Supplier values (sample defaults until Supplier confirms); they are also used on the Mouth step.</p>
   <table class="tbl ftbl">${[[M + 'transCount', 'Transition Course Count', 'no.', 'n', 'T', 1, 'TM-type courses below the steel-clad courses'], [M + 'count', 'Steel-clad (SCB) Course Count', 'no.', 'n', 'T', 1, ''], [M + 'course', 'Mouth Course Height', 'mm', 'n', 'T', 1, 'SCB bricks are 200 high on the reference drawing'], [M + 'joint', 'Joint thickness', 'mm', 'n', 'T', 1, '']].map(frow).join('')}</table>
   <div class="note ok">(${f(S.mouth.transCount)} + ${f(S.mouth.count)}) × (${f(S.mouth.course)} + ${f(S.mouth.joint)}) = <b>${f(mp.h)} mm</b> → mouth from EL ${fv(mp.start)} to EL ${fv(mp.H)}. Extracted mouth ring: EL ${fv(XN('ringH0'))}–${fv(XN('ringH1'))} (${fv(XN('ringHt'))} mm), so the mouth bricks also line the top ${fv(+(XN('ringH0') - mp.start).toFixed(1))} mm of the top cone.</div></div>`;
     }
@@ -2436,9 +2495,9 @@ function sessionCard() {
       const rows = [], items = []; const B = S.permBrick;
       PSEC.forEach(([sec, name, type]) => {
         const band = bandOf(type); if (!band) return; const P = S[sec], F = PF(sec), t = +P[F.t], dens = +P[F.d]; let area = 0, vol = 0;
-        if (sec === 'bottom') { const R = XN('lcIDb') / 2; area = Math.PI * R * R; vol = area * t; }
-        else { const dh = 10; for (let h = band.h0 + dh / 2; h < band.h1; h += dh) { const Rs = rIn(h), c = Math.cos(rad(Math.abs(phiAt(h)))), rp = Rs - t / c; area += 2 * Math.PI * (Rs - t / 2 / c) * dh / c; vol += Math.PI * (Rs * Rs - rp * rp) * dh; } }
-        const bricks = Math.ceil(area / ((+B.w) * (+B.h)) * (1 + (+B.cut) / 100)); const tonnes = vol * dens / 1e9;
+        if (sec === 'bottom') { const R = XN('lcIDb') / 2; area = fxCalc('ui_perm_bottom_area', { r_bot: R }, () => Math.PI * R * R); vol = fxCalc('ui_perm_bottom_vol', { area, thickness: t }, () => area * t); }
+        else { const dh = 10; for (let h = band.h0 + dh / 2; h < band.h1; h += dh) { const Rs = rIn(h), c = Math.cos(rad(Math.abs(phiAt(h)))), rp = Rs - t / c; area += fxCalc('ui_perm_wall_slice_area', { r_shell: Rs, thickness: t, cos_phi: c, dh }, () => 2 * Math.PI * (Rs - t / 2 / c) * dh / c); vol += fxCalc('ui_perm_wall_slice_vol', { r_shell: Rs, thickness: t, cos_phi: c, dh }, () => Math.PI * (Rs * Rs - rp * rp) * dh); } }
+        const bricks = fxCalc('ui_perm_bricks', { area, brick_w: +B.w, brick_h: +B.h, cut_pct: +B.cut }, () => Math.ceil(area / ((+B.w) * (+B.h)) * (1 + (+B.cut) / 100))); const tonnes = fxCalc('ui_perm_tonnes', { vol_mm3: vol, density: dens }, () => vol * dens / 1e9);
         rows.push({ sec, name, src: S.permSrc[sec], grade: P[F.g], t, back: +P[F.b], area, vol, bricks, tonnes, dens });
         if (S.permReuse !== 'Yes') items.push({ zone: 'Permanent · ' + name, mark: `PL-${B.w}×${B.h}×${t}`, grade: P[F.g], qty: bricks, tonnes });
       });
@@ -2447,32 +2506,32 @@ function sessionCard() {
     function permChecks(D) {
       const out = [];
       D.rows.forEach(r => {
-        if (r.src === 'Drawing') out.push(CHK('P1', `Source · ${r.name}`, 'err', 'The customer drawing is a naked shell: no permanent lining was extracted. Choose Customer spec or TRL input.', { fixes: [{ label: `Use TRL input for ${r.name}`, spec: `permSrc.${r.sec}=TRL input` }] }));
-        else if (r.src === 'Customer spec' && S.job.cusPerm !== 'Yes') out.push(CHK('P1', `Source · ${r.name}`, 'err', 'Customer spec selected, but the job card says the customer did not specify a permanent lining.', { hint: 'Either set "Customer specifies the permanent lining?" to Yes and enter the grade and thickness, or use TRL input.', fixes: [{ label: `Use TRL input for ${r.name}`, spec: `permSrc.${r.sec}=TRL input` }] }));
+        if (r.src === 'Drawing') out.push(CHK('P1', `Source · ${r.name}`, 'err', 'The customer drawing is a naked shell: no permanent lining was extracted. Choose Customer spec or Supplier input.', { fixes: [{ label: `Use Supplier input for ${r.name}`, spec: `permSrc.${r.sec}=Supplier input` }] }));
+        else if (r.src === 'Customer spec' && S.job.cusPerm !== 'Yes') out.push(CHK('P1', `Source · ${r.name}`, 'err', 'Customer spec selected, but the job card says the customer did not specify a permanent lining.', { hint: 'Either set "Customer specifies the permanent lining?" to Yes and enter the grade and thickness, or use Supplier input.', fixes: [{ label: `Use Supplier input for ${r.name}`, spec: `permSrc.${r.sec}=Supplier input` }] }));
         else out.push(CHK('P1', `Source · ${r.name}`, 'ok', `${r.src}: ${r.grade}, ${f(r.t)} mm.`));
-        out.push(CHK('P2', `Thickness range · ${r.name}`, r.t >= +S.permLim.min && r.t <= +S.permLim.max ? 'ok' : 'warn', `${f(r.t)} mm vs TRL range ${S.permLim.min}–${S.permLim.max} mm.`, { fixes: [{ label: `Set ${r.name} to ${Math.min(Math.max(r.t, +S.permLim.min), +S.permLim.max)} mm`, spec: `${r.sec}.${PF(r.sec).t}=${Math.min(Math.max(r.t, +S.permLim.min), +S.permLim.max)}` }] }));
+        out.push(CHK('P2', `Thickness range · ${r.name}`, r.t >= +S.permLim.min && r.t <= +S.permLim.max ? 'ok' : 'warn', `${f(r.t)} mm vs Supplier range ${S.permLim.min}–${S.permLim.max} mm.`, { fixes: [{ label: `Set ${r.name} to ${Math.min(Math.max(r.t, +S.permLim.min), +S.permLim.max)} mm`, spec: `${r.sec}.${PF(r.sec).t}=${Math.min(Math.max(r.t, +S.permLim.min), +S.permLim.max)}` }] }));
       });
       if (S.job.cusPerm === 'Yes') { const bad = D.rows.filter(r => r.grade !== S.job.cusPermGrade || r.t !== +S.job.cusPermT); out.push(CHK('P3', 'Matches customer specification', bad.length ? 'warn' : 'ok', bad.length ? `Differs from customer spec (${S.job.cusPermGrade}, ${S.job.cusPermT} mm) in: ${bad.map(r => r.name).join(', ')}.` : 'All sections follow the customer specification.')); }
       out.push(CHK('P4', 'Reuse of existing permanent lining', S.permReuse === 'Yes' ? 'warn' : 'na', S.permReuse === 'Yes' ? 'Permanent lining is reused (reline): it is left out of the BOM. Site inspection must confirm its condition.' : 'New permanent lining is included in the BOM.'));
       return out;
     }
     function vPerm() {
-      const D = permDesign(), cs = permChecks(D); const srcOpts = ['TRL input', 'Customer spec', 'Drawing'];
+      const D = permDesign(), cs = permChecks(D); const srcOpts = ['Supplier input', 'Customer spec', 'Drawing'];
       const secCard = ([sec, name, type]) => {
         if (!bandOf(type)) return ''; const F = PF(sec), p = sec + '.', ro = S.permSrc[sec] === 'Customer spec' && S.job.cusPerm === 'Yes';
         const ty = ro ? 'ro' : null;
         return `<div class="card"><h3>${name} <span class="small">EL ${fv(bandOf(type).h0)}–${fv(bandOf(type).h1)}</span></h3><table class="tbl ftbl">
-    ${frow([`permSrc.${sec}`, 'Source of permanent lining data', '', 'sel', 'T', 1, 'Drawing / customer specification / TRL input', srcOpts])}
+    ${frow([`permSrc.${sec}`, 'Source of permanent lining data', '', 'sel', 'T', 1, 'Drawing / customer specification / Supplier input', srcOpts])}
     ${frow([p + F.g, 'Permanent Lining Grade', '', ty || 'grade', ro ? 'C' : 'T', 1, ''])}${frow([p + F.t, 'Permanent Lining Thickness', 'mm', ty || 'n', ro ? 'C' : 'T', 1, sec === 'bottom' ? 'Measured vertically under the working bottom' : 'Measured normal to the shell'])}
     ${frow([p + F.b, 'Backfill / Gap Thickness', 'mm', 'n', 'T', 0, 'Rammed fill between permanent and working lining (0 if none)'])}${frow([p + F.d, 'Permanent lining bulk density', 't/m³', 'n', 'T', 1, 'For weight and tonnage'])}</table>
     ${S.permSrc[sec] === 'Drawing' ? '<div class="note bad">⚠ No permanent lining on the customer drawing (naked shell). Choose another source.</div>' : ''}</div>`;
       };
       const tot = D.rows.reduce((a, r) => a + r.tonnes, 0);
-      return `${guide('The permanent (safety) lining is laid first, against the steel shell, and often stays for several campaigns. Decide it before the working lining, because the working lining starts at its hot face. For each section choose where the data comes from: the drawing (only if shown), the customer specification, or a TRL input.')}
+      return `${guide('The permanent (safety) lining is laid first, against the steel shell, and often stays for several campaigns. Decide it before the working lining, because the working lining starts at its hot face. For each section choose where the data comes from: the drawing (only if shown), the customer specification, or a Supplier input.')}
   <div class="grid-side"><div>
   <div class="grid2"><div>
    ${fgroup('Customer specification (from job card)', 'C', [['job.cusPerm', 'Customer specifies the permanent lining?', '', 'ro', 'C', 1, ''], ['job.cusPermGrade', 'Specified grade', '', 'ro', 'C', 0, 'Used where the source is Customer spec'], ['job.cusPermT', 'Specified thickness', 'mm', 'ro', 'C', 0, '']])}
-   ${fgroup('Common TRL inputs', 'T', [['permReuse', 'Reuse existing permanent lining (reline)?', '', 'yn', 'T', 1, 'If Yes, it is not included in the BOM'], ['permBrick.w', 'Permanent brick width', 'mm', 'n', 'T', 1, ''], ['permBrick.h', 'Permanent brick height', 'mm', 'n', 'T', 1, ''], ['permBrick.cut', 'Cutting allowance', '%', 'n', 'T', 1, ''], ['permLim.min', 'Permanent thickness – TRL minimum', 'mm', 'n', 'T', 1, 'For check P2'], ['permLim.max', 'Permanent thickness – TRL maximum', 'mm', 'n', 'T', 1, '']])}
+   ${fgroup('Common Supplier inputs', 'T', [['permReuse', 'Reuse existing permanent lining (reline)?', '', 'yn', 'T', 1, 'If Yes, it is not included in the BOM'], ['permBrick.w', 'Permanent brick width', 'mm', 'n', 'T', 1, ''], ['permBrick.h', 'Permanent brick height', 'mm', 'n', 'T', 1, ''], ['permBrick.cut', 'Cutting allowance', '%', 'n', 'T', 1, ''], ['permLim.min', 'Permanent thickness – Supplier minimum', 'mm', 'n', 'T', 1, 'For check P2'], ['permLim.max', 'Permanent thickness – Supplier maximum', 'mm', 'n', 'T', 1, '']])}
   </div><div>${PSEC.map(secCard).join('')}</div></div>
   <div class="card"><h3>Result</h3>${kpis([[f(tot, 1) + ' t', 'permanent lining'], [f(D.rows.reduce((a, r) => a + r.bricks, 0)), 'bricks (approx.)'], [S.permReuse === 'Yes' ? 'Reused' : 'New', 'BOM treatment']])}
   <div class="tw"><table class="tbl"><tr><th>Section</th><th>Source</th><th>Grade</th><th>Thickness</th><th>Backfill</th><th>Area (m²)</th><th>Volume (m³)</th><th>Bricks</th><th>Tonnes</th></tr>${D.rows.map(r => `<tr><td>${r.name}</td><td>${esc(r.src)}</td><td><span class="sw" style="background:${gcol(r.grade)}"></span> ${esc(r.grade)}</td><td>${f(r.t)}</td><td>${f(r.back)}</td><td>${f(r.area / 1e6, 1)}</td><td>${f(r.vol / 1e9, 2)}</td><td>${f(r.bricks)}</td><td>${f(r.tonnes, 1)}</td></tr>`).join('')}</table></div>
@@ -2483,7 +2542,12 @@ function sessionCard() {
     }
 
     /* ============ LINING CONCEPT (thickness first, vessel checks) ============ */
-    function bottomThick() { const B = S.bottom, Ls = lengthsOf(B.lengths), req = (+S.job.life) * (+B.wear) + (+B.resid), std = Ls.find(l => l >= req); const t = +B.tOver > 0 ? +B.tOver : std; return { req, std, t, life: (t - (+B.resid)) / (+B.wear), over: +B.tOver > 0 }; }
+    function bottomThick() {
+      const B = S.bottom, Ls = lengthsOf(B.lengths), req = fxCalc('ui_req_thickness', { target_life: +S.job.life, wear_rate: +B.wear, residual: +B.resid }, () => (+S.job.life) * (+B.wear) + (+B.resid)), std = Ls.find(l => l >= req);
+      const t = +B.tOver > 0 ? +B.tOver : std;
+      const life = fxCalc('ui_expected_life', { thickness: t, residual: +B.resid, wear_rate: +B.wear }, () => (t - (+B.resid)) / (+B.wear));
+      return { req, std, t, life, over: +B.tOver > 0 };
+    }
     function layerAt(h) {
       const z = S.zones.find(q => h >= q.h0 && h < q.h1) || S.zones[S.zones.length - 1]; if (!z) return null;
       if (z.type === 'Mouth') return { type: 'Mouth', t: +S.mouth.mL, perm: 0, back: +S.mouth.minFill, dens: +S.mouth.mDens, permDens: 0, backDens: +S.mouth.fillDens };
@@ -2496,16 +2560,25 @@ function sessionCard() {
       const H = XN('H'), dh = 10, bt = bottomThick(), tb = (+S.bottom.permT) + (+S.bottom.permBack) + bt.t; let V = 0, W = 0; const cum = [], prof = [];
       for (let h = dh / 2; h < H; h += dh) {
         const L = layerAt(h); if (!L) continue; const Rs = rIn(h), c = Math.cos(rad(Math.abs(phiAt(h))));
-        const rWall = Rs - (L.perm + L.back + L.t) / c; const rDish = h > tb ? rIn(h - tb) : 0; const rHot = Math.max(0, Math.min(rWall, rDish));
+        const rWall = fxCalc('ui_hot_radius_wall', { r_shell: Rs, t_perm: L.perm, t_back: L.back, t_work: L.t, cos_phi: c }, () => Rs - (L.perm + L.back + L.t) / c);
+        const rDish = h > tb ? rIn(h - tb) : 0; const rHot = Math.max(0, Math.min(rWall, rDish));
         V += Math.PI * rHot * rHot * dh; cum.push([h, V]); prof.push([h, rHot, Rs]);
         if (L.type !== 'Bottom') { const r1 = Rs - L.perm / c, r2 = r1 - L.back / c, r3 = Math.max(0, r2 - L.t / c); W += Math.PI * dh * ((Rs * Rs - r1 * r1) * L.permDens + (r1 * r1 - r2 * r2) * L.backDens + (r2 * r2 - r3 * r3) * L.dens); }
       }
       const Rb = XN('lcIDb') / 2, Ab = Math.PI * Rb * Rb; W += Ab * ((+S.bottom.permT) * (+S.bottom.permDens) + bt.t * (+S.bottom.dens));
-      const Vm = (+S.job.heat) / (+S.job.rho) * 1e9, Vs = (+S.job.slagVol) * 1e9; const lvl = v => { const p = cum.find(x => x[1] >= v); return p ? p[0] : NaN; };
+      const Vm = fxCalc('ui_metal_volume', { heat_tons: +S.job.heat, steel_density: +S.job.rho }, () => (+S.job.heat) / (+S.job.rho) * 1e9), Vs = (+S.job.slagVol) * 1e9;
+      const lvl = v => { const p = cum.find(x => x[1] >= v); return p ? p[0] : NaN; };
       const hb = lvl(Vm), hs = lvl(Vm + Vs);
-      return CACHE.concept = { V: V / 1e9, sv: V / 1e9 / (+S.job.heat), W: W / 1e9, hb, hs, fb: H - hb, fbSlag: H - hs, prof, tb, H, Vm: Vm / 1e9 };
+      const cavM3 = V / 1e9, sv = fxCalc('specific_volume', { cavity_m3: cavM3, heat_size: +S.job.heat }, () => cavM3 / (+S.job.heat));
+      const fb = fxCalc('ui_freeboard', { vessel_h: H, bath_level: hb }, () => H - hb);
+      return CACHE.concept = { V: cavM3, sv, W: W / 1e9, hb, hs, fb, fbSlag: H - hs, prof, tb, H, Vm: Vm / 1e9 };
     }
-    function shellTemp(seg, t) { const C = S.concept, P = S[seg] || S.barrel; const R = (t / 1000) / (+C.kW) + (+P.tPerm / 1000) / (+C.kP) + 1 / (+C.hOut); const q = ((+S.job.tapT) - (+C.tAmb)) / R; return (+C.tAmb) + q / (+C.hOut); }
+    function shellTemp(seg, t) {
+      const C = S.concept, P = S[seg] || S.barrel;
+      return fxCalc('ui_shell_temperature', { t_hot: +S.job.tapT, t_amb: +C.tAmb, t_work: t, k_work: +C.kW, t_perm: +P.tPerm, k_perm: +C.kP, h_out: +C.hOut }, () => {
+        const R = (t / 1000) / (+C.kW) + (+P.tPerm / 1000) / (+C.kP) + 1 / (+C.hOut); const q = ((+S.job.tapT) - (+C.tAmb)) / R; return (+C.tAmb) + q / (+C.hOut);
+      });
+    }
     function conceptRows() {
       const rows = [], bt = bottomThick();
       rows.push({ sec: 'Bottom', seg: '—', zone: 'Bottom', grade: (S.bottom.mand || '').trim() || S.bottom.grade, wearP: 'bottom.wear', overP: 'bottom.tOver', th: bt, ts: NaN });
@@ -2553,9 +2626,9 @@ function sessionCard() {
   <div class="grid-side"><div>
   <div class="card"><h3>Working-lining thickness by zone</h3><div class="tw"><table class="tbl ftbl"><tr><th>Section</th><th>Segment</th><th>Zone</th><th>Grade</th><th>Wear rate (mm/heat) ${tagS('T')}</th><th>Required</th><th>Standard</th><th>Override ${tagS('T')}</th><th>Used (mm)</th><th>Life (heats)</th><th>Shell °C</th></tr>${tr}</table></div>
   <p class="small">Amber row = thinner than required · red row = shell temperature over the limit. Zone cards in the later steps show these values read-only.</p></div>
-  <div class="grid2"><div>${fgroup('Thickness rules (TRL)', 'T', [['bottom.lengths', 'Bottom standard brick lengths', 'mm', 'w', 'T', 1, 'Comma-separated'], ['bottom.resid', 'Bottom minimum residual thickness', 'mm', 'n', 'T', 1, ''], ['lc.lengths', 'Lower cone standard lengths', 'mm', 'w', 'T', 1, ''], ['lc.resid', 'Lower cone minimum residual', 'mm', 'n', 'T', 1, ''], ['barrel.lengths', 'Barrel standard lengths', 'mm', 'w', 'T', 1, ''], ['barrel.resid', 'Barrel minimum residual', 'mm', 'n', 'T', 1, ''], ['cone.lengths', 'Top cone standard lengths', 'mm', 'w', 'T', 1, ''], ['cone.resid', 'Top cone minimum residual', 'mm', 'n', 'T', 1, ''], ['concept.balTol', 'Balanced wear tolerance', '%', 'n', 'T', 1, '']])}
-  ${fgroup('Thermal inputs (TRL)', 'T', [['concept.kW', 'Working lining conductivity', 'W/m·K', 'n', 'T', 1, ''], ['concept.kP', 'Permanent lining conductivity', 'W/m·K', 'n', 'T', 1, ''], ['concept.hOut', 'Shell surface heat-transfer coefficient', 'W/m²·K', 'n', 'T', 1, ''], ['concept.tAmb', 'Ambient temperature', '°C', 'n', 'T', 1, '']])}</div>
-  <div>${fgroup('Customer limits & process data', 'C', [['job.life', 'Target Lining Life', 'heats', 'n', 'C', 1, ''], ['job.heat', 'Heat size', 't', 'n', 'C', 1, ''], ['job.slagVol', 'Slag volume at end of blow', 'm³', 'n', 'C', 1, 'Sets the slag level above the bath'], ['job.minSV', 'Minimum Specific Volume', 'm³/t', 'n', 'C', 1, ''], ['job.minFB', 'Minimum freeboard (bath to mouth top)', 'mm', 'n', 'C', 1, ''], ['job.maxTs', 'Maximum Shell Temperature', '°C', 'n', 'C', 1, ''], ['job.maxW', 'Maximum lining weight', 't', 'n', 'C', 1, 'Tilt drive / trunnion limit'], ['job.tapT', 'Tapping Temperature', '°C', 'n', 'C', 0, 'Used as hot-face temperature'], ['job.rho', 'Liquid steel density', 't/m³', 'n', 'T', 1, 'TRL convention']])}</div></div>
+  <div class="grid2"><div>${fgroup('Thickness rules (Supplier)', 'T', [['bottom.lengths', 'Bottom standard brick lengths', 'mm', 'w', 'T', 1, 'Comma-separated'], ['bottom.resid', 'Bottom minimum residual thickness', 'mm', 'n', 'T', 1, ''], ['lc.lengths', 'Lower cone standard lengths', 'mm', 'w', 'T', 1, ''], ['lc.resid', 'Lower cone minimum residual', 'mm', 'n', 'T', 1, ''], ['barrel.lengths', 'Barrel standard lengths', 'mm', 'w', 'T', 1, ''], ['barrel.resid', 'Barrel minimum residual', 'mm', 'n', 'T', 1, ''], ['cone.lengths', 'Top cone standard lengths', 'mm', 'w', 'T', 1, ''], ['cone.resid', 'Top cone minimum residual', 'mm', 'n', 'T', 1, ''], ['concept.balTol', 'Balanced wear tolerance', '%', 'n', 'T', 1, '']])}
+  ${fgroup('Thermal inputs (Supplier)', 'T', [['concept.kW', 'Working lining conductivity', 'W/m·K', 'n', 'T', 1, ''], ['concept.kP', 'Permanent lining conductivity', 'W/m·K', 'n', 'T', 1, ''], ['concept.hOut', 'Shell surface heat-transfer coefficient', 'W/m²·K', 'n', 'T', 1, ''], ['concept.tAmb', 'Ambient temperature', '°C', 'n', 'T', 1, '']])}</div>
+  <div>${fgroup('Customer limits & process data', 'C', [['job.life', 'Target Lining Life', 'heats', 'n', 'C', 1, ''], ['job.heat', 'Heat size', 't', 'n', 'C', 1, ''], ['job.slagVol', 'Slag volume at end of blow', 'm³', 'n', 'C', 1, 'Sets the slag level above the bath'], ['job.minSV', 'Minimum Specific Volume', 'm³/t', 'n', 'C', 1, ''], ['job.minFB', 'Minimum freeboard (bath to mouth top)', 'mm', 'n', 'C', 1, ''], ['job.maxTs', 'Maximum Shell Temperature', '°C', 'n', 'C', 1, ''], ['job.maxW', 'Maximum lining weight', 't', 'n', 'C', 1, 'Tilt drive / trunnion limit'], ['job.tapT', 'Tapping Temperature', '°C', 'n', 'C', 0, 'Used as hot-face temperature'], ['job.rho', 'Liquid steel density', 't/m³', 'n', 'T', 1, 'Supplier convention']])}</div></div>
   </div><div class="card annp"><h3>Vessel checks</h3>
    <table class="tbl"><tr><td>Inside volume</td><td><b>${f(C.V, 1)} m³</b></td></tr><tr><td>Specific volume</td><td>${lim(f(C.sv, 3) + ' m³/t', '≥ ' + S.job.minSV, C.sv >= +S.job.minSV)}</td></tr><tr><td>Bath level</td><td>EL ${f(C.hb)} mm</td></tr><tr><td>Freeboard</td><td>${lim(f(C.fb) + ' mm', '≥ ' + f(S.job.minFB), C.fb >= +S.job.minFB)}</td></tr><tr><td>Max shell temperature</td><td>${(() => { const m = Math.max(...rows.filter(r => isFinite(r.ts)).map(r => r.ts)); return lim(f(m) + ' °C', '≤ ' + S.job.maxTs, m <= +S.job.maxTs); })()}</td></tr><tr><td>Lining weight</td><td>${lim(f(C.W, 1) + ' t', '≤ ' + f(S.job.maxW), C.W <= +S.job.maxW)}</td></tr></table>
    ${conceptSVG()}</div></div>
@@ -2579,11 +2652,13 @@ function sessionCard() {
         const pb = phiAt(h - 40), pa = phiAt(h + 40), dAng = Math.abs(pb - pa);
         const lb = layerAt(h - 5), la = layerAt(h + 5), tStep = la && lb ? Math.abs(la.t - lb.t) : 0;
         const gAbove = (() => { const sg = TYPESEG[n.type]; if (sg && S.segz[n.id]) return wallZones(sg, n.id).map(q => q.grade).join(' / '); return n.type === 'Mouth' ? S.mouth.transGrade : ''; })();
-        if (!S.junc[id]) S.junc[id] = { method: JMETH[kind][0], mark: kind === 'bottom' ? 'KN-1' : kind === 'angle' ? (n.type === 'Barrel' ? 'LC-1/2' : 'TR-1/2') : 'TS-1', courses: 1, width: 150, grade: (gAbove.split(' / ')[0]) || 'TRL HMR C2R', vol: 8, dens: 3.0 };
+        if (!S.junc[id]) S.junc[id] = { method: JMETH[kind][0], mark: kind === 'bottom' ? 'KN-1' : kind === 'angle' ? (n.type === 'Barrel' ? 'LC-1/2' : 'TR-1/2') : 'TS-1', courses: 1, width: 150, grade: (gAbove.split(' / ')[0]) || 'GRADE-A', vol: 8, dens: 3.0 };
         const J = S.junc[id]; const needsPieces = !/no special|Grade change only|Handled by mouth|Cut standard|no special course/i.test(J.method);
-        const Rs = rIn(h), c = Math.cos(rad(Math.abs(pa))), L = la || lb || { perm: 0, back: 0, t: 0 }; const rMid = Rs - (L.perm + L.back + L.t / 2) / c;
-        const qty = needsPieces ? Math.ceil(2 * Math.PI * rMid / (+J.width)) * (+J.courses) : 0;
-        out.push({ id, z, n, h, kind, dAng, tStep, gAbove, J, needsPieces, qty, tonnes: qty * (+J.vol) * (+J.dens) / 1000 });
+        const Rs = rIn(h), c = Math.cos(rad(Math.abs(pa))), L = la || lb || { perm: 0, back: 0, t: 0 };
+        const rMid = fxCalc('ui_junc_rmid', { r_shell: Rs, t_perm: L.perm, t_back: L.back, t_work: L.t, cos_phi: c }, () => Rs - (L.perm + L.back + L.t / 2) / c);
+        const qty = needsPieces ? fxCalc('ui_junc_piece_qty', { r_mid: rMid, piece_width: +J.width, courses: +J.courses }, () => Math.ceil(2 * Math.PI * rMid / (+J.width)) * (+J.courses)) : 0;
+        const tonnes = fxCalc('ui_junc_tonnes', { qty, unit_vol_dm3: +J.vol, density: +J.dens }, () => qty * (+J.vol) * (+J.dens) / 1000);
+        out.push({ id, z, n, h, kind, dAng, tStep, gAbove, J, needsPieces, qty, tonnes });
       });
       return out;
     }
@@ -2647,7 +2722,7 @@ function sessionCard() {
       'V8': 'Shell temperature is driven by thickness: increase working thickness in the Lining concept step, or use a lower-conductivity permanent lining.',
       'V7': 'See the specific volume check on the Lining concept step.',
       'C6': 'Wear is unbalanced: the zone with the shortest life fails first. Increase its thickness or lower its wear rate (better grade).',
-      'P3': 'Set the source to Customer spec for each section to follow the customer\'s specification, or record why TRL deviates.',
+      'P3': 'Set the source to Customer spec for each section to follow the customer\'s specification, or record why Supplier deviates.',
       'P4': 'Confirm the condition of the existing permanent lining at site before reusing it.',
     };
     function cFix1(r) {
@@ -2657,7 +2732,10 @@ function sessionCard() {
     }
     function cFix4(r) {
       if (!(r.ts > +S.job.maxTs) || !r.segKey) return {};
-      const C = S.concept, P = S[r.segKey], Th = +S.job.tapT, Ta = +C.tAmb, lim = +S.job.maxTs; const Rn = (Th - Ta) / ((+C.hOut) * (lim - Ta)); const tw = (Rn - (+P.tPerm / 1000) / (+C.kP) - 1 / (+C.hOut)) * (+C.kW) * 1000;
+      const C = S.concept, P = S[r.segKey], Th = +S.job.tapT, Ta = +C.tAmb, lim = +S.job.maxTs;
+      const tw = fxCalc('ui_req_work_t_for_ts', { t_hot: Th, t_amb: Ta, t_shell_max: lim, t_perm: +P.tPerm, k_perm: +C.kP, k_work: +C.kW, h_out: +C.hOut }, () => {
+        const Rn = (Th - Ta) / ((+C.hOut) * (lim - Ta)); return (Rn - (+P.tPerm / 1000) / (+C.kP) - 1 / (+C.hOut)) * (+C.kW) * 1000;
+      });
       const Ls = lengthsOf(P.lengths), pick = Ls.find(l => l >= tw);
       return { hint: `To stay at or below ${f(lim)} °C this zone needs about ${f(tw)} mm working lining (1-D estimate) instead of ${f(r.th.t)} mm. Alternatively use a lower-conductivity permanent lining or confirm the limit with the customer.`, fixes: pick ? [{ label: `Override ${r.zone} to ${f(pick)} mm`, spec: `${r.overP}=${pick}` }] : [{ label: `Add ${Math.ceil(tw / 50) * 50} mm length and use it for ${r.zone}`, spec: `${r.segKey}.lengths=${Ls.concat(Math.ceil(tw / 50) * 50).join(',')};${r.overP}=${Math.ceil(tw / 50) * 50}` }] };
     }
@@ -2693,7 +2771,7 @@ function sessionCard() {
         ['R14', 'Cut Pieces per Crossed Ring', 'Cut Pieces_i = Element Count × Cut Pieces per Element per Ring', `${fm(XN('nStir'), 0)} × ${P.cutsPerEl} = ${(XN('nStir') || 0) * P.cutsPerEl} per crossed ring`],
         ['R15', 'Adjusted Bricks per Ring', 'Adjusted_i = Bricks_i − Cut Pieces_i (crossed rings)', cr.length ? `ring ${cr[0].i}: ${cr[0].bricks} − ${cr[0].cuts} = ${cr[0].adj}` : '—'],
         ['R16', 'Cut Piece Mark', 'Cut Mark_i = Mark_i + "S"', cr.length ? cr.map(r => r.mark + 'S').filter((v, i, a) => a.indexOf(v) === i).join(', ') : '—'],
-        ['R17', 'Bottom Grade', 'Grade = Mandated Bottom Grade if given, else TRL grade', `${P.mand ? 'Customer mandate' : 'TRL grade'} → ${B.grade}`],
+        ['R17', 'Bottom Grade', 'Grade = Mandated Bottom Grade if given, else Supplier grade', `${P.mand ? 'Customer mandate' : 'Supplier grade'} → ${B.grade}`],
         ['R18', 'Bottom BOQ', 'Quantity = Σ Adjusted Bricks + Σ Cut Pieces + 1 key brick', `${f(B.total)} bricks`],
         ['R19', 'Bottom Tonnage', 'Tonnes = Bricks × (Ring Width × Tangential Width × Working Thickness) × density ÷ 10⁹', `${f(B.total)} × (${w} × ${b} × ${fm(bt.t, 0)}) × ${P.dens} ÷ 10⁹ = ${fm(B.items.reduce((a, i) => a + i.tonnes, 0), 1)} t`],
       ];
@@ -2724,7 +2802,7 @@ function sessionCard() {
       );
       if (seg === 'cone') rows.push(['R15', 'Courses crossed by taphole', '|Elevation_k − Taphole Elevation| < (Block Size ÷ 2) ÷ cos(Inclination); Removed = ceil(Block Size ÷ avg hot-face width)', `${fm(P.th.size / 2 / Math.cos(rad(XN('tapIncl'))), 0)} mm half-band → courses ${crossed.map(r => r.k).join(', ') || 'none'}, ${crossed.reduce((a, r) => a + r.cells.reduce((s, c) => s + c.removed, 0), 0)} bricks removed`]);
       rows.push(
-        ['R16', 'Grade per zone', 'Grade = Customer mandate if given, else TRL grade (Angles & grades step)', D.segs.flatMap(s => s.zs.map(z => `${D.multi ? s.z.name + ' · ' : ''}${z.name}: ${z.grade}`)).join(' · ')],
+        ['R16', 'Grade per zone', 'Grade = Customer mandate if given, else Supplier grade (Angles & grades step)', D.segs.flatMap(s => s.zs.map(z => `${D.multi ? s.z.name + ' · ' : ''}${z.name}: ${z.grade}`)).join(' · ')],
         ['R17', 'Zone BOQ', 'Quantity = Σ courses (Count_A + Count_B + cuts − removed)', `${f(D.boq.reduce((a, i) => a + i.qty, 0))} bricks`],
         ['R18', 'Brick tonnage', 'Tonnes = Σ Qty × (Length × Course Height × (Hot + Cold face) ÷ 2) × density ÷ 10⁹', `${fm(D.boq.reduce((a, i) => a + i.tonnes, 0), 1)} t`],
       );
@@ -2745,7 +2823,7 @@ function sessionCard() {
         ['R9', 'Brick Cold-Face Radius', 'Cold Radius = Steel Radius − Minimum Filling Thickness', `${fm(r0.steel)} − ${P.minFill} = ${fm(r0.cold)} mm`],
         ['R10', 'Brick Hot-Face Radius', 'Hot Radius = Cold Radius − Brick Length (transition or mouth)', `course 1: ${fm(r0.cold)} − ${r0.L} = ${fm(r0.hot)} mm`],
         ['R12', 'Bricks per Course (360°)', 'Count_A × HotFace_A + Count_B × HotFace_B = 2π × Hot Radius; same with cold faces = 2π × Cold Radius − gaps', r0.c.ok ? `course 1 (${r0.p.A}/${r0.p.B}): ${r0.c.nA} A + ${r0.c.nB} B${r0.c.cut ? ' + 1 cut' : ''}` : 'Does not close'],
-        ['R13', 'Mouth Opening Diameter', 'Opening = 2 × min Hot Radius over mouth courses; must be ≥ max(TRL minimum, customer requirement)', `2 × ${fm(Math.min(...lm.map(r => r.hot)))} = ${fm(M.opening, 0)} mm vs ${f(lim)} mm`],
+        ['R13', 'Mouth Opening Diameter', 'Opening = 2 × min Hot Radius over mouth courses; must be ≥ max(Supplier minimum, customer requirement)', `2 × ${fm(Math.min(...lm.map(r => r.hot)))} = ${fm(M.opening, 0)} mm vs ${f(lim)} mm`],
         ['R14', 'Filling Volume', 'Σ π × (Steel R² − Cold R²) × course height (+ top-up) × Fill Factor', `${fm(M.fillV, 3)} m³`],
         ['R15', 'Filling Tonnage', 'Tonnes = Filling Volume × Filling Density', `${fm(M.fillV, 3)} × ${P.fillDens} = ${fm(M.fillT, 2)} t`],
         ['R16', 'Grade / Product', 'Transition = Transition Grade; mouth = Steel-clad (SCB)', `${P.transGrade} / ${P.grade}`],
@@ -2780,7 +2858,24 @@ function sessionCard() {
       segsOf('cone').forEach(z => { const Z = S.segz[z.id].zones; const ok = +Z.rest.span > +Z.tapSide.span; out.push(CHK('A2', `${z.name} spans`, ok ? 'ok' : 'err', `Rest area ${f(Z.rest.span)}° must be larger than tap-side area ${f(Z.tapSide.span)}°.`, ok ? {} : { hint: 'Enter a smaller tap-side span (it must be under 180°); the rest area takes the remainder. The reference design uses 60°.', fixes: [{ label: `Set ${z.name} tap-side to 60°`, spec: `segz.${z.id}.zones.tapSide.span=60` }] })); });
       return out;
     }
-    function rulesCard(list, note = '') { const wc = list.some(r => r.length > 3); return `<div class="card rules"><h3>Business rules on this screen <span class="small">formula and how each value is computed for this job</span></h3>${note ? `<p class="small">${note}</p>` : ''}<div class="tw"><table class="tbl"><tr><th>#</th><th>Output</th><th>Formula / rule</th>${wc ? '<th>Computed for this job</th>' : ''}</tr>${list.map(([a, b, c, d]) => `<tr><td><b>${a}</b></td><td>${esc(b)}</td><td>${esc(c)}</td>${wc ? `<td class="calc">${esc(d ?? '—')}</td>` : ''}</tr>`).join('')}</table></div></div>`; }
+    const RULE_FX_MAP = {
+      PL1: 'ui_perm_wall_slice_area', PL2: 'ui_perm_wall_slice_vol', PL3: 'ui_perm_bottom_area', PL4: 'ui_perm_bricks', PL5: 'ui_perm_tonnes',
+      LC1: 'ui_req_thickness', LC3: 'ui_expected_life', LC4: 'ui_hot_radius_wall', LC6: 'specific_volume', LC7: 'ui_freeboard', LC8: 'ui_shell_temperature',
+      NR4: 'ui_noz_length', NR5: 'ui_noz_half_height', NR7: 'ui_wall_nozzle_removed',
+      JN3: 'ui_junc_piece_qty', JN4: 'ui_junc_tonnes',
+      ZR4: 'ui_mouth_height', AR1: 'ui_barrel_tap_span', AR4: 'ui_cone_rest_span',
+      R0: 'ui_mouth_height', R2: 'ui_bottom_dish_depth', R3: 'ui_bottom_arc_length', R4: 'ui_bottom_hot_area', R5: 'ui_bottom_ring_count', R6: 'ui_bottom_ring_arc_pos', R7: 'ui_bottom_plan_radius', R9: 'ui_bottom_ring_bricks_approx', R10: 'ring_n_a', R12: 'ring_n_a', R14: 'ui_bottom_elem_cuts', R19: 'ui_perm_tonnes'
+    };
+    function rulesCard(list, note = '') {
+      const wc = list.some(r => r.length > 3);
+      return `<div class="card rules"><h3>Business rules &amp; live formulas on this screen <span class="small">click <b>Edit ƒx</b> on any formula to customize it with the Formula Keyboard</span> <button class="btn xs" onclick="openControlCenter('Formulas')" style="margin-left:auto">ƒx All ${typeof FX!=='undefined'&&FX.registry?Object.keys(FX.registry).length:113} Formulas</button></h3>${note ? `<p class="small">${note}</p>` : ''}<div class="tw"><table class="tbl"><tr><th>#</th><th>Output</th><th>Formula / rule (live)</th>${wc ? '<th>Computed for this job</th>' : ''}<th></th></tr>${list.map(([a, b, c, d, fxId]) => {
+        const fid = fxId || RULE_FX_MAP[a];
+        const fObj = fid && typeof FX !== 'undefined' && FX.registry ? FX.registry[fid] : null;
+        const mathHtml = fObj ? `<div style="margin-top:4px;padding:4px 8px;background:var(--paper);border-radius:6px;display:inline-block">${FX.toHTML(fObj.expression)} ${fObj.modified ? '<span class="tag t-edit">customized</span>' : ''}</div>` : '';
+        const editBtn = fid ? `<button class="btn xs" onclick="openControlCenter('Formula:${fid}')" title="Edit this formula in Control Center">✎ Edit ƒx</button>` : '';
+        return `<tr><td><b>${a}</b></td><td>${esc(b)}</td><td>${esc(c)}${mathHtml}</td>${wc ? `<td class="calc">${esc(d ?? '—')}</td>` : ''}<td>${editBtn}</td></tr>`;
+      }).join('')}</table></div></div>`;
+    }
     function stepChecks(n) {
       try {
         switch (n) {
@@ -2829,7 +2924,7 @@ function sessionCard() {
     const canOpen = n => n === 0 || !!S.gates[n - 1];
 
     /* ============ FIELD RENDERING ============ */
-    const SRC = { D: ['Drawing', 'drw'], T: ['TRL input', 'trl'], C: ['Customer', 'cus'], K: ['Calculated', 'calc'] };
+    const SRC = { D: ['Drawing', 'drw'], T: ['Supplier input', 'supplier'], C: ['Customer', 'cus'], K: ['Calculated', 'calc'] };
     const tagS = s => `<span class="tag t-${SRC[s][1]}">${SRC[s][0]}</span>`;
     function isEdited(path) { const a = getP(INIT, path), b = getP(S, path); return a !== undefined && a !== null && a !== '' && String(a) !== String(b); }
     function input(path, type, opts) {
@@ -3052,10 +3147,10 @@ function sessionCard() {
       const apiEndpoint = getApiBase();
       const drawingCard = `<div class="card"><h3>Customer drawing</h3>
    <div class="drop">${S.job.drawing ? `<b>✓ ${esc(S.job.drawing)}</b><br><span class="small">Vector PDF, 1 sheet. Dimensions will be extracted in step 2.</span>` : 'Upload the naked shell drawing (PDF, DXF or DWG)'}<br>
-   <input type="file" id="upl" accept=".pdf,.dxf,.dwg" style="margin:8px 0"><br><button class="btn" data-act="sample">Use sample: 180 MT BOF shell drawing</button>
+   <div style="display:inline-flex;align-items:center;gap:8px;margin:8px 0;flex-wrap:wrap;justify-content:center;"><label for="upl" class="btn" style="cursor:pointer;margin:0;">📁 Choose file…</label><span class="small" style="padding:4px 10px;border:1px solid var(--line);border-radius:4px;background:var(--bg);color:var(--ink);font-weight:600;">${S.job.drawing ? "📄 " + esc(S.job.drawing) : "No file chosen"}</span><input type="file" id="upl" accept=".pdf,.dxf,.dwg" style="display:none"></div><br><button class="btn" data-act="sample">Use sample: 180 MT BOF shell drawing</button>
    ${S.extractionError ? `<div class="note bad" style="margin-top:10px;text-align:left;"><b>⚠ Backend Extraction Failed:</b> ${esc(S.extractionError)}<br><span class="small">Targeted API: <code>${esc(apiEndpoint)}</code>. Because extraction failed, Step 2 will fallback to sample vessel dimensions. Check backend connection or CORS.</span></div>` : ''}
    ${S.extractionSummary ? `<div class="note ok" style="margin-top:10px;text-align:left;"><b>✓ Geometry Extracted:</b> ${esc(S.extractionSummary)}</div>` : ''}
-   <div class="small" style="margin-top:6px;opacity:0.8;">Backend API: <code>${esc(apiEndpoint)}</code> &nbsp;·&nbsp; <a href="#" data-act="apiConfig" style="color:var(--accent);">Change API URL</a></div>
+
    </div></div>`;
 
       const gateBtn = S.extracting ?
@@ -3066,10 +3161,17 @@ function sessionCard() {
   ${guide('Create the job card. Enter the customer and tonnage, upload the customer\'s shell drawing, and enter the operating data the customer gave. These customer values are shared by all zone designs.')}
   <div class="grid2"><div>
   ${fgroup('Job card', 'C', [[j + 'ref', 'Job reference', '', 'w', 'C', 1, ''], [j + 'customer', 'Customer name', '', 'w', 'C', 1, ''], [j + 'plant', 'Plant / shop', '', 'w', 'C', 0, ''], [j + 'vessel', 'Vessel type', '', 'sel', 'C', 1, '', ['BOF converter']], [j + 'heat', 'Heat size (nominal)', 't', 'n', 'C', 1, 'Rated capacity'], [j + 'heatMax', 'Heat size (maximum tap weight)', 't', 'n', 'C', 0, '']])}
-  ${fgroup('TRL design basis', 'T', [[j + 'rho', 'Liquid steel density', 't/m³', 'n', 'T', 1, 'Designer convention (typically 6.8–7.0); used for metal level']])}
+  ${fgroup('Supplier design basis', 'T', [[j + 'rho', 'Liquid steel density', 't/m³', 'n', 'T', 1, 'Designer convention (typically 6.8–7.0); used for metal level']])}
   </div><div>${sessionCard()}${drawingCard}
-  ${fgroup('Customer operating data (shared by all zones)', 'C', [[j + 'life', 'Target Lining Life', 'heats', 'n', 'C', 1, 'Required campaign life'], [j + 'splash', 'Slag Splashing Practice', '', 'yn', 'C', 1, 'Affects the wear rates TRL enters per zone'], [j + 'gunning', 'Gunning Practice', 'kg/t', 'n', 'C', 0, ''], [j + 'maxTs', 'Maximum Shell Temperature', '°C', 'n', 'C', 1, 'Limit for the shell temperature check'], [j + 'minSV', 'Minimum Specific Volume', 'm³/t', 'n', 'C', 1, 'Lower limit for the inside volume check'], [j + 'tapT', 'Tapping Temperature', '°C', 'n', 'C', 0, 'Also used as hot-face temperature for the shell check'], [j + 'tapToTap', 'Tap-to-Tap Time', 'min', 'n', 'C', 0, '']])}
+  ${fgroup('Customer operating data (shared by all zones)', 'C', [[j + 'life', 'Target Lining Life', 'heats', 'n', 'C', 1, 'Required campaign life'], [j + 'splash', 'Slag Splashing Practice', '', 'yn', 'C', 1, 'Affects the wear rates Supplier enters per zone'], [j + 'gunning', 'Gunning Practice', 'kg/t', 'n', 'C', 0, ''], [j + 'maxTs', 'Maximum Shell Temperature', '°C', 'n', 'C', 1, 'Limit for the shell temperature check'], [j + 'minSV', 'Minimum Specific Volume', 'm³/t', 'n', 'C', 1, 'Lower limit for the inside volume check'], [j + 'tapT', 'Tapping Temperature', '°C', 'n', 'C', 0, 'Also used as hot-face temperature for the shell check'], [j + 'tapToTap', 'Tap-to-Tap Time', 'min', 'n', 'C', 0, '']])}
   </div></div>
+  ${rulesCard([
+    ['FX1', 'Inner Diameter from OD', 'Shell ID = Outer Diameter − 2 × Shell Plate Thickness', 'Used during drawing extraction', 'ext_inner_diameter'],
+    ['FX2', 'Outer Radius from OD', 'Outer Radius = Outer Diameter ÷ 2', 'Used during drawing extraction', 'ext_outer_radius'],
+    ['FX3', 'Required Working Thickness', 'Thickness = Target Life × Wear Rate + Residual Thickness', `${S.job.life} × wear + residual`, 'ui_req_thickness'],
+    ['FX4', 'Specific Inside Volume', 'Specific Volume = Inside Lined Volume ÷ Nominal Heat Size', `Limit ≥ ${S.job.minSV} m³/t`, 'specific_volume'],
+    ['FX5', '1-D Shell Temperature', 'Shell Temp from Hot-Face Temp, Working & Permanent Lining k, and Ambient h', `Limit ≤ ${S.job.maxTs} °C`, 'ui_shell_temperature']
+  ], 'All 113 engineering, geometry, ring-closure, thermal, and BOM formulas are live and editable. Click <b>✎ Edit ƒx</b> on any row or <b>ƒx All 113 Formulas</b> to open the Formula Editor &amp; Interactive Formula Keyboard.')}
   ${gateBtn}`;
     }
     function v1() {
@@ -3084,6 +3186,12 @@ function sessionCard() {
       const all = EXT_GROUPS.every(g => S.extOk[g]);
       return `${guide('The extractor has read every dimension zone by zone. Compare the value written on the drawing with the extracted value. Edit any value that is wrong (for example a few mm off) and confirm each zone. Red = mismatch, amber = low confidence.')}
   <div class="grid-side wide"><div>${groups}</div>${annPanel()}</div>
+  ${rulesCard([
+    ['EX1', 'Shell Inner Diameter', 'ID = OD − 2 × Plate Thickness', `Plate = ${fv(XN('plate'))} mm`, 'ext_inner_diameter'],
+    ['EX2', 'Segment Top Elevation', 'Top Elevation = Bottom Elevation + Segment Height', `Total H = ${fv(XN('H'))} mm`, 'ext_cumulative_elevation'],
+    ['EX3', 'Cone Half-Angle', 'Half-Angle = atan2(|R_top − R_bot|, Height)', `${fv(XN('halfAng'))}°`, 'ext_cone_half_angle'],
+    ['EX4', 'Bottom Dish Depth', 'Dish Depth = R − √(R² − r_edge²)', `${fv(XN('dishDepth'))} mm`, 'ext_arc_depth']
+  ], 'Formulas used to derive inner diameters, cumulative elevations, and cone angles from the drawing.')}
   ${gateBar(1, all, 'Confirm extracted dimensions', 'Confirm every zone first.')}`;
     }
     /* ============ STEP 3: zone detail views & splitting ============ */
@@ -3237,13 +3345,13 @@ function sessionCard() {
       const B = bottomDesign(), P = 'bottom.';
       const bandRows = S.bottom.bands.map((b, i) => `<tr>${['mark', 'from', 'to'].map(k => `<td><input class="${k === 'mark' ? 'mk' : 'mini'}" ${k !== 'mark' ? 'type="number"' : ''} data-p="bottom.bands.${i}.${k}" value="${esc(b[k])}"></td>`).join('')}${S.bottom.exact === 'Yes' ? ['aHot', 'aCold', 'bHot', 'bCold'].map(k => `<td><input class="mini" type="number" step="any" data-p="bottom.bands.${i}.${k}" value="${esc(b[k])}"></td>`).join('') : ''}<td>${S.bottom.bands.length > 1 ? `<button class="btn xs" data-act="delBand" data-i="${i}">✕</button>` : ''}</td></tr>`).join('');
       const ringRows = B.rings.map(r => `<tr class="${r.crossed ? 'low' : ''}"><td>${r.i}</td><td>${f(r.r)}</td><td>${f(r.rin)}–${f(r.rout)}</td><td>${r.mark}</td><td>${f(r.bricks)}</td><td>${r.grow == null ? '—' : r.grow}</td><td>${r.cuts || '—'}</td><td>${f(r.adj)}</td><td>${Object.entries(r.marks).map(([m, q]) => `${m}: ${q}`).join(', ')}</td></tr>`).join('');
-      return `${guide('The bottom is laid as concentric rings around a central key brick. Drawing values are pre-filled; enter the TRL and customer values. Results update when you change a value.')}
+      return `${guide('The bottom is laid as concentric rings around a central key brick. Drawing values are pre-filled; enter the Supplier and customer values. Results update when you change a value.')}
   <div class="grid2"><div>
   ${fgroup('A. From the drawing (confirm or edit)', 'D', [ex('dishR', 'Bottom Dish Radius', 'Spherical radius of the working-lining hot face; 0 = flat bottom'), ex('botDia'), ex('dishDepth'), ex('nStir'), ex('pcd'), ex('botGrade', null, 'Cross-check only', 0)])}
   <div class="note">Working bottom thickness <b>${f(bottomThick().t)} mm</b> and permanent bottom ${esc(S.bottom.permGrade)} ${f(S.bottom.permT)} mm come from the Permanent lining and Lining concept steps.</div>
-  ${fgroup('C. Customer', 'C', [[P + 'elDia', 'Stirring Element Diameter', 'mm', 'n', 'C', 1, 'Outer diameter of the element block'], [P + 'mand', 'Mandated Bottom Grade', '', 'grade', 'C', 0, 'Optional; overrides the TRL grade']])}
+  ${fgroup('C. Customer', 'C', [[P + 'elDia', 'Stirring Element Diameter', 'mm', 'n', 'C', 1, 'Outer diameter of the element block'], [P + 'mand', 'Mandated Bottom Grade', '', 'grade', 'C', 0, 'Optional; overrides the Supplier grade']])}
   </div><div>
-  ${fgroup('B. TRL inputs', 'T', [[P + 'grade', 'Bottom Zone Grade', '', 'grade', 'T', 1, 'Set in step 4'], [P + 'keyR', 'Key Brick Radius', 'mm', 'n', 'T', 1, 'Radius covered by the central key brick'], [P + 'ringW', 'Ring Radial Width', 'mm', 'n', 'T', 1, 'Along the dish surface'], [P + 'tanW', 'Average Brick Tangential Width', 'mm', 'n', 'T', 1, 'For the approximate count'], [P + 'exact', 'Use exact closure with tapered pairs', '', 'yn', 'T', 0, 'If Yes, enter A/B widths per band'], [P + 'cutsPerEl', 'Cut Pieces per Element per Ring', 'no.', 'n', 'T', 1, ''], [P + 'minCut', 'Minimum Cut Brick Width', 'mm', 'n', 'T', 1, ''], [P + 'tol', 'Brick Count Tolerance', '%', 'n', 'T', 1, ''], [P + 'growMin', 'Ring Growth Band – minimum', 'bricks', 'n', 'T', 1, ''], [P + 'growMax', 'Ring Growth Band – maximum', 'bricks', 'n', 'T', 1, ''], [P + 'depthTol', 'Dish Depth Tolerance', 'mm', 'n', 'T', 1, ''], [P + 'dens', 'Bulk density of bottom grade', 't/m³', 'n', 'T', 1, 'For tonnage']])}
+  ${fgroup('B. Supplier inputs', 'T', [[P + 'grade', 'Bottom Zone Grade', '', 'grade', 'T', 1, 'Set in step 4'], [P + 'keyR', 'Key Brick Radius', 'mm', 'n', 'T', 1, 'Radius covered by the central key brick'], [P + 'ringW', 'Ring Radial Width', 'mm', 'n', 'T', 1, 'Along the dish surface'], [P + 'tanW', 'Average Brick Tangential Width', 'mm', 'n', 'T', 1, 'For the approximate count'], [P + 'exact', 'Use exact closure with tapered pairs', '', 'yn', 'T', 0, 'If Yes, enter A/B widths per band'], [P + 'cutsPerEl', 'Cut Pieces per Element per Ring', 'no.', 'n', 'T', 1, ''], [P + 'minCut', 'Minimum Cut Brick Width', 'mm', 'n', 'T', 1, ''], [P + 'tol', 'Brick Count Tolerance', '%', 'n', 'T', 1, ''], [P + 'growMin', 'Ring Growth Band – minimum', 'bricks', 'n', 'T', 1, ''], [P + 'growMax', 'Ring Growth Band – maximum', 'bricks', 'n', 'T', 1, ''], [P + 'depthTol', 'Dish Depth Tolerance', 'mm', 'n', 'T', 1, ''], [P + 'dens', 'Bulk density of bottom grade', 't/m³', 'n', 'T', 1, 'For tonnage']])}
   <div class="card"><h3>Ring-to-Mark Band Table ${tagS('T')}</h3><div class="tw"><table class="tbl pairtbl"><tr><th>Mark</th><th>From ring</th><th>To ring</th>${S.bottom.exact === 'Yes' ? '<th>A hot</th><th>A cold</th><th>B hot</th><th>B cold</th>' : ''}<th></th></tr>${bandRows}</table></div><button class="btn xs" data-act="addBand">+ Add band</button></div>
   </div></div>
   <div class="card"><h3>Result</h3>${kpis([[f(B.nR), 'rings (R5)'], [f(B.depth, 1) + ' mm', 'dish depth (R2)'], [f(B.arc) + ' mm', 'arc length (R3)'], [f(B.area / 1e6, 2) + ' m²', 'hot-face area (R4)'], [f(B.total), 'bricks incl. key & cuts'], [f(B.items.reduce((a, i) => a + i.tonnes, 0), 1) + ' t', B.grade]])}
@@ -3273,7 +3381,7 @@ function sessionCard() {
     function segTabs(seg) {
       const ss = segsOf(seg), cur = curSeg(seg); if (ss.length < 2) return '';
       return `<div class="card" style="border-color:var(--info)"><h3>Segments from step 3 <span class="small">design each one separately</span></h3><div class="tabs big">${ss.map(z => `<button class="tab ${z.id === cur ? 'on' : ''}" data-act="segTab" data-seg="${seg}" data-id="${z.id}">${esc(z.name)} · EL ${fv(z.h0)}–${fv(z.h1)}</button>`).join('')}</div>
-  <p class="small">Each segment has its own angle spans, grades, wear rates, thickness and brick pairs. The common TRL and customer inputs above apply to all segments. ${ss.filter(z => z.id !== cur).map(z => `<button class="btn xs" data-act="copySeg" data-from="${z.id}" data-to="${cur}">Copy zone settings from ${esc(z.name)}</button>`).join(' ')}</p></div>`;
+  <p class="small">Each segment has its own angle spans, grades, wear rates, thickness and brick pairs. The common Supplier and customer inputs above apply to all segments. ${ss.filter(z => z.id !== cur).map(z => `<button class="btn xs" data-act="copySeg" data-from="${z.id}" data-to="${cur}">Copy zone settings from ${esc(z.name)}</button>`).join(' ')}</p></div>`;
     }
     function segPanel(seg, sid, base, marks) {
       const sz = S.zones.find(q => q.id === sid); if (!sz) return '';
@@ -3297,7 +3405,7 @@ function sessionCard() {
       const sid = curSeg('lc');
       return `${guide('The lower cone is a 360° zone. If you split it in step 3, each segment is designed separately (select it below). No separate business rule has been agreed yet, so the same wall rule as the top cone is used (radius changes every course).')}
   <div class="grid2"><div>${fgroup('A. From the drawing', 'D', [ex('lcH0'), ex('lcH1'), ex('lcIDb'), ex('lcIDt')])}</div>
-  <div>${layerNote('lc')}${fgroup('B. TRL inputs (lower cone, common to all segments)', 'T', commonWallRows('lc', true))}</div></div>
+  <div>${layerNote('lc')}${fgroup('B. Supplier inputs (lower cone, common to all segments)', 'T', commonWallRows('lc', true))}</div></div>
   ${segTabs('lc')}
   <div class="grid-side"><div>${zoneCard('lc', sid, 'main')}</div>${segPanel('lc', sid, S.segz[sid].zones.main, [{ ang: XN('tapAng'), label: 'Tap side', col: '#7a3cd0' }])}</div>
   ${wallResult('lc', D, cs)}
@@ -3312,7 +3420,7 @@ function sessionCard() {
    ${fgroup('A. From the drawing (confirm or edit)', 'D', [ex('barID'), ex('barH0'), ex('barH1'), ex('trunAng'), ex('tapAng'), ['chargeSide', 'Charge side (from step 3)', '', 'sel', 'T', 1, 'Charge pad centre angle follows this', ['Left', 'Right']], ex('barGrade', null, 'Cross-check only', 0)])}
    ${fgroup('C. Customer (barrel)', 'C', [['job.life', 'Target Lining Life', 'heats', 'n', 'C', 1, 'Shared with all zones'], ['job.splash', 'Slag Splashing Practice', '', 'yn', 'C', 1, ''], ['job.gunning', 'Gunning Practice', 'kg/t', 'n', 'C', 0, ''], ['job.maxTs', 'Maximum Shell Temperature', '°C', 'n', 'C', 1, ''], ['job.minSV', 'Minimum Specific Volume', 'm³/t', 'n', 'C', 1, ''], [P + 'scrap', 'Scrap Charge Ratio', '%', 'n', 'C', 0, 'Charge pad'], [P + 'scrapType', 'Scrap Type / Charging Method', '', 'w', 'C', 0, 'Charge pad'], ['job.tapT', 'Tapping Temperature', '°C', 'n', 'C', 0, 'Tap pad; also hot-face temperature'], ['job.tapToTap', 'Tap-to-Tap Time', 'min', 'n', 'C', 0, 'Tap pad']])}
   </div><div>
-   ${layerNote('barrel')}${fgroup('B. TRL inputs (barrel, common to all segments)', 'T', [...commonWallRows('barrel', false), [P + 'boundary', 'Zone Boundary Rule', '', 'sel', 'T', 1, '', ['Nearest brick joint', 'Cut brick at boundary']]])}
+   ${layerNote('barrel')}${fgroup('B. Supplier inputs (barrel, common to all segments)', 'T', [...commonWallRows('barrel', false), [P + 'boundary', 'Zone Boundary Rule', '', 'sel', 'T', 1, '', ['Nearest brick joint', 'Cut brick at boundary']]])}
   </div></div>
   ${segTabs('barrel')}
   <div class="grid-side"><div>
@@ -3335,7 +3443,7 @@ function sessionCard() {
   <div class="grid2"><div>
    ${fgroup('A. From the drawing (confirm or edit)', 'D', [ex('topH0'), ex('topH1'), ex('topIDb'), ex('topIDt'), ex('halfAng', 'Top Cone Half-Angle', 'Cross-check with calculated angle', 0), ex('ringHt', 'Mouth Ring Height', '', 0), ex('tapAng'), ex('tapIncl'), ex('tapElev'), ex('tapDia'), ex('topGrade', null, 'Cross-check only', 0)])}
    ${fgroup('C. Customer (top cone)', 'C', [['job.life', 'Target Lining Life', 'heats', 'n', 'C', 1, 'Shared'], ['job.splash', 'Slag Splashing Practice', '', 'yn', 'C', 1, ''], ['job.gunning', 'Gunning Practice', 'kg/t', 'n', 'C', 0, ''], [P + 'deskull', 'Skull / Mouth Deskulling Method', '', 'sel', 'C', 0, '', ['Mechanical', 'Manual', 'None']], [P + 'lance', 'Lance Height / Oxygen Flow', '', 'w', 'C', 0, 'Optional'], ['job.maxTs', 'Maximum Shell Temperature', '°C', 'n', 'C', 1, ''], ['job.tapT', 'Tapping Temperature', '°C', 'n', 'C', 0, 'Tap-side area'], [T + 'tapDur', 'Tap Duration', 'min', 'n', 'C', 0, 'Tap-side area'], [T + 'exch', 'Sleeve Exchange Method', '', 'sel', 'C', 0, '', ['From outside', 'From inside']]])}
-  </div><div>${layerNote('cone')}${fgroup('B. TRL inputs (top cone, common to all segments)', 'T', commonWallRows('cone', true))}${fgroup('Taphole (TRL)', 'T', thRows, `The taphole sits at EL ${fv(XN('tapElev'))}, in ${esc((segsOf('cone').find(z => XN('tapElev') >= z.h0 && XN('tapElev') < z.h1) || { name: 'no top cone segment' }).name)}.`)}</div></div>
+  </div><div>${layerNote('cone')}${fgroup('B. Supplier inputs (top cone, common to all segments)', 'T', commonWallRows('cone', true))}${fgroup('Taphole (Supplier)', 'T', thRows, `The taphole sits at EL ${fv(XN('tapElev'))}, in ${esc((segsOf('cone').find(z => XN('tapElev') >= z.h0 && XN('tapElev') < z.h1) || { name: 'no top cone segment' }).name)}.`)}</div></div>
   ${segTabs('cone')}
   <div class="grid-side"><div>${zoneCard('cone', sid, 'rest')}${zoneCard('cone', sid, 'tapSide', [], hasTap ? '<p class="note">This segment contains the taphole; bricks are removed where the block crosses its courses.</p>' : '')}</div>
   <div>${segPanel('cone', sid, S.segz[sid].zones.rest, [{ ang: XN('tapAng'), label: 'Taphole', col: '#7a3cd0' }])}${D ? `<div class="card">${taphInfo(D)}</div>` : ''}</div></div>
@@ -3346,7 +3454,7 @@ function sessionCard() {
     function taphInfo(D) {
       const T = S.cone.th; const crossed = D.rows.filter(r => r.cells.some(c => c.removed)); const rem = crossed.reduce((a, r) => a + r.cells.reduce((s, c) => s + c.removed, 0), 0);
       const sg = D.segs.find(s => XN('tapElev') >= s.z.h0 && XN('tapElev') < s.z.h1) || D.segs[D.segs.length - 1]; const t = sg ? sg.th.tapSide.t : 0;
-      const ramV = (Math.pow(T.size / 1000, 2) - Math.PI * Math.pow(T.bore / 2000, 2)) * t / 1000 * 0.25 * T.fill;
+      const ramV = fxCalc('ui_taphole_ramming_vol', { block_size: +T.size, bore_dia: +T.bore, thickness: t, fill_factor: +T.fill }, () => (Math.pow(T.size / 1000, 2) - Math.PI * Math.pow(T.bore / 2000, 2)) * t / 1000 * 0.25 * T.fill);
       return `<h4>Taphole (R14–R16)</h4><p class="small">Segment: ${sg ? esc(sg.z.name) : '—'} · courses crossed: ${crossed.map(r => r.k).join(', ') || 'none'} · bricks removed ${rem} · 1 × ${esc(T.block)} + 1 × ${esc(T.sleeve)} set · ramming ≈ ${f(ramV * T.ramDens, 2)} t ${esc(T.ram)}</p>`;
     }
     function v8() {
@@ -3356,9 +3464,9 @@ function sessionCard() {
       return `${guide('The mouth is the last zone: 360°, transition courses below steel-clad (SCB) courses, castable filling against the mouth ring, and a top-up to close against the ring.')}
   <div class="grid2"><div>
    ${fgroup('A. From the drawing (confirm or edit)', 'D', [ex('ringH0'), ex('ringH1'), ex('ringID'), ex('ringProf', null, 'Vertical, conical or with a retaining lip', 1, 'sel', ['Vertical', 'Conical', 'With retaining lip']), ex('lip', null, 'Only if the profile has a lip', 0), ex('ringCool', null, '', 0, 'yn'), ex('topIDt', 'Top Cone Shell Inner Diameter at Top', 'Shared with the top cone'), ex('mouthGrade', null, 'Cross-check only', 0)])}
-   ${fgroup('C. Customer (mouth)', 'C', [[P + 'reqOpen', 'Required Mouth Opening Diameter', 'mm', 'n', 'C', 0, 'Overrides TRL minimum if larger'], [P + 'deskull', 'Deskulling Method', '', 'sel', 'C', 1, '', ['Mechanical', 'Manual', 'None']], [P + 'skull', 'Skull Formation Severity', '', 'sel', 'C', 0, '', ['Low', 'Medium', 'High']], [P + 'clearance', 'Charging Ladle / Chute Clearance', 'mm', 'n', 'C', 0, ''], [P + 'ringRepl', 'Mouth Ring Replacement Practice', '', 'sel', 'C', 0, '', ['Not replaced with lining', 'Replaced with lining']]])}
+   ${fgroup('C. Customer (mouth)', 'C', [[P + 'reqOpen', 'Required Mouth Opening Diameter', 'mm', 'n', 'C', 0, 'Overrides Supplier minimum if larger'], [P + 'deskull', 'Deskulling Method', '', 'sel', 'C', 1, '', ['Mechanical', 'Manual', 'None']], [P + 'skull', 'Skull Formation Severity', '', 'sel', 'C', 0, '', ['Low', 'Medium', 'High']], [P + 'clearance', 'Charging Ladle / Chute Clearance', 'mm', 'n', 'C', 0, ''], [P + 'ringRepl', 'Mouth Ring Replacement Practice', '', 'sel', 'C', 0, '', ['Not replaced with lining', 'Replaced with lining']]])}
   </div><div>
-   ${fgroup('B. TRL inputs (mouth)', 'T', [[P + 'transCount', 'Transition Course Count', 'no.', 'n', 'T', 1, ''], [P + 'transA', 'Transition mark A', '', 'w', 'T', 1, 'TM-type'], [P + 'transB', 'Transition mark B', '', 'w', 'T', 1, ''], [P + 'transL', 'Transition Brick Length', 'mm', 'n', 'T', 1, ''], [P + 'tAH', 'Transition A hot face', 'mm', 'n', 'T', 1, ''], [P + 'tAC', 'Transition A cold face', 'mm', 'n', 'T', 1, ''], [P + 'tBH', 'Transition B hot face', 'mm', 'n', 'T', 1, ''], [P + 'tBC', 'Transition B cold face', 'mm', 'n', 'T', 1, ''], [P + 'transGrade', 'Transition Grade', '', 'grade', 'T', 1, ''], [P + 'transDens', 'Transition bulk density', 't/m³', 'n', 'T', 1, ''],
+   ${fgroup('B. Supplier inputs (mouth)', 'T', [[P + 'transCount', 'Transition Course Count', 'no.', 'n', 'T', 1, ''], [P + 'transA', 'Transition mark A', '', 'w', 'T', 1, 'TM-type'], [P + 'transB', 'Transition mark B', '', 'w', 'T', 1, ''], [P + 'transL', 'Transition Brick Length', 'mm', 'n', 'T', 1, ''], [P + 'tAH', 'Transition A hot face', 'mm', 'n', 'T', 1, ''], [P + 'tAC', 'Transition A cold face', 'mm', 'n', 'T', 1, ''], [P + 'tBH', 'Transition B hot face', 'mm', 'n', 'T', 1, ''], [P + 'tBC', 'Transition B cold face', 'mm', 'n', 'T', 1, ''], [P + 'transGrade', 'Transition Grade', '', 'grade', 'T', 1, ''], [P + 'transDens', 'Transition bulk density', 't/m³', 'n', 'T', 1, ''],
       [P + 'type', 'Mouth Brick Type', '', 'sel', 'T', 1, '', ['Steel-clad brick']], [P + 'count', 'Mouth Course Count', 'no.', 'n', 'T', 1, ''], [P + 'mA', 'Mouth mark A', '', 'w', 'T', 1, 'SCB-type'], [P + 'mB', 'Mouth mark B', '', 'w', 'T', 1, ''], [P + 'mL', 'Mouth Brick Length', 'mm', 'n', 'T', 1, ''], [P + 'mAH', 'Mouth A hot face', 'mm', 'n', 'T', 1, ''], [P + 'mAC', 'Mouth A cold face', 'mm', 'n', 'T', 1, ''], [P + 'mBH', 'Mouth B hot face', 'mm', 'n', 'T', 1, ''], [P + 'mBC', 'Mouth B cold face', 'mm', 'n', 'T', 1, ''], [P + 'grade', 'Mouth Brick Grade', '', 'ro', 'T', 1, 'Always steel-clad (SCB)'], [P + 'mDens', 'Mouth brick bulk density', 't/m³', 'n', 'T', 1, ''],
       [P + 'course', 'Course Height', 'mm', 'n', 'T', 1, ''], [P + 'joint', 'Joint thickness', 'mm', 'n', 'T', 1, ''], [P + 'jointType', 'Joint Type', '', 'sel', 'T', 1, '', ['Dry', 'Mortar', 'Steel separator plates']], [P + 'fill', 'Mouth Filling Product', '', 'w', 'T', 1, ''], [P + 'minFill', 'Minimum Filling Thickness', 'mm', 'n', 'T', 1, ''], [P + 'topUp', 'Top-Up Rule', '', 'sel', 'T', 1, '', ['Castable top-up', 'Cut course', 'Adjusted course height']], [P + 'minCutH', 'Minimum Cut Course Height', 'mm', 'n', 'T', 1, ''], [P + 'minOpen', 'Minimum Mouth Opening Diameter', 'mm', 'n', 'T', 1, ''], [P + 'minCut', 'Minimum Cut Brick Width', 'mm', 'n', 'T', 1, ''], [P + 'expA', 'Expansion Allowance in Mouth', 'mm', 'n', 'T', 1, ''], [P + 'expN', 'Expansion interval', 'bricks', 'n', 'T', 1, ''], [P + 'fillFactor', 'Filling Fill Factor', '', 'n', 'T', 1, ''], [P + 'fillDens', 'Filling Density', 't/m³', 'n', 'T', 1, ''], [P + 'maxStep', 'Max hot-face step from cone', 'mm', 'n', 'T', 1, 'For check V7']])}
   </div></div>
@@ -3412,7 +3520,7 @@ function sessionCard() {
       go: el => { const n = +el.dataset.n; if (!canOpen(n)) { toast('Confirm the previous step first', 'bad'); return; } const ch = S.step !== n || VIEW !== 'step'; S.step = n; VIEW = 'step'; window.scrollTo(0, 0); render(); if (ch) autoSave(); },
       audit: () => { VIEW = 'audit'; render(); },
       selNoz: el => { S.noz.sel = +el.dataset.i; render(); },
-      addNoz: () => { const L = S.noz.list; L.push({ id: 'n' + Date.now(), name: 'Nozzle ' + (L.length + 1), type: 'Sublance port', linked: false, elev: Math.round(XN('topH0') + 400), ang: 90, incl: 0, dia: 300, size: 450, bore: 200, block: 'TRL nozzle block', sleeve: 'TRL nozzle sleeve', blockKg: 180, sleeveKg: 40, sleeves: 1, exch: 'From outside', purpose: '' }); S.noz.sel = L.length - 1; INIT.noz = clone(S.noz); log('Nozzle added', L[L.length - 1].name); reopenFrom(ST.noz); render(); autoSave(); },
+      addNoz: () => { const L = S.noz.list; L.push({ id: 'n' + Date.now(), name: 'Nozzle ' + (L.length + 1), type: 'Sublance port', linked: false, elev: Math.round(XN('topH0') + 400), ang: 90, incl: 0, dia: 300, size: 450, bore: 200, block: 'Nozzle block', sleeve: 'Nozzle sleeve', blockKg: 180, sleeveKg: 40, sleeves: 1, exch: 'From outside', purpose: '' }); S.noz.sel = L.length - 1; INIT.noz = clone(S.noz); log('Nozzle added', L[L.length - 1].name); reopenFrom(ST.noz); render(); autoSave(); },
       delNoz: el => { const i = +el.dataset.i, n = S.noz.list[i]; if (!n || n.linked) return; S.noz.list.splice(i, 1); S.noz.sel = 0; log('Nozzle removed', n.name); reopenFrom(ST.noz); render(); autoSave(); },
       closeModal: () => closeModal(),
       sessSave: () => openSessModal(),
@@ -3475,7 +3583,7 @@ function sessionCard() {
         log('Suggested fix applied', label); toast('Fix applied: ' + label, 'ok'); reopenFrom(Math.max(1, S.step)); if (go != null) { S.step = go; VIEW = 'step'; window.scrollTo(0, 0); } render();
       },
       addMouth: () => { const zs = S.zones, last = zs[zs.length - 1]; if (last && last.type !== 'Mouth') zs.push({ id: newId(), type: 'Mouth', name: 'Mouth', h0: last.h1, h1: XN('H') }); render(); },
-      addAsm: () => { S.asm.custom.push({ name: 'Lance port', mark: 'LP-1', grade: 'TRL HMR C3R', qty: 1, kg: 250 }); reopenFrom(ST.junc); render(); },
+      addAsm: () => { S.asm.custom.push({ name: 'Lance port', mark: 'LP-1', grade: 'GRADE-B', qty: 1, kg: 250 }); reopenFrom(ST.junc); render(); },
       delAsm: el => { S.asm.custom.splice(+el.dataset.i, 1); reopenFrom(ST.junc); render(); },
       addBand: () => { const b = S.bottom.bands; const l = b[b.length - 1]; b.push({ mark: 'SH-0' + (b.length + 1), from: (+l.to || 0) + 1, to: 99, aHot: '', aCold: '', bHot: '', bCold: '' }); reopenFrom(ST.bottom); render(); },
       delBand: el => { S.bottom.bands.splice(+el.dataset.i, 1); reopenFrom(ST.bottom); render(); },
@@ -3700,14 +3808,14 @@ function sessionCard() {
       row('Nozzles (step 11)', `${nozzles().length} shell openings (taphole + radial ports)`, nozzles().map(n => `${n.name} (EL ${fv(n.elev)}, ${fv(n.ang)}°)`).join(' · '), 'Nozzles step', ST.noz);
       // 5. bottom
       const B = S.bottom, exact = B.exact === 'Yes' && B.bands.every(b => +b.aHot > 0 && +b.aCold > 0 && +b.bHot > 0 && +b.bCold > 0);
-      row('Bottom (step 7)', 'Key brick radius · ring radial width', `${fv(+B.keyR)} · ${fv(+B.ringW)} mm`, 'TRL input', ST.bottom);
+      row('Bottom (step 7)', 'Key brick radius · ring radial width', `${fv(+B.keyR)} · ${fv(+B.ringW)} mm`, 'Supplier input', ST.bottom);
       row('Bottom (step 7)', 'Ring bricks', exact ? B.bands.map(b => `${b.mark} rings ${b.from}–${b.to}`).join(' · ') : 'Exact closure is off – wedge shapes from the brick library (SH marks)', exact ? 'Entered ring bands' : 'Brick library', ST.bottom);
       // 6. assemblies and junction pieces (as entered)
       const extra = [...asmItems().map(i => ({ group: 'Special assemblies', zone: i.zone, mark: i.mark, grade: i.grade, qty: isFinite(i.qty) ? i.qty : null, tonnes: i.tonnes, note: 'as entered in Junctions & assemblies (step 13)' })),
       ...juncItems().map(i => ({ group: 'Junction pieces', zone: i.zone, mark: i.mark, grade: i.grade, qty: i.qty, tonnes: i.tonnes, note: 'as entered in Junctions & assemblies (step 12)' }))];
       if (M && /separator/i.test(S.mouth.jointType)) { const sep = M.boq.find(i => /separator/i.test(i.mark)); if (sep) extra.push({ group: 'Special assemblies', zone: 'Mouth', mark: sep.mark, grade: 'Accessory', qty: sep.qty, tonnes: 0, note: 'one per mouth brick (Mouth step)' }); }
       row('Assemblies (step 13)', 'Taphole, stirring, other assemblies, junction pieces', `${extra.length} BOM lines`, 'Entered in step 12', ST.junc);
-      row('Permanent lining (step 5)', 'Permanent brick · cutting allowance · reuse', `${fv(+S.permBrick.w)} × ${fv(+S.permBrick.h)} mm · ${fv(+S.permBrick.cut)} % · ${S.permReuse === 'Yes' ? 'reused (not in BOM)' : 'new'}`, 'TRL input', ST.perm);
+      row('Permanent lining (step 5)', 'Permanent brick · cutting allowance · reuse', `${fv(+S.permBrick.w)} × ${fv(+S.permBrick.h)} mm · ${fv(+S.permBrick.cut)} % · ${S.permReuse === 'Yes' ? 'reused (not in BOM)' : 'new'}`, 'Supplier input', ST.perm);
       const grade_colors = {}; Object.keys(dens).filter(k => !k.includes('|')).forEach(g => { const h = linHex(gcol(g)); if (h) grade_colors[g] = h; });
       const cutsA = [norm(XN('tapAng') || 0)]; const tr = norm(XN('trunAng')); if (isFinite(tr) && angDiff(tr, cutsA[0]) > 1 && angDiff(tr, cutsA[0] + 180) > 1) cutsA.push(tr); else cutsA.push(norm(cutsA[0] + 90));
       const payload = {
@@ -3899,7 +4007,7 @@ function sessionCard() {
       },
     });
 
-    { const _sample = ACT.sample; ACT.sample = el => { if (S.extSrc) { S.ext = defaults().ext; INIT.ext = clone(S.ext); delete S.extSrc; } delete S.extractionError; S.extractionSummary = 'Using built-in sample drawing (180 MT BOF).'; _sample(el); }; }
+    { const _sample = ACT.sample; ACT.sample = el => { { const e = {}; SAMPLE_EXT_DEF.forEach(([k, g, l, u, d, v, c, how, cmp]) => e[k] = { grp: g, label: l, unit: u, drawing: d, value: v, conf: c, how, cmp: !!cmp }); S.ext = e; INIT.ext = clone(e); delete S.extSrc; } S.extOk = {}; S.annAll = false; reopenFrom(1); delete S.extractionError; S.extractionSummary = 'DEMO: using built-in sample drawing values (not from your drawing).'; _sample(el); }; }
 
     /* ---------- person 1\'s extraction -> step-2 values (any segment count / order; no hidden sample values) ---------- */
     function linApplyExtraction(data) {
@@ -3910,21 +4018,14 @@ function sessionCard() {
       Object.keys(S.ext).forEach(k => { const e = S.ext[k]; e.drawing = '— not found on drawing'; e.conf = 0; e.how = 'Not found on the drawing – the value shown is the sample: enter the real value'; });
       const dimv = d => d && d.value != null ? d : null;
       let Hd = dimv(shell.total_length_mm), IDd = dimv(shell.inner_diameter_mm), ODd = dimv(shell.outer_diameter_mm), Td = dimv(shell.shell_thickness_mm);
-      let adjustedH = false;
-      if (!Hd || Hd.value !== 10000) {
-        Hd = { value: 10000, raw_text: Hd ? Hd.raw_text + ' (auto-adjusted)' : '10000 (auto-adjusted)' };
-        adjustedH = true;
-      }
       if (Td) upd('plate', Td.value, Td.raw_text, 'Dimension text');
       // 2. profile segments: order bottom -> top, merge, classify
-      let segs = (prof.segments || []).slice().sort((a, b) => a.index - b.index).map(s => ({ h: +s.height_mm || 0, r0: +s.radius_bottom_mm || 0, r1: +s.radius_top_mm || 0, type: s.segment_type || '', raw: s.height_raw_text || '' }));
+      let segs = (prof.segments || []).slice().sort((a, b) => a.index - b.index).map(s => ({ h: +s.height_mm || 0, r0: +s.radius_bottom_mm || 0, r1: +s.radius_top_mm || 0, type: s.segment_type || '', raw: s.height_raw_text || '', slope: s.slope_angle_deg }));
       const totH = segs.reduce((a, s) => a + s.h, 0); segs = segs.filter(s => s.h > totH * 0.004);
       const warnings = [];
-      // 2a. person 1\'s own mapping (exactly as in the version on GitHub) when his profile has the 5 main parts:
-      //     bottom dish, lower cone, barrel, top cone, mouth ring (segments taller than 20 drawing units)
       const mainSegs = (prof.segments || []).slice().sort((a, b) => a.index - b.index).filter(s => s.height_mm > 20);
       if (mainSegs.length >= 5) {
-        const ocr = !!(Hd || IDd);
+        const ocr = !!(Hd || IDd || ODd);
         const kind = ocr ? 'drawing' : 'unscaled', dk = ocr ? 'derived' : 'unscaled', conf = ocr ? 0.95 : 0.3;
         if (!ocr) warnings.push('no dimension text was read (OCR) – the shell values are in drawing units, not mm: enter the real values');
         let elev = 0, s;
@@ -3932,12 +4033,13 @@ function sessionCard() {
         const plateThickness = Td ? Td.value : 0;
         let trueBarID = vectorBarID;
         let barText = undefined;
-        if (ODd) { trueBarID = ODd.value - 2 * plateThickness; barText = 'Derived from OD ' + ODd.raw_text; }
+        if (ODd) { trueBarID = fxCalc('ext_id_from_od', { od: ODd.value, plate_thickness: plateThickness }, () => ODd.value - 2 * plateThickness); barText = 'Derived from OD ' + ODd.raw_text; }
         else if (IDd && IDd.value > vectorBarID * 0.9) { trueBarID = IDd.value; barText = IDd.raw_text; }
         const scaleX = trueBarID / (vectorBarID || 1);
         const vectorH = mainSegs.reduce((a, seg) => a + seg.height_mm, 0);
         const scaleY = Hd ? Hd.value / (vectorH || 1) : scaleX;
         const Z = h => h * scaleY;
+        const R = r => r * scaleX * 2;
         const getH = s => {
           if (s.height_raw_text) {
             const n = N(String(s.height_raw_text).replace(/[^0-9.\-]/g, ''));
@@ -3948,37 +4050,57 @@ function sessionCard() {
 
         s = mainSegs[0];
         const h0 = getH(s);
-        upd('dishShellH', h0, s.height_raw_text, null, kind, conf); upd('dishDepth', h0, s.height_raw_text, 'Approximate: bottom segment height', kind, 0.5);
-        if (s.radius_bottom_mm < 1) { upd('dishR', 0, null, null, kind, conf); S.bottom.type = 'Conical'; }
-        elev += h0;
+        const dishTopDia = R(s.radius_top_mm || mainSegs[1].radius_bottom_mm);
+        upd('dishShellH', h0, s.height_raw_text || String(+(h0.toFixed(1))), 'Extracted segment height', kind, conf);
+        upd('dishDepth', h0, s.height_raw_text || String(+(h0.toFixed(1))), 'Dish depth (from bottom segment)', dk, conf);
+        if (dishTopDia > 0 && h0 > 0) {
+          const calcDishR = fxCalc('ext_dish_sphere_radius', { chord_r: dishTopDia / 2, dish_h: h0 }, () => ((dishTopDia / 2) ** 2 + h0 ** 2) / (2 * h0));
+          upd('dishR', calcDishR, null, 'Derived from dish chord & height', dk, conf);
+          upd('botDia', dishTopDia, null, 'Derived from bottom dish top radius', dk, conf);
+        }
+        S.bottom.type = 'Dished';
+        elev = fxCalc('ext_zone_elevation', { elev_base: elev, seg_height: h0 }, () => elev + h0);
 
         s = mainSegs[1];
         const h1 = getH(s);
-        upd('lcH0', elev, null, null, dk, conf);
-        if (IDd && IDd.value < trueBarID - 200) {
-          upd('lcIDb', IDd.value, IDd.raw_text, 'Dimension text', kind, conf);
-        } else {
-          upd('lcIDb', s.radius_bottom_mm * 2 * scaleX, null, null, kind, conf);
-        }
-        elev += h1; upd('lcH1', elev, s.height_raw_text ? `${s.height_raw_text} (height)` : null, null, kind, conf); upd('lcIDt', trueBarID, null, null, kind, conf);
+        const lcBotDia = R(s.radius_bottom_mm || mainSegs[0].radius_top_mm);
+        upd('lcH0', elev, null, 'Derived: top of bottom dish', dk, conf);
+        if (lcBotDia > 0) upd('lcIDb', lcBotDia, null, 'Extracted lower cone bottom diameter', kind, conf);
+        elev = fxCalc('ext_zone_elevation', { elev_base: elev, seg_height: h1 }, () => elev + h1);
+        upd('lcH1', elev, s.height_raw_text ? `${s.height_raw_text} (height)` : null, 'Derived: lcH0 + height', dk, conf);
+        upd('lcIDt', trueBarID, barText || null, 'Barrel ID at joint', kind, conf);
 
         s = mainSegs[2];
         const h2 = getH(s);
-        upd('barH0', elev, null, null, dk, conf); upd('barID', trueBarID, barText, null, kind, conf);
-        elev += h2; upd('barH1', elev, s.height_raw_text ? `${s.height_raw_text} (height)` : null, null, kind, conf);
+        upd('barH0', elev, null, 'Derived: top of lower cone', dk, conf);
+        upd('barID', trueBarID, barText || null, 'Extracted barrel inner diameter', kind, conf);
+        elev = fxCalc('ext_zone_elevation', { elev_base: elev, seg_height: h2 }, () => elev + h2);
+        upd('barH1', elev, s.height_raw_text ? `${s.height_raw_text} (height)` : null, 'Derived: barH0 + height', dk, conf);
 
         s = mainSegs[3];
         const h3 = getH(s);
-        upd('topH0', elev, null, null, dk, conf); upd('topIDb', trueBarID, null, null, kind, conf);
-        elev += h3; upd('topH1', elev, s.height_raw_text ? `${s.height_raw_text} (height)` : null, null, kind, conf); upd('topIDt', s.radius_top_mm * 2 * scaleX, null, null, kind, conf);
+        const topTopDia = R(s.radius_top_mm || mainSegs[4].radius_bottom_mm);
+        upd('topH0', elev, null, 'Derived: top of barrel', dk, conf);
+        upd('topIDb', trueBarID, null, 'Barrel ID at cone bottom', dk, conf);
+        elev = fxCalc('ext_zone_elevation', { elev_base: elev, seg_height: h3 }, () => elev + h3);
+        upd('topH1', elev, s.height_raw_text ? `${s.height_raw_text} (height)` : null, 'Derived: topH0 + height', dk, conf);
+        if (topTopDia > 0) upd('topIDt', topTopDia, null, 'Extracted top cone top diameter', kind, conf);
+        const coneAng = shell.cone_angle_deg || s.slope_angle_deg || (h3 > 0 ? fxCalc('ext_cone_half_angle', { r_top: topTopDia / 2, r_bot: trueBarID / 2, height: h3 }, () => deg(Math.atan2(Math.abs(trueBarID - topTopDia) / 2, h3))) : null);
+        if (coneAng != null) upd('halfAng', coneAng, null, 'Derived from top cone geometry', dk, conf);
 
         s = mainSegs[4];
         const h4 = getH(s);
-        upd('ringH0', elev, null, null, dk, conf); upd('ringID', s.radius_bottom_mm * 2 * scaleX, null, null, kind, conf);
-        const calcElev = elev + h4;
-        elev = 10000;
-        upd('ringH1', elev, Hd ? Hd.raw_text : null, null, kind, conf); upd('ringHt', h4, s.height_raw_text, null, kind, conf);
-        upd('H', elev, Hd ? Hd.raw_text : null, `⚠ WARNING: Extracted as 10000, but calculated value is ${f(calcElev, 1)} by adding those values (${[h0, h1, h2, h3, h4].map(v => f(v, 1)).join(' + ')})`, kind, 0.1);
+        const ringDia = R(s.radius_top_mm || s.radius_bottom_mm) || topTopDia;
+        upd('ringH0', elev, null, 'Derived: top of top cone', dk, conf);
+        if (ringDia > 0) upd('ringID', ringDia, null, 'Extracted mouth ring ID', kind, conf);
+        elev = fxCalc('ext_zone_elevation', { elev_base: elev, seg_height: h4 }, () => elev + h4);
+        const totElev = +(elev.toFixed(1));
+        upd('ringH1', totElev, String(totElev), 'Mouth Ring Top Elevation', dk, conf);
+        upd('ringHt', h4, s.height_raw_text || String(+(h4.toFixed(1))), 'Extracted mouth ring height', kind, conf);
+        upd('ringProf', 'Vertical', '—', 'Profile: Vertical', dk, conf);
+        upd('lip', 0, '—', 'No lip seen', dk, conf);
+        upd('ringCool', 'No', '—', 'No cooling shown', dk, conf);
+        upd('H', Hd ? Hd.value : totElev, Hd ? Hd.raw_text : String(totElev), 'Overall vessel height', kind, conf);
         if (prof.extraction_method === 'none') warnings.push('the vessel profile could not be extracted from this drawing style');
       } else if (segs.length >= 2) {
         const rMax = Math.max(...segs.map(s => Math.max(s.r0, s.r1))); const nearAxis = s => Math.min(s.r0, s.r1) < 0.25 * rMax;
@@ -4013,27 +4135,41 @@ function sessionCard() {
         top.forEach(s => el += s.h); upd('topH1', Z(el), top.map(s => s.raw).filter(Boolean).join(' + ') || null, how, kind, conf); upd('topIDt', R(top.length ? top[top.length - 1].r1 : rBar), null, how, kind, conf);
         if (top.length) { const dr = (top[0].r0 - top[top.length - 1].r1) * sx, dh = top.reduce((a, s) => a + s.h, 0) * sy; upd('halfAng', deg(Math.atan(dr / dh)), null, 'Derived from the top cone outline', scaled || Math.abs(sx - sy) < 1e-9 ? 'derived' : 'unscaled', conf); }
         upd('ringH0', Z(el), null, 'Derived: top of top cone', dk, conf); upd('ringID', R(ring.length ? ring[0].r0 : (top.length ? top[top.length - 1].r1 : rBar)), null, how, kind, conf);
-        ring.forEach(s => el += s.h); 
-        let calcEnd = Z(el);
-        let ringEnd = 10000;
-        const sumText = segs.map(s => f(Z(s.h), 1)).join(' + ');
+        ring.forEach(s => el += s.h);
+        let calcEnd = +(Z(el).toFixed(1));
+        let ringEnd = Hd ? Hd.value : calcEnd;
         upd('ringH1', ringEnd, null, how, kind, conf); upd('ringHt', Z(ring.reduce((a, s) => a + s.h, 0)), ring.map(s => s.raw).filter(Boolean).join(' + ') || null, how, kind, conf);
-        upd('H', ringEnd, Hd ? Hd.raw_text : null, `⚠ WARNING: Extracted as 10000, but calculated value is ${f(calcEnd, 1)} by adding those values (${sumText})`, kind, 0.1);
+        upd('H', ringEnd, Hd ? Hd.raw_text : String(calcEnd), how, kind, conf);
         if (ring.length) { upd('ringProf', 'Vertical', null, 'Read from the outline', 'derived', 0.6); upd('lip', 0, null, 'No lip in the outline', 'derived', 0.5); }
         if (!bot) warnings.push('no bottom segment found');
         if (!top.length) warnings.push('no top cone found');
       } else warnings.push('the shell profile could not be extracted from this drawing');
-      // 3. nozzles / operating data, when person 1 found them
+      // 3. nozzles / operating data, when backend found them
       (geom.nozzles || []).forEach(n => {
         const lab = String(n.label || n.type || n.nozzle_type || '').toLowerCase();
-        if (/tap/.test(lab)) { upd('tapElev', n.position_mm ?? n.elevation_mm, null, 'Nozzle (extraction)'); upd('tapAng', n.angle_deg ?? n.orientation_deg, null, 'Nozzle (extraction)'); upd('tapDia', n.diameter_mm, null, 'Nozzle (extraction)'); upd('tapIncl', n.inclination_deg, null, 'Nozzle (extraction)'); }
-        if (/tuyere|stir|plug|purg/.test(lab)) { upd('nStir', n.count ?? n.quantity, null, 'Nozzle (extraction)'); upd('pcd', n.pcd_mm, null, 'Nozzle (extraction)'); }
+        if (/tap/.test(lab)) {
+          if (n.position_mm ?? n.elevation_mm) upd('tapElev', n.position_mm ?? n.elevation_mm, null, 'Nozzle (extraction)', 'drawing', 0.95);
+          if (n.orientation_deg ?? n.angle_deg) upd('tapAng', n.orientation_deg ?? n.angle_deg, null, 'Nozzle (extraction)', 'drawing', 0.95);
+          if (n.diameter_mm) upd('tapDia', n.diameter_mm, null, 'Nozzle (extraction)', 'drawing', 0.95);
+          if (n.inclination_deg) upd('tapIncl', n.inclination_deg, null, 'Nozzle (extraction)', 'drawing', 0.95);
+        }
+        if (/tuyere|stir|plug|purg/.test(lab)) {
+          if (n.count ?? n.quantity) upd('nStir', n.count ?? n.quantity, null, 'Nozzle (extraction)', 'drawing', 0.95);
+          if (n.pcd_mm) upd('pcd', n.pcd_mm, null, 'Nozzle (extraction)', 'drawing', 0.95);
+        }
+        if (/trun/.test(lab)) {
+          if (n.orientation_deg ?? n.angle_deg) upd('trunAng', n.orientation_deg ?? n.angle_deg, null, 'Nozzle (extraction)', 'drawing', 0.95);
+        }
       });
       const op = geom.operating_conditions || {};
-      if (op.vessel_capacity_tons) S.job.heat = +op.vessel_capacity_tons; if (op.tapping_temperature_c) S.job.tapT = +op.tapping_temperature_c;
-      S.extSrc = src; INIT.ext = clone(S.ext); EXT_GROUPS.forEach(g => S.extOk[g] = false); reopenFrom(1);
+      if (op.vessel_capacity_tons) S.job.heat = +op.vessel_capacity_tons;
+      if (op.tapping_temperature_c) S.job.tapT = +op.tapping_temperature_c;
+      S.extSrc = src;
+      INIT.ext = clone(S.ext);
+      EXT_GROUPS.forEach(g => S.extOk[g] = false);
+      S.annAll = true;
+      reopenFrom(1);
       const miss = LIN_EXT.filter(([k]) => !src[k]).map(([k]) => S.ext[k].label);
-      if (adjustedH) warnings.push('overall vessel height was automatically adjusted to 10000 mm');
       log('Extraction applied', `${Object.keys(src).length} values from the drawing; not found: ${miss.join(', ') || 'none'}`);
       return { found: Object.keys(src).length, miss, warnings };
     }
@@ -4048,7 +4184,15 @@ function sessionCard() {
           if (S.step === 0 && !S.extracting) {
             const ok = !!(S.job.customer && +S.job.heat > 0 && S.job.drawing);
             const gb = document.querySelector('#view .gatebox');
-            if (gb) gb.outerHTML = gateBar(0, ok, 'Create job card', 'Customer name, heat size and drawing are required.');
+            if (gb) {
+              const g = S.gates[0];
+              const infoDiv = gb.querySelector('div');
+              if (infoDiv) {
+                infoDiv.innerHTML = `${g ? `<span class="gate done">✓ Confirmed by Designer · ${g.t}</span>` : `<span class="gate">Not confirmed</span>`} ${!ok ? `<span class="small badt">Customer name, heat size and drawing are required.</span>` : ''}`;
+              }
+              const btn = gb.querySelector('[data-act="gate"]');
+              if (btn) btn.disabled = !ok || !!g;
+            }
           }
         }
         const p = el.dataset && el.dataset.p; if (!p || el.type !== 'number') return;
@@ -4112,6 +4256,27 @@ function sessionCard() {
         if (!p.startsWith('draft.') && !p.startsWith('split.') && !['annAll', 'permX'].includes(p)) { log('Value changed', `${p}: ${old} → ${v}`); reopenFrom(Math.max(1, S.step)); }
         render();
         autoSave();
+      });
+      if (typeof FX !== 'undefined') {
+        FX.load(getApiBase()).then(() => render()).catch(() => {});
+      }
+      window.addEventListener('message', e => {
+        const d = e && e.data;
+        if (!d || typeof d !== 'object') return;
+        if (d.type === 'refractory-formulas-updated' && typeof FX !== 'undefined') {
+          FX.load(getApiBase()).then(() => {
+            clearCache();
+            log('Formula updated', d.formulaId || 'registry reloaded');
+            toast('Formula updated — all step calculations & BOQ recalculated', 'ok');
+            render();
+          }).catch(() => {});
+        } else if (d.type === 'refractory-preset-applied' && d.settings) {
+          Object.entries(d.settings).forEach(([k, v]) => { try { setP(S, k, v); } catch (_) {} });
+          clearCache();
+          log('Preset applied', JSON.stringify(d.settings));
+          toast('Saved settings applied', 'ok');
+          render();
+        }
       });
       updSess();
       render();

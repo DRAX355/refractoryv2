@@ -66,6 +66,7 @@ def load_drawing(path: Path) -> tuple[list[np.ndarray], DrawingFormat]:
         ValueError: for unsupported formats.
         RuntimeError: if loading/conversion fails.
     """
+    path = Path(path)
     fmt = detect_format(path)
 
     match fmt:
@@ -104,8 +105,8 @@ def _load_pdf(path: Path) -> list[np.ndarray]:
     # Open document
     doc = fitz.open(str(path))
     
-    # 180-200 DPI equivalent matrix (1 scale = 72 DPI, 180/72 = 2.5)
-    zoom = 2.5
+    # 130-150 DPI equivalent matrix (1 scale = 72 DPI, 130/72 = 1.8) - memory efficient & accurate
+    zoom = 1.8
     mat = fitz.Matrix(zoom, zoom)
     
     for i, page in enumerate(doc):

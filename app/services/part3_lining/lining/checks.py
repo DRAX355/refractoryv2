@@ -23,8 +23,10 @@ def _dist_to_poly(p, pts):
 
 
 def run_checks(payload, vessel, sheet, courses, rings, vols, bom, st, nozzles):
+    from refractory_core import get_core
+    f = get_core().formulas
     out = []
-    tol = 0.5                                                     # mm
+    tol = f.evaluate("p_geometry_check_tol", {})                                    # mm
 
     # 1. shell profile: drawn shell (inside face + plate) back to the input outside dimensions
     vin = payload["vessel"]
@@ -108,8 +110,9 @@ def run_checks(payload, vessel, sheet, courses, rings, vols, bom, st, nozzles):
             V += math.pi * r * r * dz * (b - a) / 360.0
     V /= 1e9
     ref = vols["inside_volume_m3"]
-    out.append(_ok("Inside volume: engine vs independent slice integration", abs(V - ref) / ref <= 0.005,
-                   f"{ref:.3f} m3", f"{V:.3f} m3 (±0.5 %)"))
+    vol_tol = f.evaluate("p_inside_volume_tol", {})
+    out.append(_ok("Inside volume: engine vs independent slice integration", abs(V - ref) / ref <= vol_tol,
+                   f"{ref:.3f} m3", f"{V:.3f} m3 (±{vol_tol * 100:g} %)"))
 
     # 4. every brick ring closes (hot face): placed bricks + cut piece = arc length at the hot face
     j = float(st.get("joint", 0.5))
@@ -140,13 +143,14 @@ def run_checks(payload, vessel, sheet, courses, rings, vols, bom, st, nozzles):
         # the cut length already includes its joint
         have = r["nA"] * (A["width_bottom"] + jb) + r["nB"] * (B["width_bottom"] + jb) + r["cut"] * r["nCut"]
         n_rings += 1
-        excess = abs(have - need) - max(1.0, 0.1 * (r["nA"] + r["nB"] + 1)) - 0.2   # joint squeeze 0.1 mm/brick
+        sq_tol = f.evaluate("ring_squeeze", {"na": r["nA"], "nb": r["nB"]}) + f.evaluate("p_squeeze_check_tol", {})
+        excess = abs(have - need) - sq_tol
         if excess > worst - 1e9 and abs(have - need) > (worst if wc else -1):
             worst, wc = abs(have - need), f"course {r['course']} {r['band']} {r['sector']}° ({r['nA'] + r['nB']} bricks)"
         if excess > 0:
             bad_rings.append(wc)
     out.append(_ok(f"Wall rings close at the hot face ({n_rings} course/sector rings)", not bad_rings,
-                   f"max difference {worst:.1f} mm in a ring", "within 0.1 mm joint squeeze per brick",
+                   f"max difference {worst:.1f} mm in a ring", "within joint squeeze per brick",
                    wc + (f"; {len(bad_rings)} ring(s) outside tolerance" if bad_rings else "")))
     if rings:
         bj = float(st.get("bottom_joint", 0) or 0)
@@ -156,11 +160,12 @@ def run_checks(payload, vessel, sheet, courses, rings, vols, bom, st, nozzles):
             have = sum(q * (float(lib[m]["dimensions_mm"]["D"]) + bj) for m, q in rg["marks"].items() if m in lib)
             have += rg["cut"] * rg["nCut"]
             n_b = sum(rg["marks"].values())
-            if abs(have - need) > max(1.0, 0.1 * (n_b + 1)) + 0.2 and not wr:        # same rule as the closure
+            sq_tol = f.evaluate("ring_squeeze", {"na": n_b, "nb": 0}) + f.evaluate("p_squeeze_check_tol", {})
+            if abs(have - need) > sq_tol and not wr:        # same rule as the closure
                 wr = f"ring {rg['ring']} differs {abs(have - need):.1f} mm"
             worst = max(worst, abs(have - need))
         out.append(_ok(f"Bottom rings close ({len(rings['rings'])} rings)", not wr,
-                       f"max difference {worst:.1f} mm in a ring", "within 0.1 mm joint squeeze per brick", wr))
+                       f"max difference {worst:.1f} mm in a ring", "within joint squeeze per brick", wr))
 
     # 5. lining volume rebuilt from the course schedule (library bricks, scaled to the course height,
     #    + courses that need shapes missing from the library) vs the drawn working-lining volume
@@ -195,9 +200,10 @@ def run_checks(payload, vessel, sheet, courses, rings, vols, bom, st, nozzles):
             continue
         vb, vm, vgap, vg = zone_b.get(k, 0.0), zone_m.get(k, 0.0), zone_g.get(k, 0.0), zone_geo[k]
         tot = vb + vm + vgap
-        out.append(_ok(f"Working lining volume rebuilt course by course: {k[0]} - {k[1]}", abs(tot / vg - 1) <= 0.02,
+        reb_tol = f.evaluate("p_lining_volume_rebuild_tol", {})
+        out.append(_ok(f"Working lining volume rebuilt course by course: {k[0]} - {k[1]}", abs(tot / vg - 1) <= reb_tol,
                        f"bricks {vb:.2f} + not-in-library {vm:.2f} + cone gap {vgap:.2f} = {tot:.2f} m3",
-                       f"drawing {vg:.2f} m3 (±2 %)"))
+                       f"drawing {vg:.2f} m3 (±{reb_tol * 100:g} %)"))
 
     # 6. BOM = schedule
     n_sched = sum(r["nA"] + r["nB"] + r["nCut"] for r in courses if r.get("pair"))

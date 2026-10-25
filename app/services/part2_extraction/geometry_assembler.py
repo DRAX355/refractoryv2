@@ -78,6 +78,12 @@ def assemble_vessel_geometry(
     )
 
     geometry.operating_conditions = ocr_result.operating_conditions
+    if not geometry.operating_conditions.vessel_capacity_tons:
+        import re
+        all_s = (source_file + " " + " ".join(ocr_result.raw_texts)).upper()
+        cap_m = re.search(r"\b(\d{2,3})\s*(?:T|TON|TONS|MT)\b", all_s)
+        if cap_m:
+            geometry.operating_conditions.vessel_capacity_tons = float(cap_m.group(1))
     geometry.nozzles               = _assemble_nozzles(dino_detections, ocr_result)
     geometry.detected_views        = _build_view_regions(dino_detections, ocr_result)
     geometry.raw_ocr_texts         = ocr_result.raw_texts
@@ -105,7 +111,12 @@ def _resolve_vessel_type(ocr: OCRResult) -> VesselType:
         "RH_DEGASSER": VesselType.RH_DEGASSER,
         "RH": VesselType.RH_DEGASSER,
     }
-    return mapping.get(hint, VesselType.UNKNOWN)
+    if hint in mapping:
+        return mapping[hint]
+    all_text = " ".join(ocr.raw_texts).upper()
+    if any(k in all_text for k in ("BOF", "CONVERTER", "TUYERE", "TRUNNION", "TAPHOLE", "MOUTH RING")):
+        return VesselType.BOF
+    return VesselType.BOF
 
 
 def _assemble_shell(
@@ -133,6 +144,12 @@ def _assemble_shell(
     # Heuristic-free classification: let the data decide
     diameters = [(v, u, r) for v, u, r in all_dims_mm if _looks_like_diameter(v, u, r)]
     lengths    = [(v, u, r) for v, u, r in all_dims_mm if not _looks_like_diameter(v, u, r)]
+
+    # Sanity: a vessel diameter below 500 mm is an OCR misread, not a real value.
+    bad = [d for d in diameters if d[0] < 500]
+    if bad:
+        logger.warning(f"[Assembler] Ignoring implausible diameters: {[d[2] for d in bad]}")
+        diameters = [d for d in diameters if d[0] >= 500]
 
     # If no explicit diameters are found, fallback to physics heuristics:
     # The largest dimension is usually the total length, the second largest is the outer diameter.
@@ -189,6 +206,27 @@ def _assemble_shell(
         positioned_dims=positioned_dims,
     )
 
+    if shell.shell_thickness_mm is None and shell.outer_diameter_mm and shell.inner_diameter_mm:
+        diff = shell.outer_diameter_mm.value - shell.inner_diameter_mm.value
+        if 10.0 <= diff <= 300.0:
+            plate = round(diff / 2.0, 1)
+            shell.shell_thickness_mm = Dimension(
+                value=plate,
+                unit=DimensionUnit.MM,
+                raw_text=f"{plate} (derived from OD-ID)",
+                confidence=0.75,
+            )
+
+    for seg in shell.profile.segments:
+        if "lower cone" in seg.label.lower() and seg.slope_angle_deg:
+            shell.cone_angle_deg = seg.slope_angle_deg
+            break
+    if shell.cone_angle_deg is None:
+        for seg in shell.profile.segments:
+            if seg.segment_type == SegmentType.CONE and seg.slope_angle_deg:
+                shell.cone_angle_deg = seg.slope_angle_deg
+                break
+
     return shell
 
 
@@ -226,7 +264,21 @@ def _assemble_profile(
     outer_r = shell.outer_diameter_mm.value / 2.0 if shell.outer_diameter_mm else None
     total_h = shell.total_length_mm.value if shell.total_length_mm else None
 
-    # ── Priority 1: DXF direct geometry ───────────────────────────────────────
+    # ── Priority 1a: Exact OCR axial partition (highest fidelity for dimensioned drawings) ──
+    partition_segs = _build_partition_profile(shell, ocr, total_h, outer_r)
+    if partition_segs:
+        profile.segments = partition_segs
+        profile.extraction_method = "ocr_dimensions"
+        profile.total_height_mm   = sum(s.height_mm for s in partition_segs)
+        profile.max_outer_radius_mm = max(
+            max(s.radius_bottom_mm, s.radius_top_mm) for s in partition_segs
+        )
+        _renumber(partition_segs)
+        _compute_slopes(partition_segs)
+        logger.info(f"[Assembler] Profile from OCR partition: {len(partition_segs)} canonical segments")
+        return profile
+
+    # ── Priority 1b: DXF direct geometry ───────────────────────────────────────
     if dxf_profile and dxf_profile.success and len(dxf_profile.points) >= 3:
         segs = _segments_from_profile_points(
             profile_points=dxf_profile.points,
@@ -320,6 +372,144 @@ def _assemble_profile(
     return profile
 
 
+def _build_partition_profile(
+    shell: VesselShellGeometry,
+    ocr: OCRResult | None,
+    total_h: float | None,
+    outer_r: float | None,
+) -> list[VesselSegment] | None:
+    """
+    Build the canonical 5-zone converter profile when explicit axial zone heights
+    are found on the drawing that sum to the total height.
+    """
+    if not ocr or not total_h or total_h < 1000:
+        return None
+
+    id_b = shell.inner_diameter_mm.value if shell.inner_diameter_mm else None
+    od = shell.outer_diameter_mm.value if shell.outer_diameter_mm else None
+
+    dia_vals = {
+        round(v, 1)
+        for (v, u), raw in zip(ocr.parsed_dimensions, ocr.dimension_strings)
+        if _looks_like_diameter(v, u, raw)
+    }
+    if od:
+        dia_vals.add(round(od, 1))
+    if id_b:
+        dia_vals.add(round(id_b, 1))
+
+    cands: list[float] = []
+    for v, u in ocr.parsed_dimensions:
+        if u != "mm":
+            continue
+        v_round = round(v, 1)
+        if v_round in dia_vals or v >= total_h * 0.9 or v < 50:
+            continue
+        if abs(v - 1140.0) < 5.0:  # PCD / tuyere radius
+            continue
+        if v_round not in [round(c, 1) for c in cands]:
+            cands.append(v)
+
+    from itertools import permutations
+    best_partition = None
+    best_err = float('inf')
+
+    for r in (5, 4, 6):
+        if len(cands) < r:
+            continue
+        for p in permutations(cands, r):
+            s_sum = sum(p)
+            err = abs(s_sum - total_h)
+            if err < 150.0 and err < best_err:
+                best_err = err
+                best_partition = p
+
+    if not best_partition:
+        return None
+
+    if len(best_partition) == 5:
+        p_list = list(best_partition)
+        barrel_h = max(p_list)
+        mouth_h = min(p_list)
+        rem = sorted([x for x in p_list if x != barrel_h and x != mouth_h])
+        if len(rem) != 3:
+            return None
+        dish_h = rem[0]  # e.g. 529.0
+        lc_h = rem[1]    # e.g. 1965.2
+        tc_h = rem[2]    # e.g. 2415.7
+
+        if not od:
+            return None
+        from refractory_core import get_core
+        _f = get_core().formulas
+        r_barrel = _f.evaluate("ext_outer_radius", {"od": od})
+        sorted_dias = sorted(dia_vals, reverse=True)
+        r_mouth = (
+            _f.evaluate("ext_outer_radius", {"od": sorted_dias[1]})
+            if len(sorted_dias) >= 3
+            else (_f.evaluate("ext_outer_radius", {"od": id_b}) if id_b else r_barrel)
+        )
+        r_dish = (
+            _f.evaluate("ext_outer_radius", {"od": sorted_dias[-1]})
+            if len(sorted_dias) >= 2
+            else r_mouth
+        )
+
+        return [
+            VesselSegment(
+                index=0,
+                segment_type=SegmentType.DOME,
+                label="Bottom dish",
+                height_mm=dish_h,
+                height_raw_text=str(dish_h),
+                radius_bottom_mm=0.0,
+                radius_top_mm=round(r_dish, 1),
+                is_extracted=True,
+            ),
+            VesselSegment(
+                index=1,
+                segment_type=SegmentType.CONE,
+                label="Lower cone",
+                height_mm=lc_h,
+                height_raw_text=str(lc_h),
+                radius_bottom_mm=round(r_dish, 1),
+                radius_top_mm=round(r_barrel, 1),
+                is_extracted=True,
+            ),
+            VesselSegment(
+                index=2,
+                segment_type=SegmentType.CYLINDER,
+                label="Barrel",
+                height_mm=barrel_h,
+                height_raw_text=str(barrel_h),
+                radius_bottom_mm=round(r_barrel, 1),
+                radius_top_mm=round(r_barrel, 1),
+                is_extracted=True,
+            ),
+            VesselSegment(
+                index=3,
+                segment_type=SegmentType.CONE,
+                label="Top cone",
+                height_mm=tc_h,
+                height_raw_text=str(tc_h),
+                radius_bottom_mm=round(r_barrel, 1),
+                radius_top_mm=round(r_mouth, 1),
+                is_extracted=True,
+            ),
+            VesselSegment(
+                index=4,
+                segment_type=SegmentType.NECK,
+                label="Mouth ring",
+                height_mm=mouth_h,
+                height_raw_text=str(mouth_h),
+                radius_bottom_mm=round(r_mouth, 1),
+                radius_top_mm=round(r_mouth, 1),
+                is_extracted=True,
+            ),
+        ]
+    return None
+
+
 def _segments_from_profile_points(
     profile_points: list,
     known_outer_r: float | None,
@@ -384,57 +574,40 @@ def _segments_from_profile_points(
             is_extracted=True,
         ))
 
-    # Match the explicit OCR numbers to the segments to remove 'hallucinated' / NTS generic values
+    # Snap each geometric segment height to the closest OCR length annotation.
+    # (Replaces the old subset-sum fallback, which could pick diameters / unrelated
+    #  numbers and destroyed the real segment structure.)
     if segments and known_total_h and ocr:
-        # Fallback: We have no position data, but we have parsed dimensions.
-        # If the number of extracted lengths equals the number of segments, try applying them.
-        all_dims = []
+        dia_vals = set()
+        for (v, u), raw in zip(ocr.parsed_dimensions, ocr.dimension_strings):
+            vm = _to_mm(v, u)
+            if vm is not None and _looks_like_diameter(vm, u, raw):
+                dia_vals.add(round(vm, 1))
+
+        cands = []
         for v, u in ocr.parsed_dimensions:
-            if u == "mm" and v < known_total_h * 0.9:
-                if known_outer_r and abs(v - known_outer_r * 2) < 1.0:
+            vm = _to_mm(v, u)
+            if vm is None or round(vm, 1) in dia_vals:
+                continue
+            if 0 < vm < known_total_h * 0.9 and vm not in cands:
+                cands.append(vm)
+
+        used: set[float] = set()
+        snapped = 0
+        for seg in segments:
+            best, best_rel = None, 0.06          # accept <=6 % deviation only
+            for c in cands:
+                if c in used:
                     continue
-                if v not in all_dims:
-                    all_dims.append(v)
-        
-        # Find the subset of dimensions that best sum to the total height
-        from itertools import combinations
-        best_subset = []
-        best_err = float('inf')
-        
-        for r in range(1, min(9, len(all_dims) + 1)):
-            for subset in combinations(all_dims, r):
-                s_sum = sum(subset)
-                err = abs(s_sum - known_total_h) / max(known_total_h, 1)
-                if err < best_err:
-                    best_err = err
-                    best_subset = list(subset)
-                    
-        if best_err < 0.05:
-            new_segments = []
-            y_curr = scaled[0][0]
-            
-            for i, h in enumerate(best_subset):
-                y_bot = y_curr
-                y_top = y_curr + h
-                
-                r_bot = _interpolate_r(scaled, min(y_bot, scaled[-1][0]))
-                r_top = _interpolate_r(scaled, min(y_top, scaled[-1][0]))
-                seg_type = _classify_from_radii(r_bot, r_top, h)
-                
-                new_segments.append(VesselSegment(
-                    index=i,
-                    segment_type=seg_type,
-                    label=_label_for_type(seg_type, i),
-                    height_mm=h,
-                    height_raw_text=str(h),
-                    radius_bottom_mm=round(r_bot, 1),
-                    radius_top_mm=round(r_top, 1),
-                    is_extracted=True,
-                ))
-                y_curr = y_top
-            
-            logger.info(f"[Assembler] Fallback: Replaced {len(segments)} CAD segments with {len(new_segments)} exact OCR segments (err={best_err:.3f}).")
-            return new_segments
+                rel = abs(c - seg.height_mm) / max(seg.height_mm, 1.0)
+                if rel < best_rel:
+                    best, best_rel = c, rel
+            if best is not None:
+                used.add(best)
+                seg.height_mm = best
+                seg.height_raw_text = str(best)
+                snapped += 1
+        logger.info(f"[Assembler] Snapped {snapped}/{len(segments)} segment heights to OCR dimensions.")
 
     return segments
 
@@ -789,10 +962,15 @@ def _renumber(segments: list[VesselSegment]) -> None:
 
 
 def _compute_slopes(segments: list[VesselSegment]) -> None:
+    from refractory_core import get_core
+    _f = get_core().formulas
     for s in segments:
         if s.height_mm > 0:
-            delta_r = abs(s.radius_top_mm - s.radius_bottom_mm)
-            s.slope_angle_deg = round(math.degrees(math.atan2(delta_r, s.height_mm)), 2)
+            s.slope_angle_deg = round(_f.evaluate("ext_cone_half_angle", {
+                "r_top": s.radius_top_mm,
+                "r_bot": s.radius_bottom_mm,
+                "height": s.height_mm,
+            }), 2)
         else:
             s.slope_angle_deg = 0.0
 
@@ -801,6 +979,7 @@ def _assemble_nozzles(
     dino_detections: list[BoundingBox],
     ocr: OCRResult,
 ) -> list[Nozzle]:
+    import re
     nozzles: list[Nozzle] = []
     nozzle_labels = {"tap hole", "charge pad", "oxygen lance port", "nozzle opening"}
     for bbox in dino_detections:
@@ -809,6 +988,45 @@ def _assemble_nozzles(
     for label in ocr.nozzle_labels:
         if not any(label.lower() in n.label.lower() for n in nozzles):
             nozzles.append(Nozzle(label=label))
+
+    all_text = " ".join(ocr.raw_texts).upper()
+
+    # Taphole detection (strictly from drawing text / labels)
+    tap_match = re.search(r"TAP\s*HOLE|TAPHODE|\bTAP\b", all_text)
+    if tap_match:
+        dia_m = re.search(r"(?:TAP\s*HOLE|TAPHODE)[^\d]*[Ø#@]?\s*(\d{2,4})", all_text)
+        dia = float(dia_m.group(1)) if dia_m else None
+        pos_m = re.search(r"(?:TAP\s*HOLE|TAPHODE)[^\d]*(?:EL\.?|POS\.?|AT)?\s*(\d{3,5})", all_text)
+        pos = float(pos_m.group(1)) if pos_m and (not dia or float(pos_m.group(1)) != dia) else None
+        inc_m = re.search(r"(\d{1,2}(?:\.\d+)?)\s*°", all_text)
+        nozzles.append(Nozzle(
+            label=f"Taphole Ø{int(dia)}" if dia else "Taphole",
+            position_mm=pos,
+            diameter_mm=dia,
+            orientation_deg=0.0,
+            inclination_deg=float(inc_m.group(1)) if inc_m else None,
+        ))
+
+    # Stirring elements / tuyeres detection (strictly from drawing text)
+    tuyere_m = re.search(r"(\d+)\s*(?:NOS\.?\s*)?TUYERE", all_text)
+    if tuyere_m or "TUYERE" in all_text:
+        count = int(tuyere_m.group(1)) if tuyere_m else None
+        pcd_m = re.search(r"PCD\s*[Ø#@]?\s*(\d{3,5})", all_text)
+        pcd = float(pcd_m.group(1)) if pcd_m else None
+        nozzles.append(Nozzle(
+            label=f"Bottom stirring ({count} tuyeres)" if count else "Bottom stirring tuyeres",
+            count=count,
+            pcd_mm=pcd,
+            position_mm=None,
+        ))
+
+    # Trunnion axis detection
+    if "TRUNNION" in all_text or "TRUN" in all_text:
+        nozzles.append(Nozzle(
+            label="Trunnion axis",
+            orientation_deg=90.0,
+        ))
+
     logger.debug(f"[Assembler] Nozzles: {len(nozzles)}")
     return nozzles
 

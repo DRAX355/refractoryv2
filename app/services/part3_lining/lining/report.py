@@ -6,6 +6,8 @@ from .model import angle_breaks
 
 
 def build_report(sheet):
+    from refractory_core import get_core
+    f = get_core().formulas
     units = sheet.vessel.get("units", "")
     k, vu = (1e-9, "m3") if units == "mm" else (1.0, f"{units}3")
     L = sheet.L
@@ -18,17 +20,22 @@ def build_report(sheet):
         paths, _ = sheet.boundary_paths((a + b) / 2)
         hot = paths[L].all()
         pts = sample(hot) + [(0.0, hot[-1][1]), (0.0, hot[0][1])]
-        cavity += 2 * math.pi * region_area_moment(pts)[1] * (b - a) / 360.0
+        cavity += f.evaluate("revolved_volume", {
+            "area_moment": region_area_moment(pts)[1],
+            "angle_from": a, "angle_to": b, "unit_factor": 1.0,
+        })
 
     rows = []
     for bi, band in enumerate(sheet.bands):
         i0, i1 = sheet.band_idx[bi]
         for sec in band["sectors"]:
             paths, _ = sheet.boundary_paths((sec["from"] + sec["to"]) / 2)
-            frac = (sec["to"] - sec["from"]) / 360.0
             for j in range(1, L + 1):
                 pts = sample(paths[j - 1].run(i0, i1) + reverse_run(paths[j].run(i0, i1)))
-                vol = 2 * math.pi * region_area_moment(pts)[1] * frac
+                vol = f.evaluate("revolved_volume", {
+                    "area_moment": region_area_moment(pts)[1],
+                    "angle_from": sec["from"], "angle_to": sec["to"], "unit_factor": 1.0,
+                })
                 l = sec["layers"][j - 1]
                 rows.append((band["name"], f"{sec['from']:g}-{sec['to']:g}", sheet.layers[j - 1], l["grade"], l["thickness"], vol))
                 by_grade[l["grade"]] = by_grade.get(l["grade"], 0.0) + vol
@@ -49,5 +56,6 @@ def build_report(sheet):
     lines += ["", "CHECKS", f"  Inside (hot-face) volume : {cavity * k:.3f} {vu}"]
     hs = sheet.design.get("heat_size")
     if hs:
-        lines.append(f"  Specific volume          : {cavity * k / hs:.3f} {vu}/t   (heat size {hs:g} t)")
+        spec_v = f.evaluate("specific_volume", {"cavity_m3": cavity * k, "heat_size": float(hs)})
+        lines.append(f"  Specific volume          : {spec_v:.3f} {vu}/t   (heat size {hs:g} t)")
     return "\n".join(lines)

@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>Control Center - Formulas, Properties, Presets, Audit</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<script src="fx.js"></script>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#1d2433;--mut:#6b7488;--line:#e1e5ec;--acc:#2f5fd0;--ok:#1b8a4b;--bad:#c0392b;--warn:#b8892c}
+*{box-sizing:border-box}body{margin:0;font:14px/1.45 system-ui,Segoe UI,sans-serif;background:var(--bg);color:var(--ink)}
+header{display:flex;gap:16px;align-items:center;padding:12px 20px;background:#fff;border-bottom:1px solid var(--line)}
+header h1{font-size:16px;margin:0}header input{padding:6px 8px;border:1px solid var(--line);border-radius:6px;width:150px}
+nav{display:flex;gap:4px;padding:0 20px;background:#fff;border-bottom:1px solid var(--line)}
+nav button{border:0;background:none;padding:10px 14px;cursor:pointer;color:var(--mut);border-bottom:2px solid transparent;font-size:14px}
+nav button.on{color:var(--acc);border-color:var(--acc);font-weight:600}
+main{max-width:1100px;margin:18px auto;padding:0 16px}.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-bottom:12px;transition:box-shadow .15s,border-color .15s}
+.card.focus-card{border-color:var(--acc);box-shadow:0 0 0 3px rgba(47,95,208,.15)}
+h3{margin:0 0 4px;font-size:14px}.mut{color:var(--mut);font-size:12.5px}.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+code,textarea,input.mono{font-family:ui-monospace,Consolas,monospace}textarea{width:100%;min-height:46px;padding:8px 10px;border:1px solid var(--line);border-radius:6px;font-size:13px;background:#fcfdfe}
+textarea:focus{outline:none;border-color:var(--acc);background:#fff}
+input,select{padding:6px 8px;border:1px solid var(--line);border-radius:6px}button.b{padding:6px 12px;border-radius:6px;border:1px solid var(--acc);background:var(--acc);color:#fff;cursor:pointer;font-size:13px}
+button.b.sec{background:#fff;color:var(--acc)}button.b:disabled{opacity:.45;cursor:not-allowed}
+.tag{display:inline-block;font-size:11px;padding:1px 7px;border-radius:10px;background:#eef1f7;color:var(--mut)}.tag.mod{background:#fff3d6;color:var(--warn)}.tag.lock{background:#fde7e4;color:var(--bad)}.tag.ok{background:#e1f4e8;color:var(--ok)}.tag.id{font-family:ui-monospace,Consolas,monospace;background:#f0f3f9;color:#3b4866}
+.msg{font-size:12.5px;margin-top:4px}.msg.ok{color:var(--ok)}.msg.bad{color:var(--bad)}
+table{width:100%;border-collapse:collapse;font-size:12.5px}th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top}th{color:var(--mut);font-weight:600}
+tr.den td{background:#fff5f4}details summary{cursor:pointer;color:var(--mut);font-size:12.5px}.grp{margin:18px 0 8px;font-weight:700;color:#2c3a57;text-transform:uppercase;font-size:11.5px;letter-spacing:.05em;display:flex;align-items:center;gap:8px}
+.vars{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px;margin:8px 0}.vars label{font-size:11.5px;color:var(--mut)}.vars input{width:100%}
+.fx-box{background:linear-gradient(180deg,#f8faff 0%,#f1f5fc 100%);border:1px solid #d7e0f2;border-radius:8px;padding:10px 14px;margin:8px 0;min-height:44px;display:flex;align-items:center;justify-content:space-between;gap:12px;overflow-x:auto}
+.fx-lhs{font:italic 16px/1.4 'Cambria Math','STIX Two Math',Cambria,serif;color:#4a5878;margin-right:6px;white-space:nowrap}
+.kb{background:#f3f5fa;border:1px solid #d5dceb;border-radius:8px;padding:10px;margin:6px 0 8px;display:none}
+.kb.open{display:block}
+.kb-sec{margin-bottom:8px}.kb-sec:last-child{margin-bottom:0}
+.kb-lbl{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--mut);margin-bottom:4px;display:flex;justify-content:space-between}
+.kb-row{display:flex;flex-wrap:wrap;gap:5px}
+.kbtn{border:1px solid #cbd3e3;background:#fff;color:var(--ink);border-radius:6px;padding:4px 9px;font-size:12.5px;cursor:pointer;display:inline-flex;align-items:center;gap:4px;box-shadow:0 1px 1px rgba(0,0,0,.03);user-select:none}
+.kbtn:hover{border-color:var(--acc);background:#f0f5ff;color:var(--acc)}
+.kbtn:active{transform:translateY(1px)}
+.kbtn.var{background:#eef4ff;border-color:#b8cdf8;color:#1b469c;font-weight:500}
+.kbtn.fn{background:#f6f0ff;border-color:#d8c4f8;color:#5c289c}
+.kbtn.op{background:#fff;font-weight:600;min-width:32px;justify-content:center}
+.kbtn.ref{background:#edfaf2;border-color:#b7e4c7;color:#136538;font-size:11.5px}
+.kbtn.act{background:#fff0ee;border-color:#f5c2bc;color:#a82315}
+.kbtn small{font-size:10.5px;opacity:.75;font-weight:400}
+.toolbar{position:sticky;top:0;z-index:10;background:var(--bg);padding:8px 0 10px;border-bottom:1px solid var(--line);margin-bottom:10px}
+</style></head><body>
+<header><h1>Control Center</h1><span class="mut">Edit formulas &middot; locked properties &middot; pre-populate &middot; audit</span>
+<span style="flex:1"></span><label class="mut">Signed in as <input id="user" value="" placeholder="your name"></label></header>
+<nav id="tabs"></nav><main id="view"></main>
+<script>
+let API_BASE = (window.FX && FX.getApiBase ? FX.getApiBase() : (window.REFRACTORY_API_BASE||localStorage.getItem('refractory_api_base')||location.origin)).replace(/\/+$/,'');
+const $=(s,r=document)=>r.querySelector(s),esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const user=()=>$('#user').value.trim()||'anonymous';
+$('#user').value=localStorage.getItem('cc_user')||'';$('#user').onchange=()=>localStorage.setItem('cc_user',user());
+async function api(path,method='GET',body){
+ const bases=[API_BASE,'http://localhost:8000','http://127.0.0.1:8000'].filter((v,i,a)=>v&&a.indexOf(v)===i);
+ let lastErr=null;
+ for(const b of bases){
+  try{
+   const r=await fetch(b+'/api/v1/core'+path,{method,headers:{'Content-Type':'application/json','X-User':user()},body:body&&JSON.stringify(body)});
+   const ct=r.headers.get('content-type')||'';
+   if(!ct.includes('application/json') && !r.ok){lastErr=new Error(`Backend not found at ${b} (HTTP ${r.status})`);continue;}
+   const j=await r.json().catch(()=>({}));
+   if(!r.ok)throw new Error(typeof j.detail==='string'?j.detail:JSON.stringify(j.detail||j));
+   API_BASE=b;
+   return j;
+  }catch(e){lastErr=e;}
+ }
+ throw lastErr||new Error('Cannot reach backend API');
+}
+const TABS={Formulas:fFormulas,Properties:fProps,'Pre-populate':fPresets,'Audit log':fAudit};
+$('#tabs').innerHTML=Object.keys(TABS).map(t=>`<button data-t="${t}">${t}</button>`).join('');
+$('#tabs').onclick=e=>{if(e.target.dataset.t)show(e.target.dataset.t)};
+function show(t,focusId){document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));$('#view').innerHTML='<p class="mut">Loading...</p>';TABS[t](focusId).catch(e=>$('#view').innerHTML=`<div class="card msg bad">${esc(e.message)}<br><span class="mut">Is the backend running at ${esc(API_BASE)}?</span></div>`)}
+
+/* ---------------- Formula Keyboard Builder ---------------- */
+const OPS=[
+ {lbl:'+',ins:' + ',title:'Add'},
+ {lbl:'−',ins:' - ',title:'Subtract'},
+ {lbl:'×',ins:' * ',title:'Multiply'},
+ {lbl:'÷',ins:' / ',title:'Divide (fraction)'},
+ {lbl:'xʸ',ins:'**',title:'Power / exponent'},
+ {lbl:'√(',ins:'sqrt(',title:'Square root'},
+ {lbl:'(',ins:'(',title:'Open parenthesis'},
+ {lbl:')',ins:')',title:'Close parenthesis'},
+ {lbl:',',ins:', ',title:'Argument separator'},
+ {lbl:'π',ins:'pi',title:'Pi (3.14159...)'},
+ {lbl:'≤',ins:' <= ',title:'Less than or equal'},
+ {lbl:'≥',ins:' >= ',title:'Greater than or equal'},
+ {lbl:'=',ins:' == ',title:'Equal'},
+ {lbl:'if…else',ins:' if cond else 0',title:'Conditional expression: value_if_true if condition else value_if_false'}
+];
+const NUMS=['7','8','9','4','5','6','1','2','3','0','.','1000','1e6','1e9'];
+const FNS=[
+ {lbl:'⌈ceil⌉',ins:'ceil(',title:'Round up to integer'},
+ {lbl:'⌊floor⌋',ins:'floor(',title:'Round down to integer'},
+ {lbl:'round',ins:'round(',title:'Round to nearest'},
+ {lbl:'min',ins:'min(',title:'Minimum of values'},
+ {lbl:'max',ins:'max(',title:'Maximum of values'},
+ {lbl:'|abs|',ins:'abs(',title:'Absolute value'},
+ {lbl:'sin',ins:'sin(',title:'Sine (radians)'},
+ {lbl:'cos',ins:'cos(',title:'Cosine (radians)'},
+ {lbl:'tan',ins:'tan(',title:'Tangent (radians)'},
+ {lbl:'asin',ins:'asin(',title:'Arcsine (radians)'},
+ {lbl:'acos',ins:'acos(',title:'Arccosine (radians)'},
+ {lbl:'atan2',ins:'atan2(',title:'Arctangent of y, x'},
+ {lbl:'rad',ins:'radians(',title:'Degrees to radians'},
+ {lbl:'deg',ins:'degrees(',title:'Radians to degrees'}
+];
+
+function buildKeyboardHTML(f, allList, namesMap){
+ const vars=Object.entries(f.variables||{});
+ const sameGrp=allList.filter(x=>x.id!==f.id&&(x.group===f.group||f.depends_on.includes(x.id))).slice(0,18);
+ return `<div class="kb" data-kb>
+  <div class="kb-sec">
+   <div class="kb-lbl"><span>1. Variables for this formula (click to insert)</span><span>No typing needed</span></div>
+   <div class="kb-row">${vars.length?vars.map(([v,u])=>`<button type="button" class="kbtn var" data-ins="${esc(v)}">${FX.toHTML(v)} <small>(${esc(u||'-')})</small></button>`).join(''):'<span class="mut">Constant / parameter (no input variables)</span>'}</div>
+  </div>
+  <div class="kb-sec">
+   <div class="kb-lbl"><span>2. Operators &amp; Numbers</span></div>
+   <div class="kb-row">
+    ${OPS.map(o=>`<button type="button" class="kbtn op" data-ins="${esc(o.ins)}" title="${esc(o.title)}">${o.lbl}</button>`).join('')}
+    <span style="width:6px"></span>
+    ${NUMS.map(n=>`<button type="button" class="kbtn op" data-ins="${n}">${n}</button>`).join('')}
+    <button type="button" class="kbtn act" data-kbact="bksp" title="Delete last character / token">⌫ Backspace</button>
+    <button type="button" class="kbtn act" data-kbact="clr" title="Clear formula box">Clear</button>
+    <button type="button" class="kbtn sec" data-kbact="def" title="Restore original default expression">Default</button>
+   </div>
+  </div>
+  <div class="kb-sec">
+   <div class="kb-lbl"><span>3. Math Functions</span></div>
+   <div class="kb-row">${FNS.map(fn=>`<button type="button" class="kbtn fn" data-ins="${esc(fn.ins)}" title="${esc(fn.title)}">${fn.lbl}</button>`).join('')}</div>
+  </div>
+  ${sameGrp.length?`<div class="kb-sec">
+   <div class="kb-lbl"><span>4. Link another formula (reuses its live value)</span></div>
+   <div class="kb-row">${sameGrp.map(x=>`<button type="button" class="kbtn ref" data-ins="${esc(x.id)}" title="${esc(x.name)}: ${esc(x.expression)}">ƒ ${esc(x.name)} <small>[${esc(x.id)}]</small></button>`).join('')}</div>
+  </div>`:''}
+ </div>`;
+}
+
+function insertAtCursor(ta, text){
+ ta.focus();
+ const s=ta.selectionStart??ta.value.length, e=ta.selectionEnd??ta.value.length;
+ const before=ta.value.slice(0,s), after=ta.value.slice(e);
+ const needSpaceBefore = before.length>0 && /[A-Za-z0-9_)]$/.test(before) && /^[A-Za-z0-9_]/.test(text);
+ const ins = (needSpaceBefore ? ' ' : '') + text;
+ ta.value = before + ins + after;
+ const pos = before.length + ins.length;
+ ta.setSelectionRange(pos, pos);
+ ta.dispatchEvent(new Event('input', {bubbles:true}));
+}
+
+/* ---------------- Formulas ---------------- */
+let showAdv=true, searchQ='', groupFilter='ALL', cachedFormulas=[];
+let offlineMode=false;
+async function fFormulas(focusId){
+ try{
+  const list=await api('/formulas');
+  cachedFormulas=list;
+  offlineMode=false;
+  if(window.FX){FX.registry={};list.forEach(f=>FX.registry[f.id]=f);}
+ }catch(e){
+  if(window.FX && FX.DEFAULT_FORMULAS && FX.DEFAULT_FORMULAS.length){
+   cachedFormulas=FX.DEFAULT_FORMULAS;
+   offlineMode=true;
+  }else throw e;
+ }
+ renderFormulaList(focusId);
+}
+
+function renderFormulaList(focusId){
+ const list=cachedFormulas;
+ const allGroups=[...new Set(list.map(f=>f.group))];
+ const q=searchQ.trim().toLowerCase();
+ const filtered=list.filter(f=>{
+  if(!showAdv && f.advanced && !f.modified && f.id!==focusId) return false;
+  if(groupFilter!=='ALL' && f.group!==groupFilter) return false;
+  if(q && !(f.id.toLowerCase().includes(q)||f.name.toLowerCase().includes(q)||f.group.toLowerCase().includes(q)||(f.description||'').toLowerCase().includes(q)||f.expression.toLowerCase().includes(q))) return false;
+  return true;
+ });
+ const groups={};filtered.forEach(f=>(groups[f.group]??=[]).push(f));
+ const names=Object.fromEntries(list.map(f=>[f.id,f.name]));
+ const modCount=list.filter(f=>f.modified).length;
+
+ $('#view').innerHTML=`<div class="toolbar"><div class="row">
+   <input id="fsearch" placeholder="Search ${list.length} formulas by name, variable, group, or ID..." value="${esc(searchQ)}" style="flex:1;min-width:240px">
+   <select id="fgrp"><option value="ALL">All groups (${list.length} formulas)</option>${allGroups.map(g=>`<option value="${esc(g)}" ${groupFilter===g?'selected':''}>${esc(g)}</option>`).join('')}</select>
+   <label class="mut"><input type="checkbox" id="adv" ${showAdv?'checked':''}> show all rules &amp; tolerances</label>
+   <span class="tag ${modCount?'mod':'ok'}">${filtered.length} shown &middot; ${modCount} customized</span>
+  </div>
+  <div class="mut" style="margin-top:4px">Every engineering, geometry, extraction, layout, thermal, and BOM formula is editable below. Click inside any formula or press <b>⌨ Formula Keyboard</b> to build expressions with one-click variable &amp; math keys.</div>
+ </div>`+
+ Object.entries(groups).map(([g,fs])=>`<div class="grp"><span>${esc(g)}</span><span class="tag">${fs.length}</span></div>`+fs.map(f=>`
+  <div class="card ${focusId===f.id?'focus-card':''}" id="fcard-${esc(f.id)}" data-id="${esc(f.id)}" data-def="${esc(f.default_expression||f.expression)}">
+   <div class="row">
+    <h3>${esc(f.name)}</h3>
+    <span class="tag id">${esc(f.id)}</span>
+    <span class="tag">${esc(f.output_unit||'-')}</span>
+    ${f.modified?'<span class="tag mod">modified</span>':''}
+    <span class="mut" style="flex:1">${esc(f.description)}</span>
+    <button type="button" class="b sec" data-a="kb">⌨ Formula Keyboard</button>
+   </div>
+   <div class="fx-box" title="Live mathematical rendering">
+    <div><span class="fx-lhs">${FX.toHTML(f.id)} =</span><span data-fxprev>${FX.toHTML(f.expression)}</span></div>
+    <span class="tag">${esc(f.output_unit||'-')}</span>
+   </div>
+   <textarea spellcheck="false" placeholder="Enter formula or use the Formula Keyboard below...">${esc(f.expression)}</textarea>
+   ${buildKeyboardHTML(f, list, names)}
+   <div class="mut">Variables: ${Object.entries(f.variables||{}).map(([k,u])=>`<code>${esc(k)}</code> (${esc(u||'-')})`).join(', ')||'<i>none (parameter/constant)</i>'}${f.depends_on.length?` &middot; <b>Uses formulas:</b> ${f.depends_on.map(d=>esc(names[d]||d)).join(', ')}`:''}${f.dependents.length?` &middot; <b>Affects:</b> ${f.dependents.map(d=>esc(names[d]||d)).join(', ')}`:''}</div>
+   <details style="margin-top:6px"><summary>Test calculator with sample numbers</summary><div class="vars">${Object.entries(f.variables||{}).map(([v,u])=>`<label>${esc(v)} (${esc(u)})<input data-v="${esc(v)}" type="number" step="any" placeholder="1"></label>`).join('')}</div>
+    <div class="row"><button type="button" class="b sec" data-a="try">Calculate</button><span class="msg" data-r></span></div></details>
+   <div class="row" style="margin-top:8px"><input data-reason placeholder="Reason for change (required for audit log)" style="flex:1;min-width:220px">
+    <button type="button" class="b" data-a="save">Save &amp; Apply Everywhere</button>${f.modified?'<button type="button" class="b sec" data-a="reset">Reset to default</button>':''}</div>
+   <div class="msg" data-m></div>
+  </div>`).join('')).join('');
+
+ $('#fsearch').oninput=e=>{searchQ=e.target.value;const pos=e.target.selectionStart;renderFormulaList();const el=$('#fsearch');el.focus();el.setSelectionRange(pos,pos);};
+ $('#fgrp').onchange=e=>{groupFilter=e.target.value;renderFormulaList();};
+ $('#adv').onchange=e=>{showAdv=e.target.checked;renderFormulaList();};
+
+ if(focusId){
+  const fc=document.getElementById('fcard-'+focusId);
+  if(fc){fc.scrollIntoView({behavior:'smooth',block:'center'});$('[data-kb]',fc)?.classList.add('open');}
+ }
+
+ $('#view').oninput=e=>{
+  if(e.target.tagName==='TEXTAREA'){
+   const c=e.target.closest('.card'), prev=$('[data-fxprev]',c);
+   if(prev) prev.innerHTML=FX.toHTML(e.target.value);
+  }
+ };
+ $('#view').addEventListener('focusin',e=>{
+  if(e.target.tagName==='TEXTAREA'){
+   const c=e.target.closest('.card');
+   $('[data-kb]',c)?.classList.add('open');
+  }
+ });
+ $('#view').onclick=async e=>{
+  const btn=e.target.closest('button');
+  if(!btn) return;
+  const c=btn.closest('.card');
+  if(!c) return;
+  const id=c.dataset.id, m=$('[data-m]',c), ta=$('textarea',c);
+  if(btn.dataset.ins!==undefined){
+   insertAtCursor(ta, btn.dataset.ins);
+   return;
+  }
+  if(btn.dataset.kbact){
+   const act=btn.dataset.kbact;
+   if(act==='clr'){ta.value='';ta.dispatchEvent(new Event('input',{bubbles:true}));ta.focus();}
+   else if(act==='def'){ta.value=c.dataset.def||'';ta.dispatchEvent(new Event('input',{bubbles:true}));ta.focus();}
+   else if(act==='bksp'){
+    const s=ta.selectionStart??ta.value.length, ePos=ta.selectionEnd??ta.value.length;
+    if(s!==ePos){ta.value=ta.value.slice(0,s)+ta.value.slice(ePos);ta.setSelectionRange(s,s);}
+    else if(s>0){
+     const left=ta.value.slice(0,s), mTok=/([A-Za-z_][A-Za-z0-9_]*\(?|\s*[+\-*/<>=!]+\s*|\d+|\s+)$/.exec(left);
+     const cut=mTok?mTok[0].length:1;
+     ta.value=ta.value.slice(0,s-cut)+ta.value.slice(s);
+     ta.setSelectionRange(s-cut,s-cut);
+    }
+    ta.dispatchEvent(new Event('input',{bubbles:true}));ta.focus();
+   }
+   return;
+  }
+  const a=btn.dataset.a;if(!a)return;
+  if(a==='kb'){$('[data-kb]',c)?.classList.toggle('open');return;}
+  const say=(t,ok)=>{m.className='msg '+(ok?'ok':'bad');m.textContent=t};
+  try{
+   if(a==='try'){const v={};c.querySelectorAll('[data-v]').forEach(i=>{if(i.value!=='')v[i.dataset.v]=+i.value});
+     const body=await api(`/formulas/${id}/validate`,'POST',{expression:ta.value,sample:v});$('[data-r]',c).className='msg '+(body.ok?'ok':'bad');
+     $('[data-r]',c).textContent=body.ok?`= ${+body.result.toPrecision(8)} ${cachedFormulas.find(x=>x.id===id).output_unit}`:body.error;}
+   if(a==='save'){const r=$('[data-reason]',c).value.trim()||'Updated in Control Center UI';
+     const v=await api(`/formulas/${id}/validate`,'POST',{expression:ta.value});if(!v.ok)return say(v.error);
+     await api(`/formulas/${id}`,'PUT',{expression:ta.value,reason:r});
+     window.parent?.postMessage({type:'refractory-formulas-updated',formulaId:id},'*');
+     await fFormulas(id);
+     const mc=$('[data-m]',document.getElementById('fcard-'+id));if(mc){mc.className='msg ok';mc.textContent='Saved & propagated to all dependent calculations and UI steps.';}}
+   if(a==='reset'){const r=$('[data-reason]',c).value||'reset to default';await api(`/formulas/${id}/reset`,'POST',{reason:r});
+     window.parent?.postMessage({type:'refractory-formulas-updated',formulaId:id},'*');
+     await fFormulas(id);}
+  }catch(err){say(err.message)}
+ };
+}
+
+/* ---------------- Properties ---------------- */
+async function fProps(){
+ const [ps,gs]=await Promise.all([api('/properties'),api('/grades')]);
+ $('#view').innerHTML=`<div class="card"><h3>Chemical &amp; physical constants</h3><p class="mut">Locked values are fixed facts and cannot be edited by anyone through the app. Attempts are blocked and logged.</p>
+ <table><tr><th>Property</th><th>Value</th><th>Unit</th><th></th></tr>${ps.map(p=>`<tr data-id="${esc(p.id)}"><td>${esc(p.label)}<div class="mut">${esc(p.id)}</div></td>
+  <td>${p.locked?`<b>${p.value}</b>`:`<input type="number" step="any" value="${p.value}" style="width:90px">`}</td><td>${esc(p.unit)}</td>
+  <td>${p.locked?'<span class="tag lock">&#128274; locked</span>':`<input placeholder="reason" data-reason style="width:150px"> <button class="b" data-a="set">Save</button> <span class="msg"></span>`}</td></tr>`).join('')}</table></div>
+ <div class="card"><h3>Product grades (your company's)</h3><p class="mut">No company grades are shipped. Register yours; chemistry is frozen once saved (register a new revision to correct it).</p>
+ <table><tr><th>Code</th><th>Class</th><th>Chemistry wt-%</th><th>Bulk density g/cm&sup3;</th></tr>${gs.map(g=>`<tr><td>${esc(g.code)}</td><td>${esc(g.generic_class)}</td><td>${esc(Object.entries(g.chemistry).map(([k,v])=>k+' '+v).join(', '))} <span class="tag lock">&#128274;</span></td><td>${g.bulk_density}</td></tr>`).join('')||'<tr><td colspan=4 class="mut">None yet.</td></tr>'}</table>
+ <details style="margin-top:8px"><summary>Register a grade</summary><div class="row" style="margin-top:8px"><input id="gc" placeholder="Code"><input id="gk" placeholder="Class (e.g. MgO-C)"><input id="gch" placeholder="MgO=80, C=12" style="width:180px"><input id="gd" type="number" step="any" placeholder="Density"><button class="b" id="gadd">Register</button><span class="msg" id="gmsg"></span></div></details></div>`;
+ $('#view').onclick=async e=>{if(e.target.dataset.a!=='set')return;const tr=e.target.closest('tr'),m=$('.msg',tr);
+  try{await api('/properties/'+tr.dataset.id,'PUT',{value:+$('input[type=number]',tr).value,reason:$('[data-reason]',tr).value});m.className='msg ok';m.textContent='Saved'}catch(x){m.className='msg bad';m.textContent=x.message}};
+ $('#gadd').onclick=async()=>{const ch={};($('#gch').value||'').split(',').forEach(p=>{const[k,v]=p.split('=');if(k&&v)ch[k.trim()]=+v});
+  try{await api('/grades','POST',{code:$('#gc').value,generic_class:$('#gk').value,chemistry:ch,bulk_density:+$('#gd').value});fProps()}catch(x){$('#gmsg').className='msg bad';$('#gmsg').textContent=x.message}}}
+
+/* ---------------- Pre-populate ---------------- */
+async function fPresets(){
+ $('#view').innerHTML=`<div class="card"><h3>Suggested settings</h3><p class="mut">Based on what you and your team confirmed before (similar context, popularity, recency). Nothing is applied until you tick and confirm.</p>
+ <div class="row"><input id="pk" placeholder="What for? e.g. barrel_zone" value="barrel_zone"><input id="pc" placeholder='Context JSON e.g. {"vessel":"BOF 180t"}' style="flex:1;min-width:240px" value="{}"><button class="b" id="psug">Find suggestions</button></div></div><div id="plist"></div>`;
+ $('#psug').onclick=async()=>{let s;try{s=await api(`/presets/suggest?kind=${encodeURIComponent($('#pk').value)}&context=${encodeURIComponent($('#pc').value)}`)}catch(x){return $('#plist').innerHTML=`<div class="card msg bad">${esc(x.message)}</div>`}
+  $('#plist').innerHTML=s.length?s.map(x=>`<div class="card" data-id="${x.id}"><div class="row"><h3>Suggestion ${Math.round(x.score*100)}% match</h3><span class="mut">${esc(x.why)}</span></div>
+   ${Object.keys(x.review_fields).length?`<div class="grp">Please check</div>`+Object.entries(x.review_fields).map(([k,v])=>`<div class="row"><label style="width:160px">${esc(k)}</label><input data-k="${esc(k)}" value="${esc(JSON.stringify(v).replace(/^"|"$/g,''))}"></div>`).join(''):''}
+   ${Object.keys(x.usual_fields).length?`<details><summary>${Object.keys(x.usual_fields).length} usual value(s) - unchanged from what is normally used</summary>${Object.entries(x.usual_fields).map(([k,v])=>`<div class="row"><label style="width:160px">${esc(k)}</label><input data-k="${esc(k)}" value="${esc(JSON.stringify(v).replace(/^"|"$/g,''))}"></div>`).join('')}</details>`:''}
+   <div class="row" style="margin-top:8px"><label><input type="checkbox" class="ck"> I have checked these values</label><button class="b" data-a="ok" disabled>Use these settings</button><button class="b sec" data-a="no">Not this one</button><span class="msg"></span></div></div>`).join(''):'<div class="card mut">No history yet for this. Settings you confirm will be remembered.</div>';
+  $('#plist').onchange=e=>{if(e.target.classList.contains('ck'))$('[data-a=ok]',e.target.closest('.card')).disabled=!e.target.checked};
+  $('#plist').onclick=async e=>{const a=e.target.dataset.a;if(!a)return;const c=e.target.closest('.card'),id=c.dataset.id,m=$('.msg',c);
+   try{if(a==='no'){await api(`/presets/${id}/reject`,'POST',{});c.remove();return}
+    const edits={};c.querySelectorAll('[data-k]').forEach(i=>{const orig=s.find(z=>z.id===id).settings[i.dataset.k];const v=typeof orig==='number'?+i.value:i.value;if(String(orig)!==String(v))edits[i.dataset.k]=v});
+    const applied=await api(`/presets/${id}/confirm`,'POST',{edits,context:JSON.parse($('#pc').value||'{}')});
+    m.className='msg ok';m.textContent='Confirmed & logged. Settings: '+JSON.stringify(applied);window.parent?.postMessage({type:'refractory-preset-applied',settings:applied},'*')}catch(x){m.className='msg bad';m.textContent=x.message}}}}
+
+/* ---------------- Audit ---------------- */
+async function fAudit(){
+ const [v,rows]=await Promise.all([api('/audit/verify'),api('/audit?limit=300')]);
+ $('#view').innerHTML=`<div class="card row"><h3>Audit log</h3>${v.ok?`<span class="tag ok">chain intact &middot; ${v.entries} entries</span>`:`<span class="tag lock">TAMPERING DETECTED at entry #${v.broken_at}: ${esc(v.reason)}</span>`}<span style="flex:1"></span>
+  <input id="af" placeholder="filter text (user, entity, action)"></div><div class="card"><table id="at"><tr><th>#</th><th>Time (UTC)</th><th>Who</th><th>Action</th><th>What</th><th>Change</th><th>Reason</th></tr>
+  ${rows.slice().reverse().map(r=>`<tr class="${r.outcome==='DENIED'?'den':''}"><td>${r.seq}</td><td>${esc(r.ts.replace('T',' ').slice(0,19))}</td><td>${esc(r.actor)}</td><td>${esc(r.action)}${r.outcome==='DENIED'?' <span class="tag lock">DENIED</span>':''}</td><td>${esc(r.entity)}</td>
+  <td>${r.before!=null?`<code>${esc(JSON.stringify(r.before)).slice(0,120)}</code> &rarr; `:''}${r.after!=null?`<code>${esc(JSON.stringify(r.after)).slice(0,160)}</code>`:''}</td><td>${esc(r.reason)}</td></tr>`).join('')}</table></div>`;
+ $('#af').oninput=e=>document.querySelectorAll('#at tr+tr').forEach(tr=>tr.style.display=tr.textContent.toLowerCase().includes(e.target.value.toLowerCase())?'':'none')}
+
+function parseHash(){
+ const h=decodeURIComponent(location.hash.slice(1));
+ if(h.startsWith('Formula:')){groupFilter='ALL';searchQ='';show('Formulas',h.slice(8));}
+ else show(TABS[h]?h:'Formulas');
+}
+parseHash();
+window.addEventListener('hashchange',parseHash);
+</script></body></html>

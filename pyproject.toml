@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "refractory-core"
+version = "0.1.0"
+description = "Editable formulas, locked material properties, audit trail and preset suggestions for refractory lining design"
+readme = "refractory_core/README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = []          # standard library only
+
+[tool.setuptools]
+packages = ["refractory_core"]
+
+[tool.setuptools.package-data]
+refractory_core = ["defaults/*.json"]

@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "_note": "Reference compound constants (public handbook values, approximate). 'locked' properties are physical/chemical facts: they cannot be edited through the API or library; only a code-level change to this shipped file (reviewed in version control) can alter them. Editable properties are project/plant settings. Company-specific product grades are NOT shipped - register them via PropertyStore.register_grade().",
+  "properties": [
+    {"id": "compound.MgO.density",    "label": "MgO (periclase) theoretical density", "value": 3.58, "unit": "g/cm3", "category": "chemical", "locked": true},
+    {"id": "compound.MgO.melting",    "label": "MgO melting point",                  "value": 2852, "unit": "degC",  "category": "chemical", "locked": true},
+    {"id": "compound.Al2O3.density",  "label": "Al2O3 (corundum) theoretical density","value": 3.95, "unit": "g/cm3", "category": "chemical", "locked": true},
+    {"id": "compound.Al2O3.melting",  "label": "Al2O3 melting point",                "value": 2072, "unit": "degC",  "category": "chemical", "locked": true},
+    {"id": "compound.Cr2O3.density",  "label": "Cr2O3 theoretical density",          "value": 5.22, "unit": "g/cm3", "category": "chemical", "locked": true},
+    {"id": "compound.Cr2O3.melting",  "label": "Cr2O3 melting point",                "value": 2435, "unit": "degC",  "category": "chemical", "locked": true},
+    {"id": "compound.SiO2.density",   "label": "SiO2 (quartz) theoretical density",  "value": 2.65, "unit": "g/cm3", "category": "chemical", "locked": true},
+    {"id": "compound.C.density",      "label": "Graphite theoretical density",       "value": 2.26, "unit": "g/cm3", "category": "chemical", "locked": true},
+    {"id": "compound.MgO.molar_mass", "label": "MgO molar mass",                     "value": 40.304, "unit": "g/mol", "category": "chemical", "locked": true},
+    {"id": "compound.Al2O3.molar_mass","label": "Al2O3 molar mass",                  "value": 101.961, "unit": "g/mol", "category": "chemical", "locked": true},
+    {"id": "default.bulk_density",    "label": "Fallback bulk density when a grade has none", "value": 3.0, "unit": "g/cm3", "category": "setting", "locked": false},
+    {"id": "default.cut_allowance",   "label": "Default cut / breakage allowance",   "value": 3.0, "unit": "%",     "category": "setting", "locked": false}
+  ]
+}

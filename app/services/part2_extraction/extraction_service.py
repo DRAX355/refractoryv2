@@ -59,13 +59,17 @@ async def extract_vessel_geometry(
     primary_image = ingestion_result.images[0]
 
     # ── Step 1: Grounding DINO ─────────────────────────────────────────────────
-    logger.info("[Part 2] Step 1 — Grounding DINO detection…")
-    try:
-        dino_detections = detect_drawing_elements(primary_image)
-    except Exception as exc:
-        logger.warning(f"[Part 2] DINO detection failed: {exc}")
-        warnings.append(f"DINO detection skipped: {exc}")
-        dino_detections = []
+    dino_detections = []
+    if getattr(settings, "device", "cpu") == "cuda":
+        logger.info("[Part 2] Step 1 — Grounding DINO detection…")
+        try:
+            dino_detections = detect_drawing_elements(primary_image)
+        except Exception as exc:
+            logger.warning(f"[Part 2] DINO detection failed: {exc}")
+            warnings.append(f"DINO detection skipped: {exc}")
+            dino_detections = []
+    else:
+        logger.info("[Part 2] Step 1 — DINO skipped on CPU to conserve system memory")
 
     # ── Step 2: DocTR OCR ──────────────────────────────────────────────────
     logger.info("[Part 2] Step 2 — DocTR OCR extraction…")
@@ -208,13 +212,15 @@ async def extract_vessel_geometry(
 
 def _save_output(geometry: VesselGeometry, job_id: str) -> None:
     """Persist the VesselGeometry JSON and Excel to the outputs directory."""
-    out_dir = settings.outputs_dir / job_id
-    out_dir.mkdir(parents=True, exist_ok=True)
-    
-    out_path = out_dir / "vessel_geometry.json"
-    with open(out_path, "w", encoding="utf-8") as f:
-        json.dump(geometry.model_dump(mode="json"), f, indent=2, default=str)
-    logger.info(f"[Part 2] Output saved: {out_path}")
+    try:
+        out_dir = Path(settings.outputs_dir) / str(job_id)
+        out_dir.mkdir(parents=True, exist_ok=True)
+        out_path = out_dir / "vessel_geometry.json"
+        with open(str(out_path), "w", encoding="utf-8") as f:
+            json.dump(geometry.model_dump(mode="json"), f, indent=2, default=str)
+        logger.info(f"[Part 2] Output saved: {out_path}")
+    except Exception as exc:
+        logger.warning(f"[Part 2] Failed to save JSON output: {exc}")
 
     # Generate Excel Output
     try:

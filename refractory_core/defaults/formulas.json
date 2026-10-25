@@ -1,0 +1,93 @@
+{
+  "version": 1,
+  "formulas": [
+    {
+      "id": "vol_standard_trapezoidal", "group": "Brick volume", "name": "Trapezoidal brick volume",
+      "expression": "length * thickness * (width_top + width_bottom) / 2 / 1e6",
+      "output_unit": "dm3", "advanced": false,
+      "description": "Length x height x mean of cold/hot face widths.",
+      "variables": {"length": "mm", "thickness": "mm", "width_top": "mm", "width_bottom": "mm"}
+    },
+    {
+      "id": "wedge_area_top", "group": "Brick volume", "name": "Wedge - top face area",
+      "expression": "face_width_top * (A + B) / 2", "output_unit": "mm2", "advanced": true,
+      "description": "Helper for the bottom wedge prismoid.",
+      "variables": {"face_width_top": "mm", "A": "mm", "B": "mm"}
+    },
+    {
+      "id": "wedge_area_bottom", "group": "Brick volume", "name": "Wedge - bottom face area",
+      "expression": "face_width_bottom * (C + D) / 2", "output_unit": "mm2", "advanced": true,
+      "description": "Helper for the bottom wedge prismoid.",
+      "variables": {"face_width_bottom": "mm", "C": "mm", "D": "mm"}
+    },
+    {
+      "id": "wedge_area_mid", "group": "Brick volume", "name": "Wedge - mid section area",
+      "expression": "(face_width_top + face_width_bottom) / 2 * (A + B + C + D) / 4",
+      "output_unit": "mm2", "advanced": true,
+      "description": "Helper for the bottom wedge prismoid.",
+      "variables": {"face_width_top": "mm", "face_width_bottom": "mm", "A": "mm", "B": "mm", "C": "mm", "D": "mm"}
+    },
+    {
+      "id": "vol_bottom_dish_wedge", "group": "Brick volume", "name": "Bottom wedge volume (prismoid)",
+      "expression": "overall_length / 6 * (wedge_area_top + 4 * wedge_area_mid + wedge_area_bottom) / 1e6",
+      "output_unit": "dm3", "advanced": false,
+      "description": "Simpson prismoid rule over the hot / mid / cold sections.",
+      "variables": {"overall_length": "mm"}
+    },
+    {
+      "id": "vol_center_block", "group": "Brick volume", "name": "Centre block volume (frustum)",
+      "expression": "pi * height / 12 * (inner_dia**2 + inner_dia * outer_dia + outer_dia**2) / 1e6",
+      "output_unit": "dm3", "advanced": false, "description": "Conical frustum.",
+      "variables": {"inner_dia": "mm", "outer_dia": "mm", "height": "mm"}
+    },
+    {
+      "id": "vol_safety_lining_std", "group": "Brick volume", "name": "Standard rectangular brick volume",
+      "expression": "length * width * thickness / 1e6", "output_unit": "dm3", "advanced": false,
+      "description": "L x W x T.",
+      "variables": {"length": "mm", "width": "mm", "thickness": "mm"}
+    },
+    {
+      "id": "vol_safety_lining_rect", "group": "Brick volume", "name": "Tapered safety brick volume",
+      "expression": "width * (face_a + face_b) / 2 * depth / 1e6", "output_unit": "dm3", "advanced": true,
+      "description": "Width x mean face x depth (dimension roles inferred from drawing convention).",
+      "variables": {"width": "mm", "face_a": "mm", "face_b": "mm", "depth": "mm"}
+    },
+    {
+      "id": "vol_seating_block", "group": "Brick volume", "name": "Seating block volume (annulus)",
+      "expression": "pi / 4 * (outer_dia**2 - inner_dia**2) * height / 1e6", "output_unit": "dm3",
+      "advanced": true, "description": "Annulus x height.",
+      "variables": {"outer_dia": "mm", "inner_dia": "mm", "height": "mm"}
+    },
+    {
+      "id": "sector_course_volume", "group": "Course / zone volume", "name": "Ring-sector course volume",
+      "expression": "radians(angle_to - angle_from) / 2 * (r_cold**2 - r_hot**2) * course_height / 1e9",
+      "output_unit": "m3", "advanced": false,
+      "description": "Volume of one course over an angular sector (used where no library shape exists).",
+      "variables": {"angle_from": "deg", "angle_to": "deg", "r_cold": "mm", "r_hot": "mm", "course_height": "mm"}
+    },
+    {
+      "id": "unit_weight", "group": "Weight & ordering", "name": "Unit weight",
+      "expression": "unit_vol_dm3 * density", "output_unit": "kg", "advanced": false,
+      "description": "Unit volume (dm3) x bulk density (g/cm3).",
+      "variables": {"unit_vol_dm3": "dm3", "density": "g/cm3"}
+    },
+    {
+      "id": "order_qty", "group": "Weight & ordering", "name": "Order quantity",
+      "expression": "ceil(qty * (1 + allow_pct / 100))", "output_unit": "pcs", "advanced": false,
+      "description": "Installed quantity plus cut / breakage allowance, rounded up.",
+      "variables": {"qty": "pcs", "allow_pct": "%"}
+    },
+    {
+      "id": "total_tonnes", "group": "Weight & ordering", "name": "Total tonnes",
+      "expression": "order_qty * unit_weight / 1000", "output_unit": "t", "advanced": false,
+      "description": "Order quantity x unit weight. Depends on 'order_qty' and 'unit_weight'.",
+      "variables": {"qty": "pcs", "allow_pct": "%", "unit_vol_dm3": "dm3", "density": "g/cm3"}
+    },
+    {
+      "id": "monolithic_tonnes", "group": "Weight & ordering", "name": "Monolithic / filling tonnes",
+      "expression": "volume_m3 * fill_factor * density", "output_unit": "t", "advanced": false,
+      "description": "Drawn volume x fill factor x density (t/m3).",
+      "variables": {"volume_m3": "m3", "fill_factor": "-", "density": "t/m3"}
+    }
+  ]
+}

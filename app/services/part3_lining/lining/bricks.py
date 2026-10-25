@@ -79,17 +79,26 @@ def _series(mark):
     return mark[:-1] if mark[-1:] in "AB" else mark
 
 
+def _f():
+    from refractory_core import get_core
+    return get_core().formulas
+
+
 def pair_range(p, joint=0.0):
     """Hot-face radius range in which the pair closes a full ring with nA, nB >= 0."""
+    f = _f()
     def r_alone(s):
-        return p["L"] * (s["hot"] + joint) / (s["cold"] - s["hot"]) if s["cold"] > s["hot"] else float("inf")
+        if s["cold"] <= s["hot"]:
+            return float("inf")
+        return f.evaluate("pair_closing_radius", {"L": p["L"], "hot": s["hot"], "cold": s["cold"], "joint": joint})
     a, b = r_alone(p["A"]), r_alone(p["B"])
     return min(a, b), max(a, b)
 
 
 def choose_pair(pairs, L, band_name, kind, course_h, r_hot, joint):
     """Best library pair for a brick length, or (None, reason)."""
-    cands = [p for p in pairs if abs(p["L"] - L) < 0.5]
+    tol_len = _f().evaluate("p_brick_len_match_tol", {})
+    cands = [p for p in pairs if abs(p["L"] - L) < tol_len]
     if not cands:
         lengths = sorted({p["L"] for p in pairs})
         return None, f"no library brick of length {L:g} mm (library lengths: {', '.join(f'{x:g}' for x in lengths)})"
@@ -119,19 +128,22 @@ def choose_pair(pairs, L, band_name, kind, course_h, r_hot, joint):
 def close_ring(inner_len, outer_len, A, B, joint, min_cut):
     """A, B: (inner width, outer width) of the two shapes. Lengths are arc lengths to fill.
     Returns dict nA, nB, nCut, cut, exact_nA, exact_nB, ok, note."""
+    f = _f()
     ia, oa = A[0] + joint, A[1] + joint
     ib, ob = B[0] + joint, B[1] + joint
-    det = ia * ob - ib * oa
+    v = {"inner_len": inner_len, "outer_len": outer_len, "a_hot": A[0], "a_cold": A[1], "b_hot": B[0], "b_cold": B[1], "joint": joint}
+    det = f.evaluate("ring_det", v)
     if abs(det) < 1e-12:                          # identical taper -> one shape only
-        n = inner_len / ia
+        n = f.evaluate("ring_single_count", v)
         return _finish(int(math.floor(n)), 0, inner_len, ia, ib, min_cut, n, 0.0, True, "")
-    nA = (inner_len * ob - ib * outer_len) / det
-    nB = (ia * outer_len - inner_len * oa) / det
-    ok = nA >= -0.05 and nB >= -0.05                 # radius inside the pair's closing range
+    nA = f.evaluate("ring_n_a", v)
+    nB = f.evaluate("ring_n_b", v)
+    ok_tol = f.evaluate("p_ring_ok_tol", {})
+    ok = nA >= -ok_tol and nB >= -ok_tol                 # radius inside the pair's closing range
     note = "" if ok else "ring taper outside the pair's closing range"
     best = None
     for nb in {max(0, math.floor(nB)), max(0, math.ceil(nB)), max(0, round(nB))}:
-        na = max(0, int(math.floor((inner_len - nb * ib) / ia + 1e-9)))
+        na = int(f.evaluate("ring_na_from_nb", {"inner_len": inner_len, "nb": nb, "ib": ib, "ia": ia}))
         r = _finish(na, nb, inner_len, ia, ib, min_cut, nA, nB, ok, note)
         key = (r["nCut"] == 0 and r["ok_cut"], r["ok_cut"], -r["nCut"], -abs(nb - nB))
         if best is None or key > best[0]:
@@ -140,24 +152,26 @@ def close_ring(inner_len, outer_len, A, B, joint, min_cut):
 
 
 def _finish(na, nb, inner_len, ia, ib, min_cut, exA, exB, ok, note):
-    rem = inner_len - na * ia - nb * ib
+    f = _f()
+    rem = f.evaluate("ring_remainder", {"inner_len": inner_len, "na": na, "nb": nb, "ia": ia, "ib": ib})
     n_cut, cut = 0, 0.0
-    squeeze = max(1.0, 0.1 * (na + nb + 1))       # joints may close up 0.1 mm per brick (incl. the added one)
+    squeeze = f.evaluate("ring_squeeze", {"na": na, "nb": nb})
     if rem > ia - squeeze:                        # whole extra brick(s) fit
-        na += int(math.ceil((rem - (ia - squeeze)) / ia))
-        rem = inner_len - na * ia - nb * ib
+        na += int(f.evaluate("ring_extra_bricks", {"rem": rem, "ia": ia, "squeeze": squeeze}))
+        rem = f.evaluate("ring_remainder", {"inner_len": inner_len, "na": na, "nb": nb, "ia": ia, "ib": ib})
     while rem < -squeeze and (na > 0 or nb > 0):  # never overlap: take bricks out, a cut piece closes the ring
         if na > 0:
             na -= 1
         else:
             nb -= 1
-        rem = inner_len - na * ia - nb * ib
-    if rem >= 1.0:
+        rem = f.evaluate("ring_remainder", {"inner_len": inner_len, "na": na, "nb": nb, "ia": ia, "ib": ib})
+    min_rem = f.evaluate("p_min_remainder_for_cut", {})
+    if rem >= min_rem:
         if rem >= min_cut or na == 0:
             n_cut, cut = 1, rem
         else:                                     # spread a too-small remainder over two cut pieces
             na -= 1
-            n_cut, cut = 2, (rem + ia) / 2
+            n_cut, cut = 2, f.evaluate("ring_two_cut_len", {"rem": rem, "ia": ia})
     return {"nA": na, "nB": nb, "nCut": n_cut, "cut": round(cut, 1), "exact_nA": round(exA, 2),
             "exact_nB": round(exB, 2), "ok": ok, "ok_cut": n_cut == 0 or cut >= min_cut, "note": note}
 
@@ -246,18 +260,19 @@ def course_schedule(sheet, lib, st):
                     rows.append(row)
                     continue
                 r_cold, r_in = span
-                space = r_cold - r_in                    # horizontal room for the brick in this course
+                f = _f()
+                space = f.evaluate("radial_room", {"r_cold": r_cold, "r_in": r_in})
                 row.update({"r_cold": round(r_cold, 1), "space": round(space, 1)})
-                if space < Lb - 1.0:                     # knuckle / cone-end course: shorter brick needed
+                if space < Lb - f.evaluate("p_transition_tol", {}):                     # knuckle / cone-end course: shorter brick needed
                     row["L"] = round(space, 1)
                     row["flag"] = (f"transition course: only {space:.0f} mm room for a {Lb:g} mm brick - "
                                    f"needs a shorter / cut-end shape (TSC/TPZ type, not in library)")
                     row["r_hot"] = round(r_in, 1)
                     rows.append(row)
                     continue
-                r_hot = r_cold - Lb                      # brick laid horizontally against the permanent lining
+                r_hot = f.evaluate("brick_hot_radius", {"r_cold": r_cold, "brick_len": Lb})
                 row["r_hot"] = round(r_hot, 1)
-                row["gap"] = round(space - Lb, 1)        # >0 on cones: drawn lining is wider than the brick
+                row["gap"] = round(f.evaluate("radial_gap", {"space": space, "brick_len": Lb}), 1)
                 phi = math.radians(span_of(sec))
                 in_wrap = wrap and (sec is secs[0] or sec is secs[-1])
                 if in_wrap:
@@ -266,7 +281,8 @@ def course_schedule(sheet, lib, st):
                 # taken off the cold-face arc, for courses inside the expansion range of the band
                 gaps = 0.0
                 p, why, res = None, None, None
-                own = [q for q in sector_pairs(sec, kind, ch) if abs(q["L"] - Lb) < 0.5]
+                tol_len = f.evaluate("p_brick_len_match_tol", {})
+                own = [q for q in sector_pairs(sec, kind, ch) if abs(q["L"] - Lb) < tol_len]
                 if sec.get("pairs") and not own:
                     why = (f"none of the brick pairs entered for '{sec.get('name', '')}' is {Lb:g} mm long "
                            f"(pairs: {', '.join(q['id'] + ' L' + format(q['L'], 'g') for q in sector_pairs(sec, kind, ch))})")
@@ -282,9 +298,14 @@ def course_schedule(sheet, lib, st):
                 for q in cands:
                     g = 0.0
                     if exp.get("a") and exp.get("n") and exp.get("from", 1) <= kc <= exp.get("to", 1e9):
-                        avg_c = (q["A"]["cold"] + q["B"]["cold"]) / 2
-                        g = math.floor(phi * (r_hot + Lb) / avg_c / float(exp["n"])) * float(exp["a"])
-                    rq = close_ring(phi * r_hot, phi * (r_hot + Lb) - g, (q["A"]["hot"], q["A"]["cold"]),
+                        g = f.evaluate("expansion_allowance", {
+                            "span_rad": phi, "r_hot": r_hot, "brick_len": Lb,
+                            "a_cold": q["A"]["cold"], "b_cold": q["B"]["cold"],
+                            "exp_interval": float(exp["n"]), "exp_allowance": float(exp["a"]),
+                        })
+                    arc_hot = f.evaluate("ring_arc_hot", {"span_rad": phi, "r_hot": r_hot})
+                    arc_cold = f.evaluate("ring_arc_cold", {"span_rad": phi, "r_hot": r_hot, "brick_len": Lb, "exp_gap_total": g})
+                    rq = close_ring(arc_hot, arc_cold, (q["A"]["hot"], q["A"]["cold"]),
                                     (q["B"]["hot"], q["B"]["cold"]), bj, bmin)
                     key = (rq["ok"], rq["ok_cut"], -rq["nCut"], -rq["cut"])
                     if best is None or key > best[0]:
@@ -321,10 +342,15 @@ def course_schedule(sheet, lib, st):
     # cones: bricks lie horizontally, so a brick of length L spans less than the drawn lining
     # (thickness L measured square to the sloping wall) -> report the gap per band / zone
     gap = {}
+    f = _f()
+    cone_tol = f.evaluate("p_cone_gap_report_tol", {})
     for r in rows:
-        if r.get("pair") and r.get("space") and r["space"] > r["L"] + 0.5:
+        if r.get("pair") and r.get("space") and r["space"] > r["L"] + cone_tol:
             a0, a1 = [float(x) for x in r["sector"].split("-")]
-            v = math.radians(a1 - a0) / 2 * ((r["r_cold"] - r["L"]) ** 2 - (r["r_cold"] - r["space"]) ** 2) * r["h"] / 1e9
+            v = f.evaluate("cone_gap_volume", {
+                "angle_from": a0, "angle_to": a1, "r_cold": r["r_cold"],
+                "brick_len": r["L"], "space": r["space"], "course_height": r["h"],
+            })
             g = gap.setdefault((r["band"], r.get("zone") or r["sector"], r["grade"]), [0.0, 0.0, 0])
             g[0] += v
             g[1] = max(g[1], r["space"] - r["L"])
@@ -438,13 +464,17 @@ def bottom_rings(sheet, lib, st, nozzles=(), bottom=None):
     if abs(cold[0][2]) > 1e-12:
         R_cold = arc_from_bulge(cold[0][:2], cold[1][:2], cold[0][2])[1]
     out["cold_sphere_radius"] = None if R_cold is None else round(R_cold, 1)
+    f = _f()
     lib_R = None
     d0 = sh[0]["dimensions_mm"] if sh else {}
     if not use_entered and d0.get("face_width_bottom") and d0.get("face_width_top") and d0.get("overall_length"):
-        k = d0["face_width_bottom"] / d0["face_width_top"]
-        lib_R = k * d0["overall_length"] / (k - 1)          # cold radius for which the wedge was made
+        lib_R = f.evaluate("bottom_library_radius", {
+            "face_width_bottom": d0["face_width_bottom"],
+            "face_width_top": d0["face_width_top"],
+            "overall_length": d0["overall_length"],
+        })
         out["library_cold_radius"] = round(lib_R, 1)
-        if R_cold and abs(lib_R - R_cold) / lib_R > 0.03:
+        if R_cold and abs(lib_R - R_cold) / lib_R > f.evaluate("p_bottom_dish_radius_tol", {}):
             out["flags"].append(f"dish cold-face radius {R_cold:.0f} mm differs from the SH-brick design radius "
                                 f"{lib_R:.0f} mm by more than 3 % - ring counts are approximate")
     if not use_entered and work["thickness"] and abs(float(d0.get("overall_length", work["thickness"])) - work["thickness"]) > 0.5:
@@ -459,12 +489,13 @@ def bottom_rings(sheet, lib, st, nozzles=(), bottom=None):
         if ring_w <= 0:
             out["flags"].append("ring radial width not entered")
             return out
-        pitch = ring_w + joint
+        pitch = f.evaluate("bottom_pitch", {"ring_width": ring_w, "joint": joint})
     else:
-        pitch = max(m["w"] for m in marks) + joint
-        if ring_w > 0 and abs(ring_w - max(m["w"] for m in marks)) > 0.5:
+        max_w = max(m["w"] for m in marks)
+        pitch = f.evaluate("bottom_pitch", {"ring_width": max_w, "joint": joint})
+        if ring_w > 0 and abs(ring_w - max_w) > f.evaluate("p_bottom_ring_width_tol", {}):
             out["flags"].append(f"ring radial width entered {ring_w:g} mm, library wedge bricks are "
-                                f"{max(m['w'] for m in marks):g} mm wide on the cold face - library width used")
+                                f"{max_w:g} mm wide on the cold face - library width used")
 
     # stirring elements in the bottom
     stir = [n for n in nozzles if n.get("type") == "stirring" and n.get("count")]
@@ -491,18 +522,20 @@ def bottom_rings(sheet, lib, st, nozzles=(), bottom=None):
         s1 = min(s + pitch, s_end)
         r_in, r_out = r_at(s), r_at(s1)
         width = s1 - s
-        cin, cout = 2 * math.pi * r_in, 2 * math.pi * r_out
+        cin = f.evaluate("circumference", {"r": r_in})
+        cout = f.evaluate("circumference", {"r": r_out})
         elems = []
         for n in stir:
             rp = float(n.get("pcd", 0)) / 2
             if r_in <= rp < r_out:
                 cnt = int(n["count"])
-                w = float(n.get("size_b") or n.get("size_a") or 0) + joint
-                cin -= cnt * w
-                cout -= cnt * w
-                elems.append({"label": n.get("label", "stirring"), "count": cnt, "width": w - joint})
+                sz = float(n.get("size_b") or n.get("size_a") or 0)
+                ded = f.evaluate("stir_deduct", {"count": cnt, "size": sz, "joint": joint})
+                cin -= ded
+                cout -= ded
+                elems.append({"label": n.get("label", "stirring"), "count": cnt, "width": sz})
         row = {"ring": ring, "r_in": round(r_in, 1), "r_out": round(r_out, 1), "width": round(width, 1),
-               "partial": width < pitch - 1.0, "marks": {}, "nCut": 0, "cut": 0, "flag": None, "elements": elems}
+               "partial": width < pitch - f.evaluate("p_bottom_last_ring_tol", {}), "marks": {}, "nCut": 0, "cut": 0, "flag": None, "elements": elems}
         rb = next((b for b in rbands if b["from"] <= ring <= b["to"]), rbands[-1] if rbands else None)
         if use_entered:
             aH, aC, bH, bC = rb["dims"]

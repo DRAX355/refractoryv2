@@ -17,8 +17,9 @@ import ezdxf
 from ezdxf.enums import TextEntityAlignment as TA
 
 from .geometry import reverse_run, sample, radius_at_z
-from .sheet import Sheet, clean, decimals
+from .sheet import Sheet, clean, decimals, _clip_to_region
 from .bricks import band_kind
+from .model import sector_at
 
 ALIGN = {"left": TA.LEFT, "center": TA.MIDDLE_CENTER, "right": TA.RIGHT,
          "mleft": TA.MIDDLE_LEFT, "mright": TA.MIDDLE_RIGHT, "bcenter": TA.BOTTOM_CENTER}
@@ -109,6 +110,85 @@ def z_at_x(run, x):
     return None
 
 
+class _Content:
+    """Collects PDF page content pieces in a list (used by save_previews; behaves like the str it replaces)."""
+    __slots__ = ("parts",)
+
+    def __init__(self):
+        self.parts = []
+
+    def __iadd__(self, s):
+        self.parts.append(s)
+        return self
+
+    def __str__(self):
+        return "".join(self.parts)
+
+    def __len__(self):
+        return sum(len(x) for x in self.parts)
+
+    def __bool__(self):
+        return any(self.parts)
+
+    def encode(self, *a, **k):
+        return str(self).encode(*a, **k)
+
+
+def _fast_shape(sh):
+    """Speed-up for the PDF preview: the same path operators PyMuPDF's Shape.draw_line / draw_polyline /
+    draw_bezier / draw_curve write, produced with plain float maths (PyMuPDF creates several Point
+    objects per vertex, which is most of the render time on big sheets). Drawing is unchanged."""
+    m = sh.ipctm
+    a, b, c, d, e, f = float(m.a), float(m.b), float(m.c), float(m.d), float(m.e), float(m.f)
+
+    def fmt(p):
+        x, y = float(p[0]), float(p[1])
+        return f"{x * a + y * c + e:.3f} {x * b + y * d + f:.3f}"
+
+    def last():
+        lp = sh.last_point
+        return None if lp is None else (float(lp[0]), float(lp[1]))
+
+    def move_if_needed(p1, out):
+        if last() != p1:
+            out.append(fmt(p1) + " m\n")
+
+    def draw_line(p1, p2):
+        p1, p2 = (float(p1[0]), float(p1[1])), (float(p2[0]), float(p2[1]))
+        out = []
+        move_if_needed(p1, out)
+        out.append(fmt(p2) + " l\n")
+        sh.draw_cont += "".join(out)
+        sh.last_point = p2
+        return p2
+
+    def draw_polyline(points):
+        pts = [(float(p[0]), float(p[1])) for p in points]
+        out = []
+        move_if_needed(pts[0], out)
+        out.extend(fmt(p) + " l\n" for p in pts[1:])
+        sh.draw_cont += "".join(out)
+        sh.last_point = pts[-1]
+        return pts[-1]
+
+    def draw_bezier(p1, p2, p3, p4):
+        p1, p4 = (float(p1[0]), float(p1[1])), (float(p4[0]), float(p4[1]))
+        out = []
+        move_if_needed(p1, out)
+        out.append(f"{fmt(p2)} {fmt(p3)} {fmt(p4)} c\n")
+        sh.draw_cont += "".join(out)
+        sh.last_point = p4
+        return p4
+
+    def draw_curve(p1, p2, p3):
+        k = 0.55228474983                       # same construction as PyMuPDF's Shape.draw_curve
+        x1, y1, x2, y2, x3, y3 = float(p1[0]), float(p1[1]), float(p2[0]), float(p2[1]), float(p3[0]), float(p3[1])
+        return draw_bezier((x1, y1), (x1 + (x2 - x1) * k, y1 + (y2 - y1) * k),
+                           (x3 + (x2 - x3) * k, y3 + (y2 - y3) * k), (x3, y3))
+
+    sh.draw_line, sh.draw_polyline, sh.draw_bezier, sh.draw_curve = draw_line, draw_polyline, draw_bezier, draw_curve
+
+
 def save_previews(msp, folder, name, size=(36, 24), dpi=150, skip_prefix=("TABLE",)):
     """PNG + PDF previews of a modelspace. Fast vector path via PyMuPDF; matplotlib as fallback.
     Layers starting with `skip_prefix` (the long schedule table) stay in the DXF but are left out of
@@ -118,15 +198,44 @@ def save_previews(msp, folder, name, size=(36, 24), dpi=150, skip_prefix=("TABLE
     try:
         from ezdxf.addons.drawing import Frontend, RenderContext, config, layout, pymupdf
         backend = pymupdf.PyMuPdfBackend()
+        _make = backend.make_backend
+
+        def _fast_backend(page, settings):     # speed-up: PyMuPDF joins the page content with "+=", which
+            rb = _make(page, settings)         # gets very slow (quadratic) on big sheets - collect in a list
+            try:
+                sh = rb.content_shape
+                if isinstance(getattr(sh, "totalcont", None), str) and not sh.totalcont:
+                    sh.totalcont = _Content()
+                    _commit = sh.commit
+
+                    def _commit_keep(*a, **k):  # commit() resets it to "" - keep using the list
+                        r = _commit(*a, **k)
+                        sh.totalcont = _Content()
+                        return r
+                    sh.commit = _commit_keep
+                _fast_shape(sh)
+            except Exception:
+                pass
+            return rb
+        backend.make_backend = _fast_backend
         cfg = config.Configuration(background_policy=config.BackgroundPolicy.WHITE,
                                    color_policy=config.ColorPolicy.COLOR)
         Frontend(RenderContext(msp.doc), backend, config=cfg).draw_layout(msp, filter_func=keep)
         page = layout.Page(size[0] * 25.4, size[1] * 25.4, layout.Units.mm, margins=layout.Margins.all(8))
         settings = layout.Settings(fit_page=True)
         pdf = folder / f"{name}.pdf"
-        pdf.write_bytes(backend.get_pdf_bytes(page, settings=settings))
+        pdf_bytes = backend.get_pdf_bytes(page, settings=settings)
+        pdf.write_bytes(pdf_bytes)
         png = folder / f"{name}.png"
-        png.write_bytes(backend.get_pixmap_bytes(page, fmt="png", dpi=dpi, settings=settings))
+        try:                                    # rasterise the PDF just made (much faster than drawing twice)
+            try:
+                import pymupdf as _fz
+            except ImportError:
+                import fitz as _fz
+            with _fz.open(stream=pdf_bytes, filetype="pdf") as d:
+                d[0].get_pixmap(dpi=dpi, alpha=False).save(str(png))
+        except Exception:
+            png.write_bytes(backend.get_pixmap_bytes(page, fmt="png", dpi=dpi, settings=settings))
         return [png, pdf]
     except Exception as e:                      # older ezdxf / no PyMuPDF -> matplotlib
         print(f"  (PyMuPDF preview unavailable for {name}: {e}; using matplotlib)")
@@ -344,6 +453,14 @@ class Doc:
         self.doc = ezdxf.new("R2018", setup=True)
         self.msp = self.doc.modelspace()
         self._layers = set()
+        self.views = []                             # (title, entity handles) per view -> one page each
+
+    def _view(self, title, fn, *args, **kw):
+        """Draws one view and records its entities, so it can be put on its own page / layout."""
+        n0 = len(self.msp)
+        out = fn(*args, **kw)
+        self.views.append({"title": title, "handles": {e.dxf.handle for e in list(self.msp)[n0:]}})
+        return out
 
     def layer(self, name, color=7):
         if name not in self._layers:
@@ -413,8 +530,13 @@ class BrickSheet(Doc):
         used = list(self.mcol) + [m for m, q in self.qty.items() if q and m not in self.mcol]   # used shapes first
         bricks = sorted(allb, key=lambda b: (used.index(b["mark"]) if b["mark"] in used else len(used)))
         th = self.th
+        row_n0, row_marks = [], []                  # one page per row of shapes
         for k, b in enumerate(bricks):
             col, row = k % self.COLS, k // self.COLS
+            if col == 0:
+                row_n0.append(len(self.msp))
+                row_marks.append([])
+            row_marks[-1].append(b["mark"])
             ox, oy = col * self.CELL_W, -(row + 1) * self.CELL_H
             self.poly([(ox, oy), (ox + self.CELL_W - 60, oy), (ox + self.CELL_W - 60, oy + self.CELL_H - 60),
                        (ox, oy + self.CELL_H - 60)], "FRAME")
@@ -440,6 +562,14 @@ class BrickSheet(Doc):
             if note:
                 for i, chunk in enumerate(_wrap(note, 95)[:3]):
                     self.text(ox + 40, oy + 130 - i * 40, chunk, 0.7 * th, layer="NOTES")
+        ents = list(self.msp)
+        bounds_ = row_n0 + [len(ents)]
+        for r, marks in enumerate(row_marks):
+            hs = {e.dxf.handle for e in ents[bounds_[r]:bounds_[r + 1]]}
+            used_here = [m for m in marks if self.qty.get(m)]
+            self.views.append({"title": f"BRICK SHAPES {r + 1} - " + (", ".join(marks[:3]) + (" ..." if len(marks) > 3 else "")),
+                               "handles": hs,
+                               "note": f"{len(used_here)} of {len(marks)} shapes on this sheet are used in this design"})
         n_rows = (len(bricks) + self.COLS - 1) // self.COLS
         y = -(n_rows + 1) * self.CELL_H + 300
         self.title(0, y, [f"BRICK SHAPES - {self.job}",
@@ -630,6 +760,11 @@ class LayerSheet(Doc):
         self.zero = sheet.zero                      # same 0-degree direction as the GA plan views
         self.mcol = mcol or assign_mark_colors(courses, rings)
         self.info = info or {}
+        self.gcol = dict(sheet.colors)              # quality (grade) colours - the same as the lining GA legend
+
+    def gc(self, grade):
+        """Fill colour of a brick = colour of its quality grade (as in the GA quality legend)."""
+        return self.gcol.get(grade, 8)
 
     def _ball_brick(self, cx, cy, r1, r2, a0, a1, mark):
         """Circle with the item number on a brick (cut pieces: red circle 'C')."""
@@ -716,7 +851,7 @@ class LayerSheet(Doc):
         if R.get("key"):
             rk = R["key"]["r"]
             pts = [(cx + rk * math.cos(a), cy + rk * math.sin(a)) for a in [k * math.pi / 36 for k in range(72)]]
-            self.fill(pts, self.mcol.get(R["key"]["mark"], 9), "BOTTOM_KEY")
+            self.fill(pts, self.gc(R.get("grade")), "BOTTOM_KEY")
             self.msp.add_circle((cx, cy), rk, dxfattribs={"layer": self.layer("BOTTOM_RINGS", 7)})
             self.text(cx, cy, R["key"]["mark"], 0.7 * th, "center")
         stir = [n for n in self.nozzles if n.get("type") == "stirring" and n.get("count") and n.get("pcd")]
@@ -766,7 +901,7 @@ class LayerSheet(Doc):
                 for i in range(c):
                     m = seq[min(k, n_all - 1)]
                     k += 1
-                    col = CUT_ACI if m == "CUT" else self.mcol.get(m, 8)
+                    col = CUT_ACI if m == "CUT" else self.gc(R.get("grade"))
                     a_s, a_e = self.zero + g0 + i * step, self.zero + g0 + (i + 1) * step
                     pts = _wedge(cx, cy, r1, r2, a_s, a_e)
                     self.fill(pts, col, "BOTTOM_BRICKS")
@@ -830,11 +965,48 @@ class LayerSheet(Doc):
             ang_ref = 0.0 if side == 1 else 180.0
             paths, outer = s.boundary_paths(ang_ref)
             T = lambda run: [(axis_x + side * x, Y(z), side * b) for x, z, b in run]
+            P = lambda run: [(axis_x + side * x, Y(z)) for x, z in sample(run)]
+            if outer:                               # shell (grey) and every layer in its quality colour
+                self.fill(P(outer.all() + reverse_run(paths[0].all())), 8, "SHELL_FILL")
+            for bi, band in enumerate(s.bands):
+                i0, i1 = s.band_idx[bi]
+                sec = sector_at(band, ang_ref % 360)
+                for j in range(1, L + 1):
+                    g = sec["layers"][j - 1]["grade"]
+                    self.fill(P(paths[j - 1].run(i0, i1) + reverse_run(paths[j].run(i0, i1))), self.gc(g), "GRADE_FILL")
             if outer:
                 self.msp.add_lwpolyline(T(outer.all()), format="xyb", dxfattribs={"layer": self.layer("SHELL", 8)})
             for k in range(L + 1):
                 self.msp.add_lwpolyline(T(paths[k].all()), format="xyb",
                                         dxfattribs={"layer": self.layer("SHELL" if k == 0 else "LINING", 7)})
+            R = self.rings or {}
+            rb = next((bi for bi, b in enumerate(s.bands) if b["name"] == R.get("band")), None)
+            if rb is not None and R.get("rings"):    # bottom rings: joint square to the bottom + ring number
+                i0, i1 = s.band_idx[rb]
+                crun, hrun = paths[L - 1].run(i0, i1), paths[L].run(i0, i1)
+                t = sector_at(s.bands[rb], ang_ref % 360)["layers"][L - 1]["thickness"]
+                s0 = s.segs[i0]
+                region = sample(crun + reverse_run(hrun))
+
+                def normal(rad, zc):
+                    if s0.shape == "arc" and s0.C is not None:
+                        dx, dz = s0.C[0] - rad, s0.C[1] - zc
+                        nn = math.hypot(dx, dz) or 1.0
+                        return dx / nn, dz / nn
+                    return 0.0, 1.0
+                for ring in R["rings"]:
+                    rad = ring["r_out"]
+                    zc = z_at_x(crun, rad)
+                    if zc is not None and ring is not R["rings"][-1]:
+                        dx, dz = normal(rad, zc)
+                        xe, ze = _clip_to_region((rad, zc), (rad + dx * t, zc + dz * t), region)
+                        self.line((axis_x + side * rad, Y(zc)), (axis_x + side * xe, Y(ze)), "BOTTOM_RINGS")
+                    rm = (ring["r_in"] + ring["r_out"]) / 2
+                    zm = z_at_x(crun, rm)
+                    if zm is not None and (ring["ring"] % 2 == 1 or ring is R["rings"][-1]):
+                        dx, dz = normal(rm, zm)
+                        self.text(axis_x + side * (rm + dx * 0.5 * t), Y(zm + dz * 0.5 * t), str(ring["ring"]),
+                                  min(0.45 * th, 0.6 * (ring["r_out"] - ring["r_in"])), "center", "RING_NO")
             for no, rs in rows_by_course.items():
                 r = next((x for x in rs if _in_sector(ang_ref, x["sector"])), rs[0])
                 if r.get("r_cold") is None:
@@ -894,13 +1066,15 @@ class LayerSheet(Doc):
             for i, m in enumerate(seq):
                 a_s, a_e = self.zero + a0 + i * step, self.zero + a0 + (i + 1) * step
                 pts = _wedge(cx, cy, ri, ro, a_s, a_e)
-                self.fill(pts, CUT_ACI if m == "CUT" else self.mcol.get(m, 8), "RING_BRICKS")
+                self.fill(pts, CUT_ACI if m == "CUT" else self.gc(r.get("grade")), "RING_BRICKS")
                 self.poly(pts, "RING_OUTLINE")
                 self._ball_brick(cx, cy, ri, ro, a_s, a_e, m)
             m = math.radians((a0 + a1) / 2 + self.zero)
             tx, ty = cx + (ro + 1.5 * th) * math.cos(m), cy + (ro + 1.5 * th) * math.sin(m)
             txt = (f"{r['sector']}°: {r['A']} x {r['nA']} + {r['B']} x {r['nB']}"
                    + (f" + {r['nCut']} cut {r['cut']:.0f}" if r["nCut"] else ""))
+            if a1 - a0 >= 359.9:                    # full ring: note under the ring, clear of the bricks
+                tx, ty = cx, cy - ro - 1.5 * th
             self._balls_then_text(tx - 0.31 * 0.6 * th * len(txt), ty, [r["A"], r["B"]], 0.6 * th, txt, "TEXT", right=False)
         z0 = math.radians(self.zero)
         self.line((cx + 0.2 * scale_r * math.cos(z0), cy + 0.2 * scale_r * math.sin(z0)), (cx, cy), "CENTER")
@@ -935,18 +1109,112 @@ class LayerSheet(Doc):
                 x += w * th * 1.9
         self.layer("TABLE_FLAG", CUT_ACI)
 
+    # ------------------------------------------------------------ quality legend
+    def quality_legend(self, x, y):
+        """Quality (grade) colours used on this sheet - the same colours as the GA legend."""
+        th = self.th
+        used = []
+        if self.rings and self.rings.get("grade"):
+            used.append(self.rings["grade"])
+        for bi, b in enumerate(self.s.bands):
+            for sec in b["sectors"]:
+                for l in sec["layers"]:
+                    if l["grade"] not in used:
+                        used.append(l["grade"])
+        for r in self.courses:
+            if r.get("grade") and r["grade"] not in used:
+                used.append(r["grade"])
+        self.text(x, y, "QUALITY LEGEND", 1.6 * th, layer="LEGEND")
+        yy = y - 1.2 * th
+        cols = 3
+        for k, g in enumerate(used):
+            c, rr = k % cols, k // cols
+            bx, by = x + c * 22 * th, yy - (rr + 1) * 2.6 * th
+            box = [(bx, by), (bx + 4 * th, by), (bx + 4 * th, by + 1.8 * th), (bx, by + 1.8 * th)]
+            self.fill(box, self.gc(g), "LEGEND_FILL")
+            self.poly(box, "LEGEND")
+            self.text(bx + 5 * th, by + 0.9 * th, g, 1.0 * th, "mleft", "LEGEND")
+        n_rows = (len(used) + cols - 1) // cols
+        by = yy - (n_rows + 1) * 2.6 * th
+        for k, (col, txt) in enumerate(((CUT_ACI, "CUT piece (cut on site)"), (NOZZLE_ACI, "stirring element / nozzle"))):
+            bx = x + k * 22 * th
+            box = [(bx, by), (bx + 4 * th, by), (bx + 4 * th, by + 1.8 * th), (bx, by + 1.8 * th)]
+            self.fill(box, col, "LEGEND_FILL")
+            self.poly(box, "LEGEND")
+            self.text(bx + 5 * th, by + 0.9 * th, txt, 1.0 * th, "mleft", "LEGEND")
+        self.text(x, by - 2.4 * th, "Brick fill = quality grade colour.  Numbered circle on a brick = item number in the "
+                                    "BRICK KEY (mark, size, quantity).", 0.9 * th, layer="LEGEND")
+
+    # ------------------------------------------------------------ bottom BOQ (marks x rings)
+    def boq_matrix(self, x, y):
+        """Bottom working lining brick BOQ: one row per brick mark, one column per ring, total per mark
+        (the customer's 'BOTTOM DISH WORKING LINING BRICK BOQ')."""
+        R, th = self.rings, self.th
+        if not R or not R.get("rings"):
+            return
+        rings = R["rings"]
+        marks = []
+        for r in rings:
+            for m in r["marks"]:
+                if m not in marks:
+                    marks.append(m)
+        cw, rh, lw = 3.6 * th, 2.2 * th, 12 * th
+        n = len(rings)
+        W = lw + (n + 1) * cw + 1.5 * cw
+        rows = list(reversed(marks)) + (["KEY"] if R.get("key") else [])
+        H = (len(rows) + 1) * rh
+        self.text(x + W / 2, y + 1.4 * th, f"BOTTOM DISH WORKING LINING BRICK BOQ  ({R.get('grade', '')})", 1.3 * th,
+                  "bcenter", "BOQ")
+        lay = "BOQ"
+        self.poly([(x, y), (x + W, y), (x + W, y - H), (x, y - H)], lay)
+        for k in range(1, len(rows) + 1):
+            self.line((x, y - k * rh), (x + W, y - k * rh), lay)
+        xs = [x + lw + i * cw for i in range(n + 1)] + [x + W - 1.5 * cw]
+        for xx in xs:
+            self.line((xx, y), (xx, y - H), lay)
+        for k, m in enumerate(rows):
+            yy = y - (k + 0.5) * rh
+            self.text(x + 0.5 * th, yy, m, 0.9 * th, "mleft", lay)
+            tot = 0
+            for i, r in enumerate(rings):
+                if m == "KEY":
+                    continue
+                q = r["marks"].get(m, 0)
+                if q:
+                    self.text(x + lw + (i + 0.5) * cw, yy, str(q), 0.8 * th, "center", lay)
+                    tot += q
+            if m == "KEY":
+                self.text(x + lw + 0.5 * cw, yy, "1", 0.8 * th, "center", lay)
+                tot = 1
+            self.text(x + W - 0.75 * cw, yy, str(tot), 0.9 * th, "center", lay)
+        # cut pieces row + ring numbers row
+        yy = y - (len(rows) + 0.5) * rh
+        self.text(x + 0.5 * th, yy, "RING NO.", 0.9 * th, "mleft", lay)
+        for i, r in enumerate(rings):
+            self.text(x + lw + (i + 0.5) * cw, yy, str(r["ring"]), 0.8 * th, "center", lay)
+        self.text(x + W - 0.75 * cw, yy, "TOTAL", 0.8 * th, "center", lay)
+        self.poly([(x, y - H), (x + W, y - H), (x + W, y - H - rh), (x, y - H - rh)], lay)
+        yy = y - H - 0.5 * rh
+        self.text(x + 0.5 * th, yy, "CUT PIECES", 0.9 * th, "mleft", lay)
+        for i, r in enumerate(rings):
+            if r["nCut"]:
+                self.text(x + lw + (i + 0.5) * cw, yy, str(r["nCut"]), 0.8 * th, "center", lay)
+        self.text(x + W - 0.75 * cw, yy, str(sum(r["nCut"] for r in rings)), 0.9 * th, "center", lay)
+        self.text(x, y - H - rh - 1.6 * th, f"TOTAL BOTTOM PIECES (incl. key and cut pieces): {R.get('total', '')}", 1.0 * th,
+                  layer=lay)
+
     # ------------------------------------------------------------ layout
     def build(self):
         s, th = self.s, self.th
         # 1. course section (left)
         sec_w = 60 * th + 2 * s.rout
         sec_h = (s.zmax - s.zmin) + 8 * th
-        self.draw_courses(0, -sec_h)
+        self._view("COURSE (LAYER) SECTION", self.draw_courses, 0, -sec_h)
         x = sec_w + 50 * th                       # room for the ring call-outs left of the bottom layout
         # 2. bottom ring layout
         if self.rings and self.rings.get("rings"):
             rmax = self.rings["rings"][-1]["r_out"]
-            self.draw_bottom(x + rmax, -rmax - 2 * th)
+            self._view("BOTTOM WORKING LINING - RING LAYOUT", self.draw_bottom, x + rmax, -rmax - 2 * th)
             x += 2 * rmax + 40 * th
         # 3. one ring plan per wall band / course group (middle course of each band)
         bands = []
@@ -963,12 +1231,17 @@ class LayerSheet(Doc):
                 continue
             mid_no = rows[len(rows) // 2]["course"]
             group = [r for r in self.courses if r["course"] == mid_no]
-            self.draw_ring_plan(px + rmax_all + 8 * th, py - rmax_all - 4 * th, group, rmax_all)
+            self._view(f"COURSE {mid_no} BRICK LAYOUT - {str(b).upper()}", self.draw_ring_plan,
+                       px + rmax_all + 8 * th, py - rmax_all - 4 * th, group, rmax_all)
             px += 2 * rmax_all + 22 * th
         # 4. colour key (big, next to the bottom layout) + schedule table (right of everything)
         kx = max(x, px) + 4 * th
-        self.colour_key(kx, -2 * th)
-        self.draw_table(kx + 135 * th, -2 * th)
+        key_h = self._view("BRICK KEY (ITEM NUMBERS)", self.colour_key, kx, -2 * th)
+        self._view("COURSE (LAYER) SCHEDULE", self.draw_table, kx + 135 * th, -2 * th)
+        yq = -2 * th - (key_h or 40 * th) - 8 * th
+        self._view("QUALITY LEGEND", self.quality_legend, kx, yq)
+        if self.rings and self.rings.get("rings"):
+            self._view("BOTTOM DISH BRICK BOQ (RING x MARK)", self.boq_matrix, kx, yq - 30 * th)
         self.title(0, py - 2 * rmax_all - 20 * th, [
             f"LINING LAYERS & BRICK LAYOUT - {self.job}",
             "Bottom ring layout, course (layer) section, ring plans and course schedule computed from the confirmed design.",

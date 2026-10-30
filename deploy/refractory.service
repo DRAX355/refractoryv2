@@ -1,0 +1,19 @@
+[Unit]
+Description=RefractoryAI BOF Lining Copilot Server (FastAPI / Uvicorn)
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/refractory-server
+Environment="PATH=/home/ubuntu/refractory-server/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+Environment="PYTHONUNBUFFERED=1"
+Environment="OMP_NUM_THREADS=4"
+Environment="MKL_NUM_THREADS=4"
+ExecStart=/home/ubuntu/refractory-server/venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000 --workers 1 --timeout-keep-alive 120
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

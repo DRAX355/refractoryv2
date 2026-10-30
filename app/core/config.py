@@ -42,6 +42,27 @@ class Settings(BaseSettings):
     # ── Upload Limits ─────────────────────────────────────────
     max_upload_size_mb: int = 50
 
+    @field_validator("tesseract_cmd", mode="after")
+    @classmethod
+    def resolve_tesseract_cmd(cls, v: str) -> str:
+        import os, shutil
+        if v and os.path.exists(v):
+            return v
+        found = shutil.which("tesseract")
+        if found:
+            return found
+        if os.name != "nt" and os.path.exists("/usr/bin/tesseract"):
+            return "/usr/bin/tesseract"
+        return v
+
+    @field_validator("poppler_path", mode="after")
+    @classmethod
+    def resolve_poppler_path(cls, v: str) -> str:
+        import os
+        if v and os.path.exists(v):
+            return v
+        return ""
+
     @field_validator("outputs_dir", "sample_drawings_dir", mode="before")
     @classmethod
     def ensure_directories_exist(cls, v: str | Path) -> Path:

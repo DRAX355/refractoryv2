@@ -4,7 +4,9 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>BOF Lining Copilot</title>
+  <title>ZeroZeta — LiningOps Copilot</title>
+  <link rel="icon" type="image/x-icon" href="favicon.ico">
+  <link rel="icon" type="image/png" href="favicon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&display=swap" rel="stylesheet">
   <script src="fx.js"></script>
@@ -1617,6 +1619,7 @@
       Lining Copilot</div>
     <div id="projmeta"></div>
     <span id="who">Designer · Phase 1 (no knowledge base)</span>
+    <span id="srvstatus" data-act="apiConfig" style="font-size:11.5px;padding:3px 9px;border-radius:12px;background:#1e2a23;border:1px solid #33443a;cursor:pointer;white-space:nowrap" title="Server connection status (click to switch between EC2 65.1.125.127 and Localhost)">⚪ Server…</span>
     <span id="sess" style="font-size:12px;white-space:nowrap"></span>
     <button class="tb" data-act="sessSave" title="Save the session to a file that is updated at every step">💾 Save session</button>
     <button class="tb" data-act="sessOpen" title="Open a saved session file and continue from its step">📂 Open session</button>
@@ -1642,10 +1645,10 @@
     <button class="tool" data-act="audit">🕘 Step log</button>
   </aside>
   <style>
-    #ccfab-wrap { position: fixed; right: 18px; bottom: 18px; z-index: 9000; display: flex; flex-direction: column; align-items: flex-end; }
-    .ccfab-menu { display: flex; flex-direction: column; align-items: stretch; gap: 5px; margin-bottom: 8px; padding: 8px; background: var(--side, #101713); border: 1px solid #33443a; border-radius: 14px; box-shadow: 0 8px 28px rgba(0, 0, 0, .35); opacity: 0; visibility: hidden; transform: translateY(10px) scale(.96); transform-origin: bottom right; pointer-events: none; transition: opacity .18s ease, transform .18s ease, visibility .18s; min-width: 185px; }
-    #ccfab-wrap::before { content: ""; position: absolute; left: 0; right: 0; bottom: 38px; height: 18px; }
-    #ccfab-wrap:hover .ccfab-menu, #ccfab-wrap:focus-within .ccfab-menu { opacity: 1; visibility: visible; transform: translateY(0) scale(1); pointer-events: auto; }
+    #ccfab-wrap { position: fixed; right: 18px; bottom: 18px; z-index: 9000; display: inline-block; }
+    .ccfab-menu { position: absolute; right: 0; bottom: calc(100% + 8px); display: none; flex-direction: column; align-items: stretch; gap: 5px; padding: 8px; background: var(--side, #101713); border: 1px solid #33443a; border-radius: 14px; box-shadow: 0 8px 28px rgba(0, 0, 0, .35); min-width: 185px; }
+    .ccfab-menu::after { content: ""; position: absolute; left: 0; right: 0; top: 100%; height: 10px; }
+    #ccfab-wrap:hover .ccfab-menu { display: flex; }
     .ccfab-item { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border: 1px solid transparent; border-radius: 9px; background: transparent; color: var(--side-ink, #dfe8e2); font: inherit; font-size: 13px; font-weight: 600; text-align: left; cursor: pointer; white-space: nowrap; transition: background .15s, border-color .15s, color .15s; }
     .ccfab-item:hover { background: #1e2a23; border-color: #4b7bec; color: #fff; }
     .ccfab-item.primary-item { background: rgba(47, 95, 208, .22); border-color: rgba(75, 123, 236, .5); color: #fff; }
@@ -1691,6 +1694,7 @@
   <script>
     /* ============ API CONFIGURATION ============ */
     function getApiBase() {
+      try { const sp = new URLSearchParams(window.location.search); if (sp.get('api')) return sp.get('api').replace(/\/+$/, ''); } catch (e) {}
       if (typeof window !== 'undefined' && window.REFRACTORY_API_BASE) {
         return window.REFRACTORY_API_BASE.replace(/\/+$/, '');
       }
@@ -1708,7 +1712,7 @@
         // If frontend is served directly by FastAPI (e.g. http://<host>:8000/ui/) or reverse proxy
         return window.location.origin;
       }
-      return 'http://localhost:8000';
+      return 'http://65.1.125.127';
     }
 
     /* ============ CONSTANTS ============ */
@@ -1766,7 +1770,7 @@
     const wz = (key, name, o) => Object.assign({ key, name, span: 0, centre: 0, h0: '', h1: '', grade: '', wear: 0.1, tOver: '', dens: 3.0, pairs: [] }, o);
     const wallCommon = () => ({ perm: 'GRADE-E', tPerm: 150, back: 0, permDens: 2.95, course: 100, joint: 0, expA: 2, expN: 4, expM: 3, expFrom: 1, expTo: 999, minCut: 40, resid: 150, balTol: 15 });
     function defaults() {
-      const ext = {}; SAMPLE_EXT_DEF.forEach(([k, g, l, u, d, v, c, how, cmp]) => ext[k] = { grp: g, label: l, unit: u, drawing: '', value: '', conf: 0, how: 'Awaiting extraction', cmp: !!cmp });
+      const ext = {}; SAMPLE_EXT_DEF.forEach(([k, g, l, u, d, v, c, how, cmp]) => ext[k] = { grp: g, label: l, unit: u, drawing: '— not found on drawing', value: v, conf: 0.65, how: 'Not found on drawing — auto-populated with recommended default value', cmp: !!cmp });
       return {
         step: 0, gates: {}, log: [], extOk: {}, annAll: false, sel: null, splitOpen: false, split: { mode: 'Equal segments', n: 2, els: '', hts: '' }, ext, zones: [], chargeSide: 'Left', draft: { type: 'Bottom', name: 'Bottom', height: '' },
         job: {
@@ -1783,24 +1787,24 @@
         },
         lc: Object.assign(wallCommon(), {
           orient: 'Horizontal (angled brick ends)', endRule: 'Cut to cone angle', taper: 'Constant', steps: '', lengths: '800,900,1000', pairRule: 'Least cut waste',
-          zones: { main: wz('main', 'Lower cone', { span: 360, grade: 'GRADE-A', wear: 0.14, dens: 3.02, pairs: [] }) }
+          zones: { main: wz('main', 'Lower cone', { span: 360, grade: 'GRADE-A', wear: 0.14, dens: 3.02, pairs: [pr('LC-8A', 'LC-8B', 800, 145, 160, 120, 185), pr('LC-9A', 'LC-9B', 900, 145, 160, 120, 185), pr('LC-10A', 'LC-10B', 1000, 145, 160, 120, 185)] }) }
         }),
         barrel: Object.assign(wallCommon(), {
           lengths: '700,750,800,850,900,1000', boundary: 'Nearest brick joint', kW: 8, kP: 3, hOut: 25, tAmb: 40, permW: 150, permDens: 2.95,
           sepTrun: 'No', scrap: 18, scrapType: 'Heavy scrap, chute charging',
           zones: {
-            charge: wz('charge', 'Charge pad', { span: 90, centre: 180, grade: 'GRADE-D', wear: 0.125, dens: 3.05, pairs: [] }),
-            trunL: wz('trunL', 'Trunnion 1', { span: 40, centre: 90, grade: 'GRADE-B', wear: 0.12, dens: 3.0, pairs: [] }),
-            trunR: wz('trunR', 'Trunnion 2', { span: 40, centre: 270, grade: 'GRADE-B', wear: 0.12, dens: 3.0, pairs: [] }),
-            tap: wz('tap', 'Trunnion + tap pad', { span: 270, centre: 0, grade: 'GRADE-B', wear: 0.115, dens: 3.0, pairs: [] }),
+            charge: wz('charge', 'Charge pad', { span: 90, centre: 180, grade: 'GRADE-D', wear: 0.125, dens: 3.05, pairs: [pr('CP-70A', 'CP-70B', 700, 145, 160, 120, 185), pr('CP-75A', 'CP-75B', 750, 145, 160, 120, 185), pr('CP-80A', 'CP-80B', 800, 145, 160, 120, 185), pr('CP-85A', 'CP-85B', 850, 145, 160, 120, 185), pr('CP-90A', 'CP-90B', 900, 145, 160, 120, 185), pr('CP-100A', 'CP-100B', 1000, 145, 160, 120, 185)] }),
+            trunL: wz('trunL', 'Trunnion 1', { span: 40, centre: 90, grade: 'GRADE-B', wear: 0.12, dens: 3.0, pairs: [pr('TR-70A', 'TR-70B', 700, 145, 160, 120, 185), pr('TR-75A', 'TR-75B', 750, 145, 160, 120, 185), pr('TR-80A', 'TR-80B', 800, 145, 160, 120, 185), pr('TR-85A', 'TR-85B', 850, 145, 160, 120, 185), pr('TR-90A', 'TR-90B', 900, 145, 160, 120, 185), pr('TR-100A', 'TR-100B', 1000, 145, 160, 120, 185)] }),
+            trunR: wz('trunR', 'Trunnion 2', { span: 40, centre: 270, grade: 'GRADE-B', wear: 0.12, dens: 3.0, pairs: [pr('TR-70A', 'TR-70B', 700, 145, 160, 120, 185), pr('TR-75A', 'TR-75B', 750, 145, 160, 120, 185), pr('TR-80A', 'TR-80B', 800, 145, 160, 120, 185), pr('TR-85A', 'TR-85B', 850, 145, 160, 120, 185), pr('TR-90A', 'TR-90B', 900, 145, 160, 120, 185), pr('TR-100A', 'TR-100B', 1000, 145, 160, 120, 185)] }),
+            tap: wz('tap', 'Trunnion + tap pad', { span: 270, centre: 0, grade: 'GRADE-B', wear: 0.115, dens: 3.0, pairs: [pr('TP-70A', 'TP-70B', 700, 145, 160, 120, 185), pr('TP-75A', 'TP-75B', 750, 145, 160, 120, 185), pr('TP-80A', 'TP-80B', 800, 145, 160, 120, 185), pr('TP-85A', 'TP-85B', 850, 145, 160, 120, 185), pr('TP-90A', 'TP-90B', 900, 145, 160, 120, 185), pr('TP-100A', 'TP-100B', 1000, 145, 160, 120, 185)] }),
           }
         }),
         cone: Object.assign(wallCommon(), {
           orient: 'Horizontal (angled brick ends)', endRule: 'Cut to cone angle', taper: 'Constant', steps: '', lengths: '650,700,750,800', pairRule: 'Least cut waste',
           deskull: 'Mechanical', lance: '',
           zones: {
-            tapSide: wz('tapSide', 'Tap-side area', { span: 60, centre: 0, grade: 'GRADE-B', wear: 0.1, dens: 3.0, pairs: [] }),
-            rest: wz('rest', 'Rest area', { span: 300, centre: 180, grade: 'GRADE-C', wear: 0.09, dens: 2.98, pairs: [] }),
+            tapSide: wz('tapSide', 'Tap-side area', { span: 60, centre: 0, grade: 'GRADE-B', wear: 0.1, dens: 3.0, pairs: [pr('TC-65A', 'TC-65B', 650, 145, 160, 120, 185), pr('TC-70A', 'TC-70B', 700, 145, 160, 120, 185), pr('TC-75A', 'TC-75B', 750, 145, 160, 120, 185), pr('TC-80A', 'TC-80B', 800, 145, 160, 120, 185)] }),
+            rest: wz('rest', 'Rest area', { span: 300, centre: 180, grade: 'GRADE-C', wear: 0.09, dens: 2.98, pairs: [pr('TCR-65A', 'TCR-65B', 650, 145, 160, 120, 185), pr('TCR-70A', 'TCR-70B', 700, 145, 160, 120, 185), pr('TCR-75A', 'TCR-75B', 750, 145, 160, 120, 185), pr('TCR-80A', 'TCR-80B', 800, 145, 160, 120, 185)] }),
           },
           th: { block: 'GRADE-H', sleeve: 'GRADE-I', ram: 'GRADE-J', size: 600, bore: 160, exch: 'From outside', fill: 1.1, ramDens: 2.8, tapDur: 6 }
         }),
@@ -1965,7 +1969,7 @@
     const newId = () => 'z' + (S.nextId = (S.nextId || 0) + 1);
     function ensureSegz() {
       S.segz = S.segz || {}; INIT.segz = INIT.segz || {};
-      S.zones.forEach(z => { if (!z.id) z.id = newId(); const seg = TYPESEG[z.type]; if (seg && !S.segz[z.id]) { S.segz[z.id] = { zones: clone(S[seg].zones), sepTrun: S[seg].sepTrun || 'No' }; INIT.segz[z.id] = clone(S.segz[z.id]); } });
+      S.zones.forEach(z => { if (!z.id) z.id = newId(); const seg = TYPESEG[z.type]; if (seg && !S.segz[z.id]) { S.segz[z.id] = { zones: clone(S[seg].zones), sepTrun: S[seg].sepTrun || 'No' }; INIT.segz[z.id] = clone(S.segz[z.id]); } if (seg && S.segz[z.id] && S.segz[z.id].zones) { Object.entries(S.segz[z.id].zones).forEach(([zk, zv]) => { if (zv && (!zv.pairs || !zv.pairs.length) && S[seg].zones[zk] && S[seg].zones[zk].pairs) zv.pairs = clone(S[seg].zones[zk].pairs); }); } });
     }
     const segsOf = seg => S.zones.filter(z => z.type === SEGTYPE[seg]);
     function curSeg(seg) { S.segTab = S.segTab || {}; const ss = segsOf(seg); if (!ss.find(z => z.id === S.segTab[seg])) S.segTab[seg] = ss[0] ? ss[0].id : null; return S.segTab[seg]; }
@@ -2407,6 +2411,9 @@ function openSessModal() {
   m.innerHTML = `<div class="mbox" style="max-width:660px"><div class="mh"><b>💾 Save session file</b><button class="btn xs" data-act="closeModal">✕</button></div><div class="mb">
   <label class="fld"><span>File name</span><input id="sessname" value="${esc(SESS.base ? SESS.base + '.json' : sessFileName())}" style="width:100%"></label>
   <p class="small">You choose where the file goes. After that it is saved automatically every time you confirm a step or move to another step (up to step ${STEPS.length}), and it can be opened later with 📂 Open session to continue from that step.</p>
+  <div class="card inner" style="border-color:rgba(16,185,129,.45);background:rgba(16,185,129,.05)"><h4>☁ Central Server Sync (${esc(getApiBase() || 'Same-Origin Server')})</h4>
+    <p><button class="btn primary" data-act="sessServer">☁ Sync session to Central Server…</button> <span class="small">Saves and syncs every step automatically to the central server so any team desktop client can resume this job.</span></p>
+  </div>
   ${pick ? `<div class="card inner"><h4>Choose location</h4>
     <p><button class="btn primary" data-act="sessPick">📁 Choose location and save…</button> <span class="small">Opens the save dialog: pick the folder and confirm the name. That one file is overwritten at every step.</span></p>
     ${dir ? `<p><button class="btn" data-act="sessFolder">🗂 Choose a folder…</button> <span class="small">Keeps the latest file under this name plus one file per step (…_step07_Lower_cone.json), so you can go back to any step.</span></p>` : ''}
@@ -2430,11 +2437,18 @@ async function autoSave() {
   if (SESS.mode === 'folder' && SESS.dir) { try { for (const nm of [SESS.base + '.json', sessStepFileName()]) { const fh = await SESS.dir.getFileHandle(nm, { create: true }); const w = await fh.createWritable(); await w.write(sessPayload()); await w.close(); } SESS.at = nowT(); } catch (e) { SESS.mode = 'none'; toast('Could not write to the session folder: ' + (e.message || e), 'bad'); } }
   else if (SESS.mode === 'file' && SESS.handle) { try { const w = await SESS.handle.createWritable(); await w.write(sessPayload()); await w.close(); SESS.at = nowT(); } catch (e) { SESS.mode = 'none'; toast('Could not write the session file: ' + (e.message || e), 'bad'); } }
   else if (SESS.mode === 'download') { download(sessStepFileName(), sessPayload(), 'application/json', true); SESS.at = nowT(); }
+  else if (SESS.mode === 'server') {
+    try {
+      const pObj = JSON.parse(sessPayload());
+      const res = await fetch(getApiBase() + '/api/v1/core/sessions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ session_id: SESS.base || refSlug(), job_ref: S.job.ref || '', customer: S.job.customer || '', vessel: S.job.vessel || '', step: S.step, step_name: STEPS[S.step].t, payload: pObj }) });
+      if (res.ok) SESS.at = nowT();
+    } catch (e) { toast('Central server session sync failed: ' + (e.message || e), 'bad'); }
+  }
   updSess();
 }
 function updSess() {
   const el = typeof document !== 'undefined' && document.getElementById('sess'); if (!el) return;
-  el.innerHTML = SESS.mode === 'folder' ? `💾 ${esc(SESS.name)} (+ step files) · saved ${SESS.at || '—'}` : SESS.mode === 'file' ? `💾 ${esc(SESS.name)} · saved ${SESS.at || '—'}` : SESS.mode === 'download' ? `💾 Downloading a file at each step · last ${SESS.at || '—'}` : '<span style="opacity:.7">Session not saved to file</span>';
+  el.innerHTML = SESS.mode === 'server' ? `☁ Server (${esc(SESS.name)}) · synced ${SESS.at || '—'}` : SESS.mode === 'folder' ? `💾 ${esc(SESS.name)} (+ step files) · saved ${SESS.at || '—'}` : SESS.mode === 'file' ? `💾 ${esc(SESS.name)} · saved ${SESS.at || '—'}` : SESS.mode === 'download' ? `💾 Downloading a file at each step · last ${SESS.at || '—'}` : '<span style="opacity:.7">Session not saved to file</span>';
 }
 function deepMerge(a, b) { if (b && typeof b === 'object' && !Array.isArray(b) && a && typeof a === 'object' && !Array.isArray(a)) { Object.keys(b).forEach(k => { a[k] = deepMerge(a[k], b[k]); }); return a; } return b === undefined ? a : b; }
 function loadSession(txt, src) {
@@ -2449,7 +2463,7 @@ function sessionCard() {
   const bl = BOOT_LOCAL && BOOT_LOCAL.app === SESS_APP && !Object.keys(S.gates).length ? BOOT_LOCAL : null;
   return `<div class="card" style="border-color:var(--accent)"><h3>Session file</h3>
   <p class="small">Save the session to a file once: it is then updated every time you confirm a step or move to another step, up to step ${STEPS.length}. Open that file later to continue from the step where it was saved. In Chrome or Edge the same file is overwritten; in other browsers a new file is downloaded at each step (its name carries the step number), and any of them can be opened.</p>
-  <p><button class="btn primary sm" data-act="sessSave">💾 ${SESS.mode === 'none' ? 'Save session to file…' : 'Change session file…'}</button> <button class="btn sm" data-act="sessOpen">📂 Open a session file…</button>${SESS.mode !== 'none' ? ' <button class="btn sm" data-act="sessStop">Stop saving to file</button>' : ''}</p>
+  <p><button class="btn primary sm" data-act="sessSave">💾 ${SESS.mode === 'none' ? 'Save / Sync session…' : 'Change session sync…'}</button> <button class="btn sm" data-act="sessServerOpen">☁ Open from Server…</button> <button class="btn sm" data-act="sessOpen">📂 Open local file…</button>${SESS.mode !== 'none' ? ' <button class="btn sm" data-act="sessStop">Stop saving</button>' : ''}</p>
   ${bl ? `<div class="note ok">A session from this browser was found: <b>${esc(bl.state && bl.state.job ? bl.state.job.ref : '')}</b>, step ${(+bl.step || 0) + 1} (${esc(bl.stepName || '')}), saved ${esc(new Date(bl.savedAt).toLocaleString())}. <button class="btn xs" data-act="sessLocal">Resume it</button></div>` : ''}</div>`;
 }
 
@@ -3544,6 +3558,33 @@ function sessionCard() {
         } catch (e) { if (e && e.name === 'AbortError') return; sessPickError(e); }
       },
       sessDl: async () => { const name = sessNameInput(); if (!name) return; SESS.mode = 'download'; SESS.handle = null; SESS.dir = null; SESS.base = name.replace(/\.json$/i, ''); closeModal(); log('Download session chosen', name); toast('Session will be downloaded at every step', 'ok'); await autoSave(); },
+      sessServer: async () => { const name = sessNameInput(); if (!name) return; SESS.mode = 'server'; SESS.handle = null; SESS.dir = null; SESS.base = name.replace(/\.json$/i, ''); SESS.name = SESS.base; closeModal(); log('Central Server session sync enabled', SESS.base); toast('Syncing session to Central Server: ' + SESS.base, 'ok'); await autoSave(); },
+      sessServerOpen: async () => {
+        const m = document.getElementById('modal');
+        m.innerHTML = `<div class="mbox" style="max-width:680px"><div class="mh"><b>☁ Open Session from Central Server</b><button class="btn xs" data-act="closeModal">✕</button></div><div class="mb"><p class="small">Loading saved sessions from <code>${esc(getApiBase() || window.location.origin)}</code>…</p></div></div>`;
+        m.classList.add('on');
+        try {
+          const res = await fetch(getApiBase() + '/api/v1/core/sessions');
+          if (!res.ok) throw new Error('HTTP ' + res.status);
+          const list = await res.json();
+          const rows = (list || []).map(item => `<tr><td><b>${esc(item.session_id)}</b></td><td>${esc(item.job_ref || '—')}</td><td>${esc(item.customer || '—')}</td><td>Step ${(item.step || 0) + 1}: ${esc(item.step_name || '')}</td><td class="small">${esc(item.saved_at ? new Date(item.saved_at).toLocaleString() : '—')}</td><td class="r"><button class="btn primary xs" data-act="sessServerLoad" data-id="${esc(item.session_id)}">Open</button></td></tr>`).join('');
+          m.innerHTML = `<div class="mbox" style="max-width:740px"><div class="mh"><b>☁ Open Session from Central Server</b><button class="btn xs" data-act="closeModal">✕</button></div><div class="mb">${rows ? `<table class="tbl"><thead><tr><th>Session ID</th><th>Job Ref</th><th>Customer</th><th>Progress</th><th>Saved At</th><th></th></tr></thead><tbody>${rows}</tbody></table>` : `<div class="note">No sessions saved on the server yet. Click <b>💾 Save / Sync session…</b> to save one.</div>`}</div></div>`;
+        } catch (e) {
+          m.innerHTML = `<div class="mbox" style="max-width:620px"><div class="mh"><b>☁ Open Session from Central Server</b><button class="btn xs" data-act="closeModal">✕</button></div><div class="mb"><div class="note bad">Could not reach server (${esc(e.message || e)}). Check server connection via the top-right status badge.</div></div></div>`;
+        }
+      },
+      sessServerLoad: async el => {
+        const sid = el.dataset.id; if (!sid) return;
+        try {
+          const res = await fetch(getApiBase() + '/api/v1/core/sessions/' + encodeURIComponent(sid));
+          if (!res.ok) throw new Error('HTTP ' + res.status);
+          const data = await res.json();
+          closeModal();
+          SESS.mode = 'server'; SESS.base = sid; SESS.name = sid; SESS.at = nowT();
+          loadSession(data.payload || data, 'Central Server (' + sid + ')');
+          updSess();
+        } catch (e) { toast('Failed to load server session: ' + (e.message || e), 'bad'); }
+      },
       reset: () => { if (confirm('Reset the demo to start?')) { S = defaults(); INIT = clone(S); VIEW = 'step'; render(); } },
       sample: () => { S.job.drawing = 'REF_SHELL_DWG_180MT_BOF.pdf'; if (!S.job.customer) S.job.customer = 'Customer A (demo)'; if (!S.job.plant) S.job.plant = 'SMS-2'; INIT.job.customer = S.job.customer; INIT.job.plant = S.job.plant; log('Drawing loaded', S.job.drawing); render(); },
       gate: el => { const n = +el.dataset.n; S.gates[n] = { t: nowT() }; log('Confirmed', STEPS[n].t); toast(STEPS[n].t + ' confirmed', 'ok'); if (n < LAST) { S.step = n + 1; window.scrollTo(0, 0); } render(); autoSave(); },
@@ -3599,7 +3640,9 @@ function sessionCard() {
           } else {
             localStorage.removeItem('refractory_api_base');
           }
-          toast('Backend API URL set to: ' + getApiBase(), 'ok');
+          toast('Backend API URL set to: ' + (getApiBase() || window.location.origin), 'ok');
+          checkServerHealth();
+          if (typeof FX !== 'undefined') FX.load(getApiBase()).then(() => render()).catch(() => {});
           render();
         }
       },
@@ -3620,7 +3663,32 @@ function sessionCard() {
          special assemblies & junction pieces         <- step 12
        The backend (POST /api/v1/lining/generate) draws the lining and builds the BOM from the drawing.
        ==================================================================================================== */
-    const LINING_API = getApiBase();
+    let LINING_API = getApiBase();
+    async function checkServerHealth() {
+      const el = typeof document !== 'undefined' && document.getElementById('srvstatus');
+      const primary = getApiBase();
+      const cands = [primary, 'http://65.1.125.127', 'http://localhost:8000'].filter((v, i, a) => v && a.indexOf(v) === i);
+      for (const base of cands) {
+        try {
+          const ctrl = new AbortController();
+          const t = setTimeout(() => ctrl.abort(), 3500);
+          const r = await fetch(base + '/health', { signal: ctrl.signal });
+          clearTimeout(t);
+          if (r.ok) {
+            const j = await r.json().catch(() => ({}));
+            if (j && j.status === 'ok') {
+              LINING_API = base;
+              window.REFRACTORY_API_BASE = base;
+              const host = base.replace(/^https?:\/\//, '');
+              if (el) { el.innerHTML = `🟢 ${host.includes('65.1.125.127') ? 'EC2 · 65.1.125.127' : host}`; el.style.borderColor = '#2fc488'; }
+              return base;
+            }
+          }
+        } catch (e) {}
+      }
+      if (el) { el.innerHTML = `🔴 Offline (${primary.replace(/^https?:\/\//, '')})`; el.style.borderColor = '#b3261e'; }
+      return primary;
+    }
     // drawing values the lining drawings need: [key, used for]
     const LIN_EXT = [
       ['H', 'vessel height'], ['plate', 'steel shell drawn outside the inner profile'],
@@ -3640,6 +3708,7 @@ function sessionCard() {
       if (s === 'confirmed') return { t: 'Checked by you (step 2 value kept)', c: 'user' };
       if (s === 'scaled') return { t: 'Read from the drawing, scaled to mm with your overall height', c: 'drw' };
       if (s === 'unscaled') return { t: 'Read from the drawing in DRAWING UNITS (no dimension text) – enter the mm value in step 2', c: 'miss' };
+      if (s === 'default') return { t: 'Not found on drawing (auto-populated default)', c: 'sample' };
       return { t: 'Not found on the drawing – enter it in step 2', c: 'miss' };
     }
     const linNum = v => { const n = N(v); return isFinite(n) ? n : NaN; };
@@ -3832,6 +3901,12 @@ function sessionCard() {
         grade_density: dens, monolithic: mono, extra_items: extra,
         junctions: junctions().map(j => ({ z: +j.h.toFixed(3), name: `${j.z.name} / ${j.n.name}`, pieces: !!(j.needsPieces && j.qty > 0), mark: j.J.mark })),
         reference: { dish_hot_R: linExtSrc('dishR').c !== 'miss' ? XN('dishR') : null, bot_dia: linExtSrc('botDia').c !== 'miss' ? XN('botDia') : null, mouth_opening: M ? M.opening : null, inside_volume: conceptVessel().V },
+        // step-2 values and where each one came from - drawn on the GA "DESIGN INPUT VALUES" sheet; values the
+        // designer changed are marked EDITED on every drawing
+        input_values: Object.keys(S.ext).map(k => { const e = S.ext[k], src = linExtSrc(k);
+          return { key: k, group: e.grp || '', label: e.label || k, value: e.value, unit: e.unit || '', drawing: e.drawing == null ? '' : String(e.drawing), source: src.c, source_text: src.t, edited: isEdited('ext.' + k + '.value') }; }),
+        steel_density: +S.job.rho || null,
+        slag_volume: +S.job.slagVol || null,
       };
       return { payload, errs: [...new Set(errs)], warns, rows };
     }
@@ -3855,7 +3930,19 @@ function sessionCard() {
       const P = (S.lin && S.lin.progress) || { stage: 'Sending the values to the backend…', percent: 0, elapsed_s: 0 };
       return `<div class="note" id="linProg"><b>⏳ ${esc(P.stage)}</b> <span class="small">· ${Math.round(P.elapsed_s || 0)} s</span>
     <div style="height:8px;border-radius:4px;background:var(--line);margin-top:6px;overflow:hidden"><div style="height:100%;width:${Math.max(3, P.percent || 0)}%;background:var(--accent);transition:width .4s"></div></div>
-    <div class="small" style="margin-top:4px">${P.percent || 0}% · the backend terminal shows the same steps ([Part 3] …).</div></div>`;
+    <div class="small" style="margin-top:4px">${P.percent || 0}% · the backend terminal shows the same steps ([Part 3] …).</div>${linLogHTML(P)}</div>`;
+    }
+    function linLogHTML(P) {   // running list of the generation steps + the drawings already rendered
+      const lg = P.log || [], pv = P.previews || [];
+      if (!lg.length && !pv.length) return '';
+      const rows = lg.map((e, i) => { const last = i === lg.length - 1 && P.status !== 'done';
+        const took = last ? Math.max(0, (P.elapsed_s || e.t) - e.t) : ((i + 1 < lg.length ? lg[i + 1].t : e.t) - e.t);
+        return `<div style="display:flex;gap:8px;padding:2px 0;${last ? 'font-weight:600' : 'opacity:.85'}"><span style="width:18px">${last ? '⏳' : '✓'}</span><span style="width:56px;color:var(--muted,#777)">${(+e.t).toFixed(1)} s</span><span style="flex:1">${esc(e.stage)}</span><span style="color:var(--muted,#777)">${e.percent}%${took >= 0.1 ? ` · ${took.toFixed(1)} s` : ''}</span></div>`; }).join('');
+      const last = pv[pv.length - 1];
+      const thumbs = pv.length ? `<div style="margin-top:8px"><div class="small"><b>Drawings ready so far:</b> ${pv.map(x => esc(x.title)).join(' · ')}</div>
+        <a href="${LINING_API}${last.url}" target="_blank" title="Open full size"><img src="${LINING_API}${last.url}" alt="${esc(last.title)}" style="margin-top:6px;max-width:100%;max-height:320px;display:block;background:#fff;border:1px solid var(--line);border-radius:6px"></a>
+        <div class="small">Latest: ${esc(last.title)} (click to open full size)</div></div>` : '';
+      return `<div id="linLog" class="small" style="margin-top:8px;padding:6px 8px;border:1px solid var(--line);border-radius:6px;max-height:220px;overflow:auto;font-family:ui-monospace,Consolas,monospace">${rows}</div>${thumbs}`;
     }
     function linPoll(jobId) {
       const L = linState(); if (L.jobId !== jobId) return;
@@ -3863,7 +3950,7 @@ function sessionCard() {
         const j = await res.json().catch(() => ({}));
         if (!res.ok) { L.busy = false; L.errors = (j.detail && j.detail.errors) || [res.statusText]; render(); return; }
         L.progress = j;
-        if (j.status === 'running') { const el = document.getElementById('linProg'); if (el) el.outerHTML = linProgressHTML(); setTimeout(() => linPoll(jobId), 2000); return; }
+        if (j.status === 'running') { const el = document.getElementById('linProg'); if (el) { el.outerHTML = linProgressHTML(); const lb = document.getElementById('linLog'); if (lb) lb.scrollTop = lb.scrollHeight; } setTimeout(() => linPoll(jobId), 1000); return; }
         L.busy = false;
         if (j.status === 'done') {
           L.result = j.result; L.hash = L.pendingHash; L.sheet = L.sheet || 'ga';
@@ -4015,7 +4102,7 @@ function sessionCard() {
       const src = {}, upd = (k, v, txt, how, kind = 'drawing', conf = 0.95) => { const e = S.ext[k]; if (!e || v === undefined || v === null || v === '' || (typeof v === 'number' && !isFinite(v))) return; e.value = typeof v === 'number' ? +v.toFixed(1) : v; e.drawing = txt != null && txt !== '' ? String(txt) : (kind === 'derived' ? '— (derived)' : String(e.value)); e.conf = conf; if (how) e.how = how; src[k] = kind; };
       // 1. every value starts as "not found" (the value shown stays only so the other steps can render;
       //    the drawings are not generated until it is entered or ticked as right)
-      Object.keys(S.ext).forEach(k => { const e = S.ext[k]; e.drawing = '— not found on drawing'; e.conf = 0; e.how = 'Not found on the drawing – the value shown is the sample: enter the real value'; });
+      SAMPLE_EXT_DEF.forEach(([k, g, l, u, d, v]) => { const e = S.ext[k]; if (!e) return; e.value = v; e.drawing = '— not found on drawing'; e.conf = 0.65; e.how = 'Not found on drawing — auto-populated with recommended default value'; src[k] = 'default'; });
       const dimv = d => d && d.value != null ? d : null;
       let Hd = dimv(shell.total_length_mm), IDd = dimv(shell.inner_diameter_mm), ODd = dimv(shell.outer_diameter_mm), Td = dimv(shell.shell_thickness_mm);
       if (Td) upd('plate', Td.value, Td.raw_text, 'Dimension text');
@@ -4279,6 +4366,8 @@ function sessionCard() {
         }
       });
       updSess();
+      checkServerHealth();
+      setInterval(checkServerHealth, 30000);
       render();
     }
   </script>

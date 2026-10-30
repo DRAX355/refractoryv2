@@ -44,20 +44,44 @@ if tuple(int(x) for x in ezdxf.__version__.split(".")[:2]) < (1, 4):
                    f"(minutes). Run: pip install -U \"ezdxf>=1.4\"")
 
 
+def _job_file(job_id: str):
+    d = settings.outputs_dir / "_jobs"
+    d.mkdir(parents=True, exist_ok=True)
+    return d / f"{job_id}.json"
+
+
+def _save_job(job_id: str, data: dict) -> None:
+    try:
+        import json
+        _job_file(job_id).write_text(json.dumps(data), encoding="utf-8")
+    except Exception:
+        pass
+
+
 def _update(job_id: str, **kw) -> None:
     with _LOCK:
         _JOBS[job_id].update(kw)
+        _save_job(job_id, _JOBS[job_id])
 
 
 def _run(job_id: str, payload: dict, out_dir, url_prefix: str) -> None:
     t0 = time.time()
 
-    def progress(stage: str, pct: int) -> None:
+    def progress(stage: str, pct: int, preview: dict | None = None) -> None:
         logger.info(f"[Part 3] {pct:>3}% {stage}")
-        _update(job_id, stage=stage, percent=pct, elapsed_s=round(time.time() - t0, 1))
+        t = round(time.time() - t0, 1)
+        with _LOCK:                                            # step log + finished drawing previews for the UI
+            j = _JOBS[job_id]
+            j.setdefault("log", []).append({"stage": stage, "percent": pct, "t": t})
+            if preview:
+                j.setdefault("previews", []).append(preview)
+            j.update(stage=stage, percent=pct, elapsed_s=t)
+            _save_job(job_id, j)
 
     try:
         result = generate(payload, out_dir, url_prefix, progress)
+        with _LOCK:
+            _JOBS[job_id].setdefault("log", []).append({"stage": "Done", "percent": 100, "t": round(time.time() - t0, 1)})
         _update(job_id, status="done", stage="Done", percent=100, elapsed_s=round(time.time() - t0, 1), result=result)
         logger.info(f"[Part 3] Done — {len(result['files'])} files, {len(result['flags'])} flags, "
                     f"{time.time() - t0:.0f} s — {out_dir}")
@@ -94,6 +118,7 @@ async def generate_lining(payload: dict[str, Any] = Body(...), x_user: str = Hea
     with _LOCK:
         _JOBS[job_id] = {"job_id": job_id, "status": "running", "stage": "Queued", "percent": 0, "elapsed_s": 0,
                          "out_dir": str(out_dir), "started": datetime.datetime.now().isoformat(timespec="seconds")}
+        _save_job(job_id, _JOBS[job_id])
     logger.info(f"[Part 3] Lining generation started — job={job}, id={job_id}, out={out_dir} (ezdxf {ezdxf.__version__})")
     threading.Thread(target=_run, args=(job_id, payload, out_dir, url_prefix), daemon=True).start()
     return {"job_id": job_id, "status": "running"}
@@ -104,9 +129,17 @@ async def get_job(job_id: str) -> dict:
     with _LOCK:
         j = _JOBS.get(job_id)
         if not j:
+            jf = _job_file(job_id)
+            if jf.exists():
+                import json
+                j = json.loads(jf.read_text(encoding="utf-8"))
+                _JOBS[job_id] = j
+        if not j:
             raise HTTPException(status_code=404, detail={"errors": [
                 "Generation job not found (the backend was restarted). Click Generate again."]})
-        return dict(j)
+        out = dict(j)
+        out["log"], out["previews"] = list(j.get("log", [])), list(j.get("previews", []))
+        return out
 
 
 @router.get("/library", summary="Brick library used by the lining designer")

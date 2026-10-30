@@ -201,14 +201,14 @@
         return window.location.origin;
       }
     }
-    return 'http://localhost:8000';
+    return 'http://65.1.125.127';
   }
 
   const FX = { parse, evaluate, toHTML, names, FUNCS, CONSTS, DEFAULT_FORMULAS, registry: initReg, base: getApiBase(), getApiBase };
   FX.load = async function (base) {
     const candidates = [
       (base || FX.getApiBase() || '').replace(/\/+$/, ''),
-      'http://localhost:8000',
+      'http://65.1.125.127', 'http://localhost:8000',
       'http://127.0.0.1:8000'
     ].filter((v, i, a) => v && a.indexOf(v) === i);
     for (const cand of candidates) {

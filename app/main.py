@@ -107,10 +107,21 @@ app.include_router(extraction_router, prefix="/api/v1")
 app.include_router(lining_router, prefix="/api/v1")
 from app.api.v1.routes_core import router as core_router
 app.include_router(core_router, prefix="/api/v1")
-app.mount("/ui", StaticFiles(directory="ui", html=True), name="ui")
-import os
-os.makedirs("data/outputs", exist_ok=True)
-app.mount("/outputs", StaticFiles(directory="data/outputs"), name="outputs")
+from pathlib import Path as _Path
+from fastapi.responses import RedirectResponse as _RedirectResponse
+_PROJECT_ROOT = _Path(__file__).resolve().parent.parent
+_UI_DIR = _PROJECT_ROOT / "ui"
+_OUTPUTS_DIR = _PROJECT_ROOT / "data" / "outputs"
+_OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)
+if _UI_DIR.exists():
+    app.mount("/ui", StaticFiles(directory=str(_UI_DIR), html=True), name="ui")
+app.mount("/outputs", StaticFiles(directory=str(_OUTPUTS_DIR)), name="outputs")
+
+
+@app.get("/app", include_in_schema=False)
+async def app_redirect() -> _RedirectResponse:
+    return _RedirectResponse(url="/ui/app.html")
+
 
 
 

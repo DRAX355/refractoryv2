@@ -185,3 +185,108 @@ def confirm(pid: str, body: PresetDecision, x_user: str = Header("anonymous")):
 def reject(pid: str, body: PresetDecision, x_user: str = Header("anonymous")):
     get_core().presets.reject(pid, actor=x_user, reason=body.reason)
     return {"ok": True}
+
+
+# ---------------- server-side job sessions (client-server sync) ----------------
+import os
+import re
+from datetime import datetime, timezone
+from pathlib import Path
+
+SESSIONS_DIR = Path("data/core/sessions")
+
+
+def _safe_session_id(raw: str) -> str:
+    cleaned = re.sub(r"[^A-Za-z0-9._-]+", "_", (raw or "").strip()).strip("_.")
+    if not cleaned:
+        raise HTTPException(422, "Invalid session ID")
+    return cleaned[:120]
+
+
+@router.get("/sessions")
+def list_server_sessions():
+    SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
+    items = []
+    for p in sorted(SESSIONS_DIR.glob("*.json"), key=lambda f: f.stat().st_mtime, reverse=True):
+        try:
+            data = json.loads(p.read_text(encoding="utf-8"))
+            st = data.get("state") or {}
+            job = st.get("job") or {}
+            items.append({
+                "id": p.stem,
+                "filename": p.name,
+                "job_ref": job.get("ref") or p.stem,
+                "customer": job.get("customer") or "",
+                "vessel": job.get("vessel") or "BOF converter",
+                "heat": job.get("heat"),
+                "step": data.get("step", 0),
+                "step_name": data.get("stepName") or "",
+                "saved_at": data.get("savedAt") or datetime.fromtimestamp(p.stat().st_mtime, tz=timezone.utc).isoformat(),
+                "saved_by": data.get("savedBy") or "designer",
+                "confirmed_steps": len(data.get("confirmedSteps") or []),
+            })
+        except Exception:
+            continue
+    return items
+
+
+@router.get("/sessions/{session_id}")
+def get_server_session(session_id: str):
+    SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
+    sid = _safe_session_id(session_id)
+    path = SESSIONS_DIR / f"{sid}.json"
+    if not path.exists():
+        raise HTTPException(404, f"Session '{sid}' not found on server")
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception as e:
+        raise HTTPException(500, f"Failed to read session '{sid}': {e}")
+
+
+@router.post("/sessions")
+def save_server_session(payload: dict[str, Any] = Body(...), x_user: str = Header("designer")):
+    SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
+    st = payload.get("state") or {}
+    job = st.get("job") or {}
+    raw_id = payload.get("sessionId") or job.get("ref") or "session"
+    sid = _safe_session_id(str(raw_id))
+    payload["savedAt"] = datetime.now(timezone.utc).isoformat()
+    payload["savedBy"] = x_user
+    path = SESSIONS_DIR / f"{sid}.json"
+    path.write_text(json.dumps(payload, indent=1), encoding="utf-8")
+    try:
+        get_core().audit.record(
+            actor=x_user,
+            action="session.save",
+            entity=f"session:{sid}",
+            before=None,
+            after={"job_ref": job.get("ref"), "customer": job.get("customer"), "step": payload.get("step")},
+            reason=f"Saved session at step {payload.get('stepName', payload.get('step'))}",
+        )
+    except Exception:
+        pass
+    return {"ok": True, "id": sid, "filename": f"{sid}.json", "saved_at": payload["savedAt"]}
+
+
+@router.delete("/sessions/{session_id}")
+def delete_server_session(session_id: str, x_user: str = Header("designer")):
+    sid = _safe_session_id(session_id)
+    path = SESSIONS_DIR / f"{sid}.json"
+    if not path.exists():
+        raise HTTPException(404, f"Session '{sid}' not found")
+    path.unlink()
+    return {"ok": True, "id": sid}
+
+
+@router.get("/timings")
+def get_process_timings():
+    """Return all recorded step-by-step backend process timings."""
+    from app.core.config import settings
+    p = Path(settings.outputs_dir) / "process_timings.json"
+    if not p.exists():
+        return {"runs": [], "text_file": "/outputs/process_timings.txt"}
+    try:
+        return {"runs": json.loads(p.read_text(encoding="utf-8")), "text_file": "/outputs/process_timings.txt"}
+    except Exception as exc:
+        raise HTTPException(500, str(exc))
+

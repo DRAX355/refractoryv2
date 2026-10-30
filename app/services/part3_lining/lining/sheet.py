@@ -29,6 +29,22 @@ def decimals(v):
     return 2
 
 
+def _clip_to_region(p, q, poly):
+    """Shortens segment p->q (p on the region boundary) at the first place it leaves the region."""
+    best = 1.0
+    dx, dy = q[0] - p[0], q[1] - p[1]
+    for (ax, ay), (bx, by) in zip(poly, poly[1:] + poly[:1]):
+        ex, ey = bx - ax, by - ay
+        den = dx * ey - dy * ex
+        if abs(den) < 1e-12:
+            continue
+        t = ((ax - p[0]) * ey - (ay - p[1]) * ex) / den
+        u = ((ax - p[0]) * dy - (ay - p[1]) * dx) / den
+        if 1e-3 < t < best and -1e-9 <= u <= 1 + 1e-9:
+            best = t
+    return p[0] + dx * best, p[1] + dy * best
+
+
 class Sheet:
     def __init__(self, vessel, design):
         self.vessel, self.design = vessel, design
@@ -53,6 +69,13 @@ class Sheet:
         self.doc = ezdxf.new("R2018", setup=True)
         self.msp = self.doc.modelspace()
         self._layers, self._cache = set(), {}
+        # drawing-set output: every view drawn is recorded (title + its entity handles) so it can be put on
+        # its own PDF page / AutoCAD layout; see pages.py
+        self.views, self._frames, self._cur_view = [], [], None
+        self.plan_letters = {}                   # plan height -> section letter (A, B, ...) shown on the sections
+        self.inputs = []                         # step-2 values + source (from the UI), drawn as an input table
+        self.steel_density = None                # t/m3, for the metal level line
+        self.slag_volume = None                  # m3, for the slag level line
 
     # ------------------------------------------------------------ layers / primitives
     def layer(self, name, color=7):
@@ -168,6 +191,7 @@ class Sheet:
         return 80 * th + 2 * self.rout, (self.zmax - self.zmin) + 17 * th
 
     def draw_vertical(self, ox, oy, cut):
+        self._frames.append(("vertical", ox, oy, cut, self._cur_view))
         th, L = self.th, self.L
         axis_x = ox + 44 * th + self.rout
         Y = lambda z: oy + 6 * th + (z - self.zmin)
@@ -208,6 +232,23 @@ class Sheet:
         self.text(axis_x, oy + 1.2 * th, f"VERTICAL SECTION  {cut % 360:g}\u00b0 - {(cut + 180) % 360:g}\u00b0", 1.4 * th, "center")
         self.text(axis_x, oy - 0.6 * th + 0.0, f"right side = {cut % 360:g}\u00b0   left side = {(cut + 180) % 360:g}\u00b0",
                   0.8 * th, "center")
+        self.draw_section_marks(axis_x, Y)
+        self.draw_levels(axis_x, Y)
+        edited = [r for r in self.inputs if r.get("edited")]
+        if edited:                                           # values changed by the designer, on the section itself
+            self.layer("INPUT_EDITED", 1)
+            yy = oy - 2.4 * th
+            self.text(axis_x, yy, "EDITED INPUT VALUES USED IN THIS DRAWING (not the values read from the uploaded drawing):",
+                      0.8 * th, "center", "INPUT_EDITED")
+            for r in edited[:8]:
+                yy -= 1.3 * th
+                v = r.get("value")
+                vt = f"{v:g}" if isinstance(v, (int, float)) else str(v)
+                self.text(axis_x, yy, f"{r.get('label', '')} = {vt} {r.get('unit', '')}   (drawing: {r.get('drawing') or '-'})",
+                          0.75 * th, "center", "INPUT_EDITED")
+            if len(edited) > 8:
+                self.text(axis_x, yy - 1.3 * th, f"... and {len(edited) - 8} more - see DESIGN INPUT VALUES", 0.75 * th,
+                          "center", "INPUT_EDITED")
 
     def _labels(self, axis_x, Y, side, angle, paths):
         th = self.th
@@ -246,6 +287,7 @@ class Sheet:
         return ox + W / 2, oy + 15 * th + self.rout
 
     def draw_plan(self, ox, oy, z):
+        self._frames.append(("plan", ox, oy, z, self._cur_view))
         th, L = self.th, self.L
         cx, cy = self._plan_frame(ox, oy)
         seg = next((s for s in self.segs if s.p0[1] - 1e-9 <= z <= s.p1[1] + 1e-9), None)
@@ -276,11 +318,19 @@ class Sheet:
                 self.line(self.polar(cx, cy, r_in, sec["from"]), self.polar(cx, cy, r_ou, sec["from"]), self.layer("SECTOR_LINES", 1))
                 t = self.polar(cx, cy, self.rout + 2.2 * th, sec["from"])
                 self.text(t[0], t[1], f"{sec['from'] % 360:g}\u00b0", 0.9 * th, "center")
+            # zone name, span and hot-face grade written inside the ring (as on the customer's sections)
+            span = (sec["to"] - sec["from"]) % 360 or 360
+            tm = self.polar(cx, cy, max(rs[L] * 0.55, 0.3 * self.rout), mid)
+            g_hot = sec["layers"][L - 1]["grade"]
+            self.text(tm[0], tm[1] + 0.55 * th, f"{str(sec.get('name') or band['name']).upper()} ({span:g}\u00b0)",
+                      0.75 * th, "center", "ZONE_LABELS")
+            self.text(tm[0], tm[1] - 0.75 * th, g_hot, 0.75 * th, "center", "ZONE_LABELS")
         self.center_mark(cx, cy)
         rs, ro = first
         r_dim = ro if ro else rs[0]
         self.dim_h(cx - r_dim, cx + r_dim, cy, cy - self.rout - 4 * th, 2 * r_dim)
-        self.text(cx, oy + 4.5 * th, f"PLAN SECTION  Z = {z:g}", 1.4 * th, "center")
+        lt = self.plan_letters.get(z)
+        self.text(cx, oy + 4.5 * th, f"SECTION {lt}-{lt}   (Z = {z:g})" if lt else f"PLAN SECTION  Z = {z:g}", 1.4 * th, "center")
         self.text(cx, oy + 2.2 * th, f"band: {band['name']}   shell ID {2 * rs[0]:g}   hot face {2 * rs[L]:g}", 0.8 * th, "center")
 
     # ================================================================ TOP VIEW
@@ -321,6 +371,7 @@ class Sheet:
         return 360 * self.sx + 22 * th, (self.zmax - self.zmin) + 14 * th
 
     def draw_unrolled(self, ox, oy):
+        self._frames.append(("unrolled", ox, oy, None, self._cur_view))
         th = self.th
         self.unrolled_size()
         x0, y0 = ox + 12 * th, oy + 8 * th
@@ -367,6 +418,268 @@ class Sheet:
             self.text(ox, y, line, 0.85 * th)
             y -= 2 * th
 
+    # ================================================================ BRICK JOINTS (individual bricks)
+    def draw_brick_joints(self, courses, rings=None):
+        """Draws every brick boundary of the working lining on the GA views already drawn, from the course
+        schedule and the bottom ring layout: course joints (vertical sections, unrolled map), radial joints
+        between the bricks of a course (plan sections) and the bottom rings. Black joint lines on the
+        coloured fill, so each brick can be identified. Adds lines only; nothing else is changed."""
+        lay = self.layer("BRICK_JOINTS", 7)
+        attrs = {"layer": lay, "color": 7, "lineweight": 13}            # black on the colour fill (as on the customer GA)
+        L, eps = self.L, 1e-6
+        bandix = {b["name"]: i for i, b in enumerate(self.bands)}
+
+        def seg(p, q):
+            self.msp.add_line(p, q, dxfattribs=attrs)
+
+        def sec_of(r):
+            try:
+                a0, a1 = [float(x) for x in str(r["sector"]).split("-")]
+                return a0, a1
+            except Exception:
+                return None
+
+        def in_sec(a, ab):
+            a = a % 360.0
+            return ab[0] - eps <= a < ab[1] - eps or (ab[1] >= 360 - eps and abs(a) < eps and ab[0] <= eps)
+
+        def band_range(r):
+            bi = bandix.get(r.get("band"))
+            return self.band_z(bi) if bi is not None else (self.zmin, self.zmax)
+
+        rows = [r for r in (courses or []) if sec_of(r) and r.get("z1") is not None]
+        rr = (rings or {}).get("rings") or []
+        rb = bandix.get((rings or {}).get("band"))
+        ring_r = ([float(rings["key"]["r"])] if (rings or {}).get("key") else []) + [float(x["r_out"]) for x in rr[:-1]]
+
+        def z_at_r(run, r):                           # height of a run at plan radius r (None if outside)
+            pts = sample(run)
+            for (x0, z0), (x1, z1) in zip(pts, pts[1:]):
+                if (x0 - r) * (x1 - r) <= 0 and abs(x1 - x0) > 1e-9:
+                    return z0 + (r - x0) * (z1 - z0) / (x1 - x0)
+            return None
+
+        for view, ox, oy, arg, vix in self._frames:
+            n0 = len(self.msp)
+            try:
+                if view == "vertical":
+                    th = self.th
+                    axis_x = ox + 44 * th + self.rout
+                    Y = lambda z: oy + 6 * th + (z - self.zmin)
+                    for side, ang in ((1, arg), (-1, arg + 180)):
+                        paths, _ = self.boundary_paths(ang)
+                        cold, hot = paths[L - 1].all(), paths[L].all()
+                        for r in rows:                # horizontal course joints
+                            za, zb = band_range(r)
+                            z = float(r["z1"])
+                            if not (za + eps < z < zb - eps) or not in_sec(ang, sec_of(r)):
+                                continue
+                            rc, rh = radius_at_z(cold, z), radius_at_z(hot, z)
+                            if rc is None or rh is None or rc - rh < 1.0:
+                                continue
+                            seg((axis_x + side * rc, Y(z)), (axis_x + side * rh, Y(z)))
+                        if rb is not None and ring_r:  # bottom rings: joint square to the bottom
+                            i0, i1 = self.band_idx[rb]
+                            crun, hrun = paths[L - 1].run(i0, i1), paths[L].run(i0, i1)
+                            s0 = self.segs[i0]
+                            region = sample(crun + reverse_run(hrun))
+                            for rad in ring_r:
+                                zc = z_at_r(crun, rad)
+                                if zc is None:
+                                    continue
+                                if s0.shape == "arc" and s0.C is not None:
+                                    dx, dz = s0.C[0] - rad, s0.C[1] - zc
+                                    n = math.hypot(dx, dz) or 1.0
+                                    dx, dz = dx / n, dz / n
+                                else:
+                                    dx, dz = 0.0, 1.0
+                                t = sector_at(self.bands[rb], ang % 360)["layers"][L - 1]["thickness"]
+                                xh, zh = rad + dx * t, zc + dz * t
+                                xh, zh = _clip_to_region((rad, zc), (xh, zh), region)
+                                seg((axis_x + side * rad, Y(zc)), (axis_x + side * xh, Y(zh)))
+                elif view == "plan":
+                    z = arg
+                    cx, cy = self._plan_frame(ox, oy)
+                    sg = next((s_ for s_ in self.segs if s_.p0[1] - 1e-9 <= z <= s_.p1[1] + 1e-9), None)
+                    if sg is None:
+                        continue
+                    bi = self.seg_band[sg.name]
+                    band = self.bands[bi]
+                    if bi == rb:                      # bottom: ring boundaries + bricks of each ring
+                        paths, _ = self.boundary_paths(0)
+                        r_lim = self._rad(paths[L - 1], z)
+                        for x in rr:
+                            ri, ro = float(x["r_in"]), min(float(x["r_out"]), r_lim)
+                            if ro - ri < 1.0:
+                                continue
+                            if float(x["r_out"]) <= r_lim:
+                                self.msp.add_circle((cx, cy), float(x["r_out"]), dxfattribs=attrs)
+                            n = sum((x.get("marks") or {}).values()) + int(x.get("nCut") or 0)
+                            for k in range(n):
+                                a = 360.0 * k / max(n, 1)
+                                seg(self.polar(cx, cy, ri, a), self.polar(cx, cy, ro, a))
+                        if (rings or {}).get("key") and float(rings["key"]["r"]) <= r_lim:
+                            self.msp.add_circle((cx, cy), float(rings["key"]["r"]), dxfattribs=attrs)
+                        continue
+                    for sec in band["sectors"]:
+                        ab = (float(sec["from"]), float(sec["to"]))
+                        row = next((r for r in rows if r.get("band") == band["name"] and sec_of(r) == ab
+                                    and float(r["z0"]) - eps <= z < float(r["z1"]) - eps), None)
+                        if not row:
+                            continue
+                        n = int(row.get("nA") or 0) + int(row.get("nB") or 0) + int(row.get("nCut") or 0)
+                        if n < 2:
+                            continue
+                        paths, _ = self.boundary_paths((ab[0] + ab[1]) / 2)
+                        rc, rh = self._rad(paths[L - 1], z), self._rad(paths[L], z)
+                        if rc - rh < 1.0:
+                            continue
+                        for k in range(1, n):
+                            a = ab[0] + (ab[1] - ab[0]) * k / n
+                            seg(self.polar(cx, cy, rc, a), self.polar(cx, cy, rh, a))
+                elif view == "unrolled":
+                    th = self.th
+                    self.unrolled_size()
+                    x0, y0 = ox + 12 * th, oy + 8 * th
+                    for r in rows:
+                        za, zb = band_range(r)
+                        z = float(r["z1"])
+                        if not (za + eps < z < zb - eps):
+                            continue
+                        a0, a1 = sec_of(r)
+                        seg((x0 + a0 * self.sx, y0 + z - self.zmin), (x0 + a1 * self.sx, y0 + z - self.zmin))
+            except Exception:                         # joints are a visual aid - never stop the drawing
+                pass
+            if vix is not None and vix < len(self.views):
+                self.views[vix]["handles"].update(e.dxf.handle for e in list(self.msp)[n0:])
+
+    # ================================================================ VIEWS (one page each)
+    def _view(self, title, fn, *args):
+        """Draws one view and records its entities, so it can be put on its own page / layout."""
+        n0 = len(self.msp)
+        self._cur_view = len(self.views)
+        self.views.append({"title": title, "handles": set()})
+        fn(*args)
+        self.views[-1]["handles"] = {e.dxf.handle for e in list(self.msp)[n0:]}
+        self._cur_view = None
+
+    # ================================================================ INSIDE VOLUME / LEVELS
+    def hot_volume_at(self, angle=0.0, step=10.0):
+        """[(z, inside volume below z in m3)] along the hot face (axisymmetric at `angle`)."""
+        paths, _ = self.boundary_paths(angle)
+        hot = paths[self.L].all()
+        _, _, z0, z1 = bounds(hot)
+        out, v, z, r_prev = [(z0, 0.0)], 0.0, z0, radius_at_z(hot, z0) or 0.0
+        while z < z1 - 1e-9:
+            zn = min(z + step, z1)
+            r = radius_at_z(hot, zn) or 0.0
+            v += math.pi * (r * r + r * r_prev + r_prev * r_prev) / 3 * (zn - z) / 1e9
+            out.append((zn, v))
+            z, r_prev = zn, r
+        return out
+
+    def level_for_volume(self, vol_m3, table=None):
+        table = table or self.hot_volume_at()
+        for (za, va), (zb, vb) in zip(table, table[1:]):
+            if va <= vol_m3 <= vb and vb > va:
+                return za + (vol_m3 - va) / (vb - va) * (zb - za)
+        return None
+
+    def draw_levels(self, axis_x, Y):
+        """Metal (and slag) level lines + total inside / specific volume, as on the customer's GA."""
+        th = self.th
+        try:
+            table = self.hot_volume_at()
+        except Exception:
+            return
+        v_tot = table[-1][1]
+        heat = float(self.design.get("heat_size") or 0)
+        lay = self.layer("LEVELS", 1)
+        paths, _ = self.boundary_paths(0)
+        hot = paths[self.L].all()
+        lines = [f"TOTAL INSIDE VOL. = {v_tot:.2f} m³"]
+        if heat > 0:
+            lines.append(f"SPECIFIC VOL. = {v_tot / heat:.3f} m³/t  ({heat:g} t heat)")
+        zc = (self.zmin + self.zmax) / 2
+        for k, t in enumerate(lines):
+            self.text(axis_x, Y(zc) - k * 1.6 * th, t, 1.0 * th, "center", "LEVELS")
+        rho = float(self.steel_density or 0)
+        if heat > 0 and rho > 0:
+            vm = heat / rho
+            zm = self.level_for_volume(vm, table)
+            if zm is not None:
+                r = radius_at_z(hot, zm) or 0
+                self.msp.add_line((axis_x - r, Y(zm)), (axis_x + r, Y(zm)), dxfattribs={"layer": lay, "lineweight": 50})
+                self.text(axis_x, Y(zm) + 0.6 * th, f"{heat:g} T METAL LEVEL  (EL {zm:.0f}, ρ {rho:g} t/m³)",
+                          0.9 * th, "bcenter", "LEVELS")
+                sv = float(self.slag_volume or 0)
+                zs = self.level_for_volume(vm + sv, table) if sv > 0 else None
+                if zs is not None:
+                    r = radius_at_z(hot, zs) or 0
+                    self.msp.add_line((axis_x - r, Y(zs)), (axis_x + r, Y(zs)), dxfattribs={"layer": lay, "linetype": "DASHED"})
+                    self.text(axis_x, Y(zs) + 0.6 * th, f"SLAG LEVEL  (EL {zs:.0f}, {sv:g} m³ slag)", 0.8 * th,
+                              "bcenter", "LEVELS")
+
+    def draw_section_marks(self, axis_x, Y):
+        """Section cut marks (A-A, B-B ...) at the plan-section heights, both sides of the vertical section."""
+        th = self.th
+        lay = self.layer("SECTION_MARKS", 7)
+        prev_z, k_off = None, 0
+        for z, letter in sorted(self.plan_letters.items()):
+            if not (self.zmin < z < self.zmax):
+                continue
+            # marks closer than 2.5 text heights are stepped outwards so the letters stay readable
+            k_off = k_off + 1 if (prev_z is not None and Y(z) - Y(prev_z) < 2.5 * th) else 0
+            prev_z = z
+            off = -k_off * 2.6 * th
+            for side in (1, -1):
+                x0, x1 = axis_x + side * (self.rout + 0.6 * th + off), axis_x + side * (self.rout + 2.4 * th + off)
+                y = Y(z)
+                self.msp.add_lwpolyline([(x0, y), (x1, y)], dxfattribs={"layer": lay, "const_width": 0.22 * th})
+                xm = (x0 + x1) / 2
+                self.msp.add_lwpolyline([(xm, y), (xm, y - 1.4 * th)], dxfattribs={"layer": lay, "const_width": 0.12 * th})
+                self.msp.add_solid([(xm - 0.45 * th, y - 1.0 * th), (xm + 0.45 * th, y - 1.0 * th), (xm, y - 2.0 * th)],
+                                   dxfattribs={"layer": lay})
+                self.text(xm, y + 0.5 * th, letter, 1.5 * th, "bcenter", "SECTION_MARKS")
+
+    # ================================================================ DESIGN INPUT TABLE
+    SRC_TEXT = {"drw": "From the drawing", "sample": "Sample drawing", "miss": "NOT on the drawing",
+                "user": "Checked by designer"}
+
+    def inputs_size(self):
+        th = self.th
+        return 120 * th, (len(self.inputs) + 6) * 1.7 * th
+
+    def draw_inputs(self, ox, oy):
+        """Every step-2 value used for this drawing and where it came from. Values the designer changed
+        (not the value read from the uploaded drawing) are marked EDITED in red."""
+        th = self.th
+        w, h = self.inputs_size()
+        y = oy + h - 2 * th
+        self.text(ox, y, "DESIGN INPUT VALUES (step 2 - drawing extraction, as confirmed)", 1.4 * th)
+        y -= 1.8 * th
+        self.layer("INPUT_EDITED", 1)                       # red layer, created before its first use
+        self.text(ox, y, "Red = EDITED by the designer: the drawing was generated with this value, not with the value "
+                         "read from the uploaded drawing.", 0.8 * th, layer="INPUT_EDITED")
+        cols = [("Group", 14), ("Value", 40), ("Used", 12), ("Unit", 5), ("On drawing", 22), ("Source", 24)]
+        y -= 2.2 * th
+        x = ox
+        for name, cw in cols:
+            self.text(x, y, name, 0.9 * th, layer="INPUT_TABLE")
+            x += cw * th
+        self.line((ox, y - 0.7 * th), (ox + sum(c for _, c in cols) * th, y - 0.7 * th), self.layer("INPUT_TABLE", 7))
+        for r in self.inputs:
+            y -= 1.7 * th
+            ed = bool(r.get("edited"))
+            src = "EDITED by designer" if ed else self.SRC_TEXT.get(r.get("source"), str(r.get("source_text") or ""))
+            val = r.get("value")
+            vals = [r.get("group", ""), r.get("label", ""), "" if val in (None, "") else (f"{val:g}" if isinstance(val, (int, float)) else str(val)),
+                    r.get("unit", ""), r.get("drawing", ""), src]
+            x = ox
+            for (name, cw), v in zip(cols, vals):
+                self.text(x, y, str(v)[:int(cw * 1.5)], 0.8 * th, layer="INPUT_EDITED" if ed else "INPUT_TABLE")
+                x += cw * th
+
     # ================================================================ SHEET LAYOUT
     def build(self):
         v = self.design.get("views", {})
@@ -375,9 +688,12 @@ class Sheet:
         y_top = 0.0
         # row 1: vertical sections
         x, row_h = 0.0, 0.0
+        heights0 = v.get("plan_heights") or [sum(self.band_z(b)) / 2 for b in range(len(self.bands))]
+        letters = [ch for ch in "ABCDEFGHJKLMNPQRSTUVWXYZ"]
+        self.plan_letters = {z: letters[k % len(letters)] for k, z in enumerate(sorted(heights0))}
         for c in cuts:
             w, h = self.vertical_size()
-            self.draw_vertical(x, y_top - h, c)
+            self._view(f"VERTICAL SECTION {c % 360:g}-{(c + 180) % 360:g} DEG", self.draw_vertical, x, y_top - h, c)
             x += w + gap
             row_h = max(row_h, h)
         y_top -= row_h + gap
@@ -393,19 +709,30 @@ class Sheet:
             if k and k % per_row == 0:
                 y_top -= h + gap
                 x = 0.0
-            (self.draw_plan(x, y_top - h, z) if kind == "plan" else self.draw_top(x, y_top - h))
+            if kind == "plan":
+                lt = self.plan_letters.get(z, "")
+                self._view(f"SECTION {lt}-{lt} (PLAN AT Z {z:g})" if lt else f"PLAN SECTION Z {z:g}",
+                           self.draw_plan, x, y_top - h, z)
+            else:
+                self._view("TOP VIEW (HOT FACE)", self.draw_top, x, y_top - h)
             x += w + gap
         y_top -= h + gap
         # row 3: unrolled map + legend
         x = 0.0
         if v.get("unrolled", True):
             w, h = self.unrolled_size()
-            self.draw_unrolled(x, y_top - h)
+            self._view("UNROLLED WALL MAP", self.draw_unrolled, x, y_top - h)
             x += w + gap
             lh = self.legend_size()[1]
-            self.draw_legend(x, y_top - lh)
+            self._view("QUALITY LEGEND AND NOTES", self.draw_legend, x, y_top - lh)
+            y_top -= max(h, lh) + gap
         else:
-            self.draw_legend(x, y_top - self.legend_size()[1])
+            lh = self.legend_size()[1]
+            self._view("QUALITY LEGEND AND NOTES", self.draw_legend, x, y_top - lh)
+            y_top -= lh + gap
+        if self.inputs:
+            iw, ih = self.inputs_size()
+            self._view("DESIGN INPUT VALUES", self.draw_inputs, 0.0, y_top - ih)
         return self.doc
 
     def save(self, folder, name="lining_ga"):

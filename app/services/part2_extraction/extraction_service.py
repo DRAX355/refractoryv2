@@ -57,28 +57,32 @@ async def extract_vessel_geometry(
     )
 
     primary_image = ingestion_result.images[0]
+    from app.utils.step_timer import StepTimer
+    timer = StepTimer("Part 2 - Drawing Geometry Extraction", job_id, settings.outputs_dir / job_id)
 
     # ── Step 1: Grounding DINO ─────────────────────────────────────────────────
     dino_detections = []
-    if getattr(settings, "device", "cpu") == "cuda":
-        logger.info("[Part 2] Step 1 — Grounding DINO detection…")
-        try:
-            dino_detections = detect_drawing_elements(primary_image)
-        except Exception as exc:
-            logger.warning(f"[Part 2] DINO detection failed: {exc}")
-            warnings.append(f"DINO detection skipped: {exc}")
-            dino_detections = []
-    else:
-        logger.info("[Part 2] Step 1 — DINO skipped on CPU to conserve system memory")
+    with timer.step("2.1 Grounding DINO detection"):
+        if getattr(settings, "device", "cpu") == "cuda":
+            logger.info("[Part 2] Step 1 — Grounding DINO detection…")
+            try:
+                dino_detections = detect_drawing_elements(primary_image)
+            except Exception as exc:
+                logger.warning(f"[Part 2] DINO detection failed: {exc}")
+                warnings.append(f"DINO detection skipped: {exc}")
+                dino_detections = []
+        else:
+            logger.info("[Part 2] Step 1 — DINO skipped on CPU to conserve system memory")
 
-    # ── Step 2: DocTR OCR ──────────────────────────────────────────────────
-    logger.info("[Part 2] Step 2 — DocTR OCR extraction…")
-    try:
-        ocr_result = run_ocr(primary_image, dino_regions=dino_detections)
-    except Exception as exc:
-        logger.warning(f"[Part 2] OCR failed: {exc}")
-        warnings.append(f"OCR extraction skipped: {exc}")
-        ocr_result = OCRResult()
+    # ── Step 2: DocTR / Tesseract OCR ──────────────────────────────────────────
+    with timer.step("2.2 OCR text & dimension extraction"):
+        logger.info("[Part 2] Step 2 — DocTR OCR extraction…")
+        try:
+            ocr_result = run_ocr(primary_image, dino_regions=dino_detections)
+        except Exception as exc:
+            logger.warning(f"[Part 2] OCR failed: {exc}")
+            warnings.append(f"OCR extraction skipped: {exc}")
+            ocr_result = OCRResult()
 
     # ── Step 0a: DXF direct geometry (highest priority for DXF files) ─────────
     if ingestion_result.format == DrawingFormat.DXF:
@@ -123,60 +127,58 @@ async def extract_vessel_geometry(
 
     # ── Step 0b: PDF vector path extraction ───────────────────────────────────
     if ingestion_result.format == DrawingFormat.PDF:
-        logger.info("[Part 2] Step 0b — PDF vector path extraction…")
-        
-        # 2. Parametric PDF Profile (for VesselGeometry contract)
-        try:
-            from app.utils.pdf_path_extractor import extract_pdf_path_profile
-            pdf_path_profile = extract_pdf_path_profile(ingestion_result.file_path, text_polygons=ocr_result.text_polygons)
-            if pdf_path_profile.success:
-                logger.info(
-                    f"[Part 2] PDF path profile: {len(pdf_path_profile.points)} pts, "
-                    f"h={pdf_path_profile.total_height_mm:.0f}mm"
-                )
-                warnings.append(
-                    f"PDF vector paths: {len(pdf_path_profile.points)} profile points"
-                )
-            else:
-                logger.info("[Part 2] PDF path extraction found no vessel geometry")
-        except Exception as exc:
-            logger.warning(f"[Part 2] PDF path extraction failed: {exc}")
-
-
+        with timer.step("2.3 PDF vector path extraction"):
+            logger.info("[Part 2] Step 0b — PDF vector path extraction…")
+            try:
+                from app.utils.pdf_path_extractor import extract_pdf_path_profile
+                pdf_path_profile = extract_pdf_path_profile(ingestion_result.file_path, text_polygons=ocr_result.text_polygons)
+                if pdf_path_profile.success:
+                    logger.info(
+                        f"[Part 2] PDF path profile: {len(pdf_path_profile.points)} pts, "
+                        f"h={pdf_path_profile.total_height_mm:.0f}mm"
+                    )
+                    warnings.append(
+                        f"PDF vector paths: {len(pdf_path_profile.points)} profile points"
+                    )
+                else:
+                    logger.info("[Part 2] PDF path extraction found no vessel geometry")
+            except Exception as exc:
+                logger.warning(f"[Part 2] PDF path extraction failed: {exc}")
 
     # ── Step 3: OpenCV geometry ────────────────────────────────────────────────
-    logger.info("[Part 2] Step 3 — OpenCV geometry analysis…")
-    try:
-        # Provide scale hint from OCR outer diameter if available
-        known_dim_mm = None
-        if ocr_result.parsed_dimensions:
-            dims_mm = [v for v, u in ocr_result.parsed_dimensions if u == "mm"]
-            if dims_mm:
-                known_dim_mm = max(dims_mm)
+    with timer.step("2.4 OpenCV contour & geometry analysis"):
+        logger.info("[Part 2] Step 3 — OpenCV geometry analysis…")
+        try:
+            known_dim_mm = None
+            if ocr_result.parsed_dimensions:
+                dims_mm = [v for v, u in ocr_result.parsed_dimensions if u == "mm"]
+                if dims_mm:
+                    known_dim_mm = max(dims_mm)
 
-        opencv_result = process_geometry(primary_image, known_dimension_mm=known_dim_mm)
-    except Exception as exc:
-        logger.warning(f"[Part 2] OpenCV failed: {exc}")
-        warnings.append(f"OpenCV skipped: {exc}")
-        from app.services.part2_extraction.opencv_processor import OpenCVGeometryResult
-        opencv_result = OpenCVGeometryResult()
+            opencv_result = process_geometry(primary_image, known_dimension_mm=known_dim_mm)
+        except Exception as exc:
+            logger.warning(f"[Part 2] OpenCV failed: {exc}")
+            warnings.append(f"OpenCV skipped: {exc}")
+            from app.services.part2_extraction.opencv_processor import OpenCVGeometryResult
+            opencv_result = OpenCVGeometryResult()
 
     # ── Assemble geometry from all sources ─────────────────────────────────────
-    vessel_geometry = assemble_vessel_geometry(
-        ocr_result=ocr_result,
-        opencv_result=opencv_result,
-        dino_detections=dino_detections,
-        source_file=ingestion_result.filename,
-        source_format=ingestion_result.format,
-        dxf_profile=dxf_profile,
-        pdf_path_profile=pdf_path_profile,
-        positioned_dims=positioned_dims,
-    )
-    
-    if pdf_path_profile and pdf_path_profile.success and pdf_path_profile.points:
-        vessel_geometry.extra_metadata["pdf_paths"] = pdf_path_profile.points
+    with timer.step("2.5 Assemble vessel geometry & save outputs"):
+        vessel_geometry = assemble_vessel_geometry(
+            ocr_result=ocr_result,
+            opencv_result=opencv_result,
+            dino_detections=dino_detections,
+            source_file=ingestion_result.filename,
+            source_format=ingestion_result.format,
+            dxf_profile=dxf_profile,
+            pdf_path_profile=pdf_path_profile,
+            positioned_dims=positioned_dims,
+        )
+        if pdf_path_profile and pdf_path_profile.success and pdf_path_profile.points:
+            vessel_geometry.extra_metadata["pdf_paths"] = pdf_path_profile.points
+        _save_output(vessel_geometry, job_id)
 
-    _save_output(vessel_geometry, job_id)
+    timer.finalize()
 
     elapsed = time.perf_counter() - start_time
     logger.info(

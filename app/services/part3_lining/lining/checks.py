@@ -129,8 +129,8 @@ def run_checks(payload, vessel, sheet, courses, rings, vols, bom, st, nozzles):
             g = rings_[k]
             a0, a1 = [float(x) for x in r["sector"].split("-")]
             g["span"] += a1 - a0
-            for f in ("nA", "nB", "nCut"):
-                g[f] += r[f]
+            for fld in ("nA", "nB", "nCut"):
+                g[fld] += r[fld]
         else:
             a0, a1 = [float(x) for x in r["sector"].split("-")]
             rings_[k] = {**r, "span": a1 - a0}
@@ -184,10 +184,10 @@ def run_checks(payload, vessel, sheet, courses, rings, vols, bom, st, nozzles):
         a0, a1 = [float(x) for x in r["sector"].split("-")]
         phi = math.radians(a1 - a0)
         if r.get("pair"):
-            f = r["h"] / hb.get(r["A"], r["h"])
+            h_scale = r["h"] / hb.get(r["A"], r["h"])
             hotA = float(lib[r["A"]]["dimensions_mm"]["width_bottom"]) + band_joint.get(r["band"], j)
             cut_frac = (r["cut"] / hotA) if r["nCut"] else 0          # a cut piece fills only part of a brick
-            v = (r["nA"] * uv.get(r["A"], 0) + r["nB"] * uv.get(r["B"], 0) + r["nCut"] * cut_frac * uv.get(r["A"], 0)) / 1000 * f
+            v = (r["nA"] * uv.get(r["A"], 0) + r["nB"] * uv.get(r["B"], 0) + r["nCut"] * cut_frac * uv.get(r["A"], 0)) / 1000 * h_scale
             zone_b[k] = zone_b.get(k, 0.0) + v
             if r.get("space") and r["space"] > r["L"] + 0.5:             # cone: horizontal brick shorter than the room
                 rc = r["r_cold"]

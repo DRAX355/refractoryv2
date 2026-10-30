@@ -22,6 +22,7 @@ from .lining.bom import build_bom
 from .lining.checks import run_checks
 from .lining.bricks import band_kind, bottom_rings, course_schedule, quantities
 from .lining.drawings import BrickSheet, LayerSheet, LiningSheet, aci_hex, assign_mark_colors, mark_info, save_previews
+from .lining import pages as _pages
 from .lining.geometry import region_area_moment, reverse_run, sample
 from .lining.model import angle_breaks, validate
 from .lining.report import build_report
@@ -235,145 +236,200 @@ def _write_xlsx(path, job, head, rows, bom):
 
 def generate(payload: dict, out_dir: Path, url_prefix: str = "", progress=None) -> dict:
     """progress(stage_text, percent) is called as the work advances (optional)."""
-    step = progress or (lambda *_: None)
+    step = progress or (lambda *_, **__: None)
+
+    def ready(title, png, pct):                               # tell the UI a drawing is finished (live preview)
+        if not png:
+            return
+        info = {"title": title, "url": f"{url_prefix}/{png}"}
+        try:
+            step(f"{title} ready", pct, preview=info)
+        except TypeError:                                     # progress callback without previews
+            step(f"{title} ready", pct)
+
     step("Checking the input values", 2)
     out_dir.mkdir(parents=True, exist_ok=True)
-    lib = load_library(payload.get("brick_library"))
-    from refractory_core import get_core
-    f = get_core().formulas
-    st = {"course_height": f.evaluate("d_course_height", {}),
-          "mouth_course_height": f.evaluate("d_mouth_course_height", {}),
-          "joint": f.evaluate("d_joint", {}),
-          "bottom_joint": f.evaluate("d_bottom_joint", {}),
-          "min_cut": f.evaluate("d_min_cut", {}),
-          "cut_allowance": f.evaluate("d_cut_allowance", {}),
-          **{k: v for k, v in (payload.get("settings") or {}).items() if v not in (None, "")}}
-    for k in list(st):
-        try:
-            st[k] = float(st[k])
-        except (TypeError, ValueError):
-            raise LiningInputError([f"setting '{k}': '{st[k]}' is not a number"])
-    lib, lib_notes = add_entered_bricks(lib, payload, st)
-    nozzles = _nozzles(payload.get("nozzles"))
+    from app.utils.step_timer import StepTimer
     job = str(payload.get("job") or "job")
+    timer = StepTimer("Part 3 - Lining Drawings & BOM Generation", job, out_dir)
 
-    payload = dict(payload)
-    if (payload.get("design") or {}).get("grade_colors"):
-        payload["design"] = {**payload["design"], "grade_colors": _aci_colors(payload["design"]["grade_colors"])}
-    try:
-        vessel, design, _ = build_engine_inputs(payload)
-    except (KeyError, ValueError) as e:
-        raise LiningInputError([f"{e}"])
-    vessel["job"] = job
-    vessel.setdefault("units", "mm")
-    design["course_height"] = st["course_height"]
-    err, warn = validate(vessel, design)
-    if err:
-        raise LiningInputError(err)
+    with timer.step("3.1 Validate inputs & prepare brick library"):
+        lib = load_library(payload.get("brick_library"))
+        from refractory_core import get_core
+        f = get_core().formulas
+        st = {"course_height": f.evaluate("d_course_height", {}),
+              "mouth_course_height": f.evaluate("d_mouth_course_height", {}),
+              "joint": f.evaluate("d_joint", {}),
+              "bottom_joint": f.evaluate("d_bottom_joint", {}),
+              "min_cut": f.evaluate("d_min_cut", {}),
+              "cut_allowance": f.evaluate("d_cut_allowance", {}),
+              **{k: v for k, v in (payload.get("settings") or {}).items() if v not in (None, "")}}
+        for k in list(st):
+            try:
+                st[k] = float(st[k])
+            except (TypeError, ValueError):
+                raise LiningInputError([f"setting '{k}': '{st[k]}' is not a number"])
+        lib, lib_notes = add_entered_bricks(lib, payload, st)
+        nozzles = _nozzles(payload.get("nozzles"))
 
-    try:
-        sheet = LiningSheet(vessel, design, nozzles)
-        views = design["views"]
-        if not views.get("plan_heights"):
-            hs = [round(sum(sheet.band_z(b)) / 2, 1) for b in range(len(sheet.bands))]
-            hs += [n["z"] for n in nozzles if n["type"] != "stirring" and sheet.zmin < n["z"] < sheet.zmax]
-            views["plan_heights"] = sorted(set(hs))
-        step("Drawing the lining GA (sections, plans, top view, unrolled map, nozzles)", 8)
-        sheet.build()
-    except ValueError as e:
-        raise LiningInputError([f"Could not build the lining drawing: {e}"])
+        payload = dict(payload)
+        if (payload.get("design") or {}).get("grade_colors"):
+            payload["design"] = {**payload["design"], "grade_colors": _aci_colors(payload["design"]["grade_colors"])}
+        try:
+            vessel, design, _ = build_engine_inputs(payload)
+        except (KeyError, ValueError) as e:
+            raise LiningInputError([f"{e}"])
+        vessel["job"] = job
+        vessel.setdefault("units", "mm")
+        design["course_height"] = st["course_height"]
+        err, warn = validate(vessel, design)
+        if err:
+            raise LiningInputError(err)
+
+        inputs = [r for r in (payload.get("input_values") or []) if isinstance(r, dict)]
+        n_edited = sum(1 for r in inputs if r.get("edited"))
+        set_info = {"project": f"{job}" + (f"  -  {payload.get('customer')}" if payload.get("customer") else ""),
+                    "company": "REFRACTORY LINING DESIGN  -  AI LINING COPILOT",
+                    "edited": n_edited}
+
+    def output(doc, views, name, set_title, code, pct0, pct1):
+        """One page per view (PDF + AutoCAD layouts in the DXF), DXF saved, DWG when the converter exists."""
+        info = {**set_info, "set_title": set_title, "drawing_no": f"{safe_name(job)}-{code}"}
+        n = len(views)
+
+        def page_done(i, n_, title):
+            step(f"{set_title}: page {i}/{n_} - {title}", int(pct0 + (pct1 - pct0) * i / max(n_, 1)))
+        made = []
+        try:
+            made, extents = _pages.render_pages(doc, views, out_dir, name, info, progress=page_done)
+            _pages.add_layouts(doc, views, extents, info)
+        except Exception as e:                                 # pages are a convenience - the DXF is the deliverable
+            step(f"{set_title}: page output failed ({type(e).__name__}: {e}) - single-sheet preview used", pct1)
+            made = save_previews(doc.modelspace(), out_dir, name)
+        dxf = out_dir / f"{name}.dxf"
+        doc.saveas(dxf)
+        res = {dxf.name: dxf}
+        for p_ in made:
+            res[p_.name] = p_
+        dwg, why = _pages.export_dwg(dxf)
+        if dwg:
+            res[dwg.name] = dwg
+        elif why:
+            step(f"{set_title}: DWG not made - {why}", pct1)
+        return res
 
     files = {}
-    ga = out_dir / "lining_ga.dxf"
-    sheet.doc.saveas(ga)
-    files["lining_ga.dxf"] = ga
-    step("Rendering the Lining GA preview (PNG / PDF)", 15)
-    for p in save_previews(sheet.msp, out_dir, "lining_ga"):
-        files[p.name] = p
+    with timer.step("3.2 Build Lining GA DXF (sections, plans, nozzles)"):
+        try:
+            sheet = LiningSheet(vessel, design, nozzles)
+            sheet.inputs = inputs
+            sheet.steel_density = _num_or_none(payload.get("steel_density"))
+            sheet.slag_volume = _num_or_none(payload.get("slag_volume"))
+            views = design["views"]
+            if not views.get("plan_heights"):
+                hs = [round(sum(sheet.band_z(b)) / 2, 1) for b in range(len(sheet.bands))]
+                hs += [n["z"] for n in nozzles if n["type"] != "stirring" and sheet.zmin < n["z"] < sheet.zmax]
+                views["plan_heights"] = sorted(set(hs))
+            step("Drawing the lining GA (sections, plans, top view, unrolled map, nozzles)", 8)
+            sheet.build()
+        except ValueError as e:
+            raise LiningInputError([f"Could not build the lining drawing: {e}"])
 
-    report = build_report(sheet)
-    vols = volumes(sheet)
-    step("Computing course schedule and bottom rings from the brick library", 35)
-    courses, course_flags, cone_gaps = course_schedule(sheet, lib, st)
-    rings = bottom_rings(sheet, lib, st, nozzles, payload.get("bottom") or {})
-    qty = quantities(courses, rings)
-    bom = build_bom(sheet, lib, courses, rings, vols, nozzles, st, payload.get("grade_density") or {}, cone_gaps,
-                    payload.get("monolithic") or {}, payload.get("extra_items") or [], payload.get("junctions") or [])
-    bom["flags"] = sorted(set(bom["flags"]) | set(lib_notes))
+    with timer.step("3.3 Compute volumes, course schedule, bottom rings & BOM"):
+        report = build_report(sheet)
+        vols = volumes(sheet)
+        step("Computing course schedule and bottom rings from the brick library", 10)
+        courses, course_flags, cone_gaps = course_schedule(sheet, lib, st)
+        rings = bottom_rings(sheet, lib, st, nozzles, payload.get("bottom") or {})
+        step("Drawing every brick joint on the lining GA", 12)
+        try:
+            sheet.draw_brick_joints(courses, rings)
+        except Exception:
+            pass
+        qty = quantities(courses, rings)
+        bom = build_bom(sheet, lib, courses, rings, vols, nozzles, st, payload.get("grade_density") or {}, cone_gaps,
+                        payload.get("monolithic") or {}, payload.get("extra_items") or [], payload.get("junctions") or [])
+        bom["flags"] = sorted(set(bom["flags"]) | set(lib_notes))
 
-    step("Checking the drawings against the input values", 38)
-    checks = run_checks({**payload, "brick_library": lib}, vessel, sheet, courses, rings, vols, bom, st, nozzles)
-    mcol = assign_mark_colors(courses, rings)
-    minfo = mark_info(lib, courses, rings, qty, mcol)
-    qty_sheet = dict(qty)                                   # + permanent-lining bricks counted in the BOM
-    for o in bom["lines"]:
-        if o["group"] == "Permanent lining" and o.get("qty"):
-            qty_sheet[o["mark"]] = qty_sheet.get(o["mark"], 0) + o["qty"]
-    bs = BrickSheet(lib, qty_sheet, job, mcol, minfo)
-    step("Drawing the brick shapes sheet", 40)
-    bs.build()
-    p = out_dir / "brick_shapes.dxf"
-    bs.doc.saveas(p)
-    files[p.name] = p
-    step("Rendering the Brick shapes preview (PNG / PDF)", 45)
-    for q in save_previews(bs.msp, out_dir, "brick_shapes", size=(36, 30)):
-        files[q.name] = q
+    with timer.step("3.4 Render Lining GA pages & previews (DXF / PNG / PDF)"):
+        step(f"Lining GA: {len(sheet.views)} drawings, one page each (PDF + AutoCAD layouts)", 13)
+        files.update(output(sheet.doc, sheet.views, "lining_ga", "LINING GA", "GA", 13, 30))
+        ready("Lining GA", "lining_ga.png" if "lining_ga.png" in files else None, 30)
 
-    ls = LayerSheet(sheet, courses, rings, nozzles, job, mcol, minfo)
-    step("Drawing the layers & brick layout sheet", 65)
-    ls.build()
-    p = out_dir / "lining_layers.dxf"
-    ls.doc.saveas(p)
-    files[p.name] = p
-    step("Rendering the Layers & brick layout preview (PNG / PDF)", 70)
-    for q in save_previews(ls.msp, out_dir, "lining_layers", size=(40, 24)):
-        files[q.name] = q
+    with timer.step("3.5 Run accuracy self-checks"):
+        step("Checking the drawings against the input values", 38)
+        checks = run_checks({**payload, "brick_library": lib}, vessel, sheet, courses, rings, vols, bom, st, nozzles)
+        mcol = assign_mark_colors(courses, rings)
+        minfo = mark_info(lib, courses, rings, qty, mcol)
+        qty_sheet = dict(qty)                                   # + permanent-lining bricks counted in the BOM
+        for o in bom["lines"]:
+            if o["group"] == "Permanent lining" and o.get("qty"):
+                qty_sheet[o["mark"]] = qty_sheet.get(o["mark"], 0) + o["qty"]
+
+    with timer.step("3.6 Build & render Brick Shapes sheet (DXF / PNG / PDF)"):
+        bs = BrickSheet(lib, qty_sheet, job, mcol, minfo)
+        step("Drawing the brick shapes sheet", 40)
+        bs.build()
+        files.update(output(bs.doc, bs.views, "brick_shapes", "BRICK SHAPES", "BS", 41, 55))
+        ready("Brick shapes", "brick_shapes.png" if "brick_shapes.png" in files else None, 55)
+
+    with timer.step("3.7 Build & render Layers & Brick Layout sheet (DXF / PNG / PDF)"):
+        ls = LayerSheet(sheet, courses, rings, nozzles, job, mcol, minfo)
+        step("Drawing the layers & brick layout sheet", 60)
+        ls.build()
+        files.update(output(ls.doc, ls.views, "lining_layers", "LINING LAYERS & BRICK LAYOUT", "LL", 62, 92))
+        ready("Layers & brick layout", "lining_layers.png" if "lining_layers.png" in files else None, 92)
 
     # tables
-    step("Writing tables (CSV) and summary", 95)
-    _write_csv(out_dir / "course_schedule.csv",
-               ["course", "z0", "z1", "height", "band", "sector", "zone", "grade", "brick_length", "r_cold", "r_hot",
-                "pair", "mark_A", "nA", "mark_B", "nB", "cut_pieces", "cut_mm", "gap_mm", "flag"],
-               [[r["course"], r["z0"], r["z1"], r["h"], r["band"], r["sector"], r.get("zone", ""), r["grade"], r["L"],
-                 r.get("r_cold"), r.get("r_hot"), r.get("pair") or "", r.get("A") or "", r["nA"], r.get("B") or "",
-                 r["nB"], r["nCut"], r["cut"], r.get("gap"), r.get("flag") or ""] for r in courses])
-    files["course_schedule.csv"] = out_dir / "course_schedule.csv"
-    if rings:
-        _write_csv(out_dir / "bottom_rings.csv", ["ring", "r_in", "r_out", "marks", "cut_pieces", "cut_mm", "note", "flag"],
-                   ([[0, 0, rings["key"]["r"], f"{rings['key']['mark']} x 1", 0, 0, "", ""]] if rings.get("key") else []) +
-                   [[r["ring"], r["r_in"], r["r_out"], " + ".join(f"{m} x {q}" for m, q in r["marks"].items()), r["nCut"],
-                     r["cut"], r.get("note") or "", r.get("flag") or ""] for r in rings["rings"]])
-        files["bottom_rings.csv"] = out_dir / "bottom_rings.csv"
-    bom_head = ["item", "group", "zone", "grade", "mark", "shape", "size_mm", "qty", "allowance_pct", "order_qty",
-                "unit_vol_dm3", "density_g_cm3", "unit_wt_kg", "total_t", "note"]
-    bom_rows = [[o["item"], o["group"], o["zone"], o["grade"], o["mark"], o["family"], o["size"], o["qty"],
-                 o["allow_pct"], o["order_qty"], o["unit_vol_dm3"], o["density"], o["unit_wt_kg"], o["total_t"],
-                 (o.get("note") or "") + (f" [volume {o['volume_m3']} m3]" if o.get("volume_m3") else "")]
-                for o in bom["lines"]]
-    _write_csv(out_dir / "bom.csv", bom_head, bom_rows + [[], ["TOTAL", "", "", "", "", "", "", "", "",
-               bom["pieces"], "", "", "", bom["total_t"], ""]])
-    files["bom.csv"] = out_dir / "bom.csv"
-    if _write_xlsx(out_dir / "bom.xlsx", job, bom_head, bom_rows, bom):
-        files["bom.xlsx"] = out_dir / "bom.xlsx"
-    _write_csv(out_dir / "brick_quantities.csv", ["mark", "pieces"], sorted(qty.items()))
-    files["brick_quantities.csv"] = out_dir / "brick_quantities.csv"
+    with timer.step("3.8 Write CSV / XLSX tables and summary"):
+        step("Writing tables (CSV) and summary", 95)
+        _write_csv(out_dir / "course_schedule.csv",
+                   ["course", "z0", "z1", "height", "band", "sector", "zone", "grade", "brick_length", "r_cold", "r_hot",
+                    "pair", "mark_A", "nA", "mark_B", "nB", "cut_pieces", "cut_mm", "gap_mm", "flag"],
+                   [[r["course"], r["z0"], r["z1"], r["h"], r["band"], r["sector"], r.get("zone", ""), r["grade"], r["L"],
+                     r.get("r_cold"), r.get("r_hot"), r.get("pair") or "", r.get("A") or "", r["nA"], r.get("B") or "",
+                     r["nB"], r["nCut"], r["cut"], r.get("gap"), r.get("flag") or ""] for r in courses])
+        files["course_schedule.csv"] = out_dir / "course_schedule.csv"
+        if rings:
+            _write_csv(out_dir / "bottom_rings.csv", ["ring", "r_in", "r_out", "marks", "cut_pieces", "cut_mm", "note", "flag"],
+                       ([[0, 0, rings["key"]["r"], f"{rings['key']['mark']} x 1", 0, 0, "", ""]] if rings.get("key") else []) +
+                       [[r["ring"], r["r_in"], r["r_out"], " + ".join(f"{m} x {q}" for m, q in r["marks"].items()), r["nCut"],
+                         r["cut"], r.get("note") or "", r.get("flag") or ""] for r in rings["rings"]])
+            files["bottom_rings.csv"] = out_dir / "bottom_rings.csv"
+        bom_head = ["item", "group", "zone", "grade", "mark", "shape", "size_mm", "qty", "allowance_pct", "order_qty",
+                    "unit_vol_dm3", "density_g_cm3", "unit_wt_kg", "total_t", "note"]
+        bom_rows = [[o["item"], o["group"], o["zone"], o["grade"], o["mark"], o["family"], o["size"], o["qty"],
+                     o["allow_pct"], o["order_qty"], o["unit_vol_dm3"], o["density"], o["unit_wt_kg"], o["total_t"],
+                     (o.get("note") or "") + (f" [volume {o['volume_m3']} m3]" if o.get("volume_m3") else "")]
+                    for o in bom["lines"]]
+        _write_csv(out_dir / "bom.csv", bom_head, bom_rows + [[], ["TOTAL", "", "", "", "", "", "", "", "",
+                   bom["pieces"], "", "", "", bom["total_t"], ""]])
+        files["bom.csv"] = out_dir / "bom.csv"
+        if _write_xlsx(out_dir / "bom.xlsx", job, bom_head, bom_rows, bom):
+            files["bom.xlsx"] = out_dir / "bom.xlsx"
+        _write_csv(out_dir / "brick_quantities.csv", ["mark", "pieces"], sorted(qty.items()))
+        files["brick_quantities.csv"] = out_dir / "brick_quantities.csv"
 
-    flags = list(course_flags) + list((rings or {}).get("flags", []))
-    lib_gaps = [f"{g.get('issue')}: {g.get('status')}" for g in lib.get("_known_gaps", [])]
-    summary = [report, "", "BRICK QUANTITIES (pieces, before allowances)"]
-    summary += [f"  {m:<24}{n:>8}" for m, n in sorted(qty.items())]
-    summary += ["", "ACCURACY CHECKS (drawing measured again and compared with the inputs)"]
-    summary += [f"  [{'PASS' if c['ok'] else 'FAIL'}] {c['check']}: {c['value']} (expected {c['expected']}) {c['detail']}"
-                for c in checks]
-    summary += ["", "FLAGS"] + [f"  - {f}" for f in flags] + ["", "BRICK LIBRARY GAPS"] + [f"  - {g}" for g in lib_gaps]
-    (out_dir / "summary.txt").write_text("\n".join(summary) + "\n", encoding="utf-8")
-    files["summary.txt"] = out_dir / "summary.txt"
-    (out_dir / "vessel.json").write_text(json.dumps(vessel, indent=2), encoding="utf-8")
-    (out_dir / "design.json").write_text(json.dumps(design, indent=2), encoding="utf-8")
-    (out_dir / "input_payload.json").write_text(json.dumps({k: v for k, v in payload.items() if k != "brick_library"},
-                                                           indent=2, default=str), encoding="utf-8")
-    files["vessel.json"] = out_dir / "vessel.json"
-    files["design.json"] = out_dir / "design.json"
+        flags = list(course_flags) + list((rings or {}).get("flags", []))
+        lib_gaps = [f"{g.get('issue')}: {g.get('status')}" for g in lib.get("_known_gaps", [])]
+        summary = [report, "", "BRICK QUANTITIES (pieces, before allowances)"]
+        summary += [f"  {m:<24}{n:>8}" for m, n in sorted(qty.items())]
+        summary += ["", "ACCURACY CHECKS (drawing measured again and compared with the inputs)"]
+        summary += [f"  [{'PASS' if c['ok'] else 'FAIL'}] {c['check']}: {c['value']} (expected {c['expected']}) {c['detail']}"
+                    for c in checks]
+        summary += ["", "FLAGS"] + [f"  - {f}" for f in flags] + ["", "BRICK LIBRARY GAPS"] + [f"  - {g}" for g in lib_gaps]
+        (out_dir / "summary.txt").write_text("\n".join(summary) + "\n", encoding="utf-8")
+        files["summary.txt"] = out_dir / "summary.txt"
+        (out_dir / "vessel.json").write_text(json.dumps(vessel, indent=2), encoding="utf-8")
+        (out_dir / "design.json").write_text(json.dumps(design, indent=2), encoding="utf-8")
+        (out_dir / "input_payload.json").write_text(json.dumps({k: v for k, v in payload.items() if k != "brick_library"},
+                                                               indent=2, default=str), encoding="utf-8")
+        files["vessel.json"] = out_dir / "vessel.json"
+        files["design.json"] = out_dir / "design.json"
+
+    txt_path, json_path = timer.finalize()
+    files["timings.txt"] = txt_path
+    files["timings.json"] = json_path
 
     # one ZIP with every output, each file named "<project>_<file>"
     import zipfile

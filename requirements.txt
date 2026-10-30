@@ -38,7 +38,7 @@ ezdxf>=1.4,<2.0             # 1.4+ renders the lining preview sheets ~10x faster
 torch==2.5.1                  # CPU or CUDA — see PyTorch.org for CUDA wheels
 torchvision==0.20.1
 transformers==4.46.3
-groundingdino-py==0.4.0       # lightweight HF-compatible Grounding DINO wrapper
+# groundingdino-py==0.4.0     # optional: HF transformers is used directly in dino_detector.py
 
 # --- Utilities ---
 python-dotenv==1.0.1

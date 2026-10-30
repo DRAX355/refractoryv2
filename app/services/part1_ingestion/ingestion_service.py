@@ -80,29 +80,37 @@ async def ingest_drawing(
     """
     job_id = str(uuid.uuid4())
     logger.info(f"[Part 1] Starting ingestion — job_id={job_id}, file={filename}")
+    from app.utils.step_timer import StepTimer
+    timer = StepTimer("Part 1 - Drawing Ingestion", job_id, settings.outputs_dir / job_id)
 
     # ── Step 1: Save to disk ──────────────────────────────────────────────────
-    save_dir = settings.outputs_dir / job_id
-    save_dir.mkdir(parents=True, exist_ok=True)
-    file_path = save_dir / filename
+    with timer.step("1.1 Save uploaded file to disk"):
+        save_dir = settings.outputs_dir / job_id
+        save_dir.mkdir(parents=True, exist_ok=True)
+        file_path = save_dir / filename
 
-    with open(file_path, "wb") as f:
-        f.write(file_bytes)
+        with open(file_path, "wb") as f:
+            f.write(file_bytes)
 
-    file_size = len(file_bytes)
-    logger.debug(f"[Part 1] Saved to {file_path} ({file_size} bytes)")
+        file_size = len(file_bytes)
+        logger.debug(f"[Part 1] Saved to {file_path} ({file_size} bytes)")
 
     # ── Step 2: Validate ──────────────────────────────────────────────────────
-    validate_upload(file_path, file_size)
+    with timer.step("1.2 Validate file format & size"):
+        validate_upload(file_path, file_size)
 
     # ── Step 3: Load / Convert ────────────────────────────────────────────────
-    images, fmt = load_drawing(file_path)
+    with timer.step("1.3 Rasterize / convert drawing to image(s)"):
+        images, fmt = load_drawing(file_path)
 
     # ── Step 4: Image quality warnings ───────────────────────────────────────
-    warnings = validate_images(images)
-    if warnings:
-        for w in warnings:
-            logger.warning(f"[Part 1] {w}")
+    with timer.step("1.4 Validate image quality"):
+        warnings = validate_images(images)
+        if warnings:
+            for w in warnings:
+                logger.warning(f"[Part 1] {w}")
+
+    timer.finalize()
 
     result = IngestionResult(
         job_id=job_id,

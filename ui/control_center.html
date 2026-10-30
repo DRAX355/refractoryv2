@@ -49,7 +49,7 @@ const $=(s,r=document)=>r.querySelector(s),esc=s=>String(s??'').replace(/[&<>"]/
 const user=()=>$('#user').value.trim()||'anonymous';
 $('#user').value=localStorage.getItem('cc_user')||'';$('#user').onchange=()=>localStorage.setItem('cc_user',user());
 async function api(path,method='GET',body){
- const bases=[API_BASE,'http://localhost:8000','http://127.0.0.1:8000'].filter((v,i,a)=>v&&a.indexOf(v)===i);
+ const bases=[API_BASE,'http://65.1.125.127','http://localhost:8000','http://127.0.0.1:8000'].filter((v,i,a)=>v&&a.indexOf(v)===i);
  let lastErr=null;
  for(const b of bases){
   try{

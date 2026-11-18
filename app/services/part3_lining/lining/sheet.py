@@ -84,6 +84,10 @@ class Sheet:
             self._layers.add(name)
         return name
 
+    def _unused_layer(self, j, l):
+        """An extra permanent layer ('PERMANENT 2', ...) that is 0 mm in this band (it exists only in the bottom)."""
+        return j > 0 and float(l.get("thickness") or 0) <= 0 and str(self.layers[j]).startswith("PERMANENT ")
+
     def grade_layer(self, grade):
         return self.layer("GRADE_" + clean(grade), self.colors[grade])
 
@@ -213,6 +217,11 @@ class Sheet:
                     reg = paths[j - 1].run(i0, i1) + reverse_run(paths[j].run(i0, i1))
                     g = sec["layers"][j - 1]["grade"]
                     self.fill(T(reg), self.colors[g], self.grade_layer(g))
+                for k in range(1, L):                      # joint between two permanent layers (bottom: 2+ layers)
+                    if str(self.layers[k]).startswith("PERMANENT ") and float(sec["layers"][k]["thickness"] or 0) > 0 \
+                            and float(sec["layers"][k - 1]["thickness"] or 0) > 0:
+                        self.msp.add_lwpolyline(T(paths[k].run(i0, i1)), format="xyb",
+                                                dxfattribs={"layer": self.layer("PERMANENT_JOINT", 7), "color": 7, "lineweight": 35})
             for idx in cuts:                                   # zone dividers across each layer
                 for j in range(1, L + 1):
                     a, b = paths[j - 1].J[idx], paths[j].J[idx]
@@ -265,6 +274,8 @@ class Sheet:
                     continue
                 rb = rb or 0.0
                 l = sec["layers"][j - 1]
+                if self._unused_layer(j - 1, l):
+                    continue
                 items.append((Y(zm), f"{self.layers[j - 1]}: {l['grade']} ({l['thickness']:g})",
                               (axis_x + side * (ra + rb) / 2, Y(zm)), band["name"] if j == 1 else None))
         items.sort(key=lambda t: -t[0])
@@ -383,7 +394,8 @@ class Sheet:
                 g = sec["layers"][-1]["grade"]
                 self.fill([(xa, ya, 0), (xb, ya, 0), (xb, yb, 0), (xa, yb, 0)], self.colors[g], self.grade_layer(g))
                 self.poly([(xa, ya, 0), (xb, ya, 0), (xb, yb, 0), (xa, yb, 0)], self.layer("UNROLLED_FRAME", 7), close=True)
-                lines = [f"{self.layers[j]}: {l['grade']} ({l['thickness']:g})" for j, l in enumerate(sec["layers"])]
+                lines = [f"{self.layers[j]}: {l['grade']} ({l['thickness']:g})" for j, l in enumerate(sec["layers"])
+                         if not self._unused_layer(j, l)]
                 h = 0.8 * th
                 if (xb - xa) > 14 * th and (yb - ya) > (len(lines) + 1) * h * 1.3:
                     for k, t in enumerate(lines):

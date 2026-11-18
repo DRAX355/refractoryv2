@@ -111,7 +111,7 @@ from pathlib import Path as _Path
 from fastapi.responses import RedirectResponse as _RedirectResponse
 _PROJECT_ROOT = _Path(__file__).resolve().parent.parent
 _UI_DIR = _PROJECT_ROOT / "ui"
-_OUTPUTS_DIR = _PROJECT_ROOT / "data" / "outputs"
+_OUTPUTS_DIR = settings.outputs_dir.resolve()
 _OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)
 if _UI_DIR.exists():
     app.mount("/ui", StaticFiles(directory=str(_UI_DIR), html=True), name="ui")

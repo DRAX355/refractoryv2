@@ -134,6 +134,12 @@ def build_bom(sheet, lib, courses, rings, vols, nozzles, st, densities, cone_gap
     perm_allow = float(st.get("perm_cut_allowance", allow) or 0)
     perm_in_bom = float(st.get("perm_in_bom", 1)) > 0
     mono = {}
+    # permanent layers: the first layer + any extra permanent layers ("PERMANENT 2", ...) entered in the UI
+    perm_layers = [sheet.layers[0]] + [n for n in sheet.layers[1:-1] if re.fullmatch(r"PERMANENT \d+", str(n))]
+    perm_multi = {}                                  # band -> permanent layers with a volume
+    for row in vols["rows"] if sheet.L > 1 else []:
+        if row["layer"] in perm_layers and row["volume_m3"] > 0 and row["grade"] not in monolithic:
+            perm_multi.setdefault(row["band"], set()).add(row["layer"])
     for row in vols["rows"] if sheet.L > 1 else []:
         if row["layer"] == sheet.layers[-1] or row["volume_m3"] <= 0:
             continue
@@ -141,12 +147,14 @@ def build_bom(sheet, lib, courses, rings, vols, nozzles, st, densities, cone_gap
             m = mono.setdefault((row["band"], row["layer"], row["grade"]), 0.0)
             mono[(row["band"], row["layer"], row["grade"])] = m + row["volume_m3"]
             continue
-        if row["layer"] != sheet.layers[0]:
+        if row["layer"] not in perm_layers:
             continue
         if not perm_in_bom:
             continue
         band_def = next((b for b in sheet.bands if b["name"] == row["band"]), {})
         zone = str(band_def.get("section") or row["band"])          # one line per section (split zones summed)
+        if len(perm_multi.get(row["band"], ())) > 1:                       # several permanent layers: one line each
+            zone += f" - layer {perm_layers.index(row['layer']) + 1}"
         t = row.get("thickness")
         std = next((b for b in stds if t is not None and abs(float(b["dimensions_mm"].get("length", -1)) - t) < 0.5), None) \
             or (stds[0] if stds else None)
@@ -155,7 +163,7 @@ def build_bom(sheet, lib, courses, rings, vols, nozzles, st, densities, cone_gap
             n = row["volume_m3"] * 1000 / uv                            # rounded up once per line below
             add("Permanent lining", zone, row["grade"], std["mark"], n, perm_allow,
                 "count = drawn permanent-layer volume / brick volume (laying pattern not computed)",
-                where=(row["band"], "PERMANENT"))
+                where=(row["band"], "PERMANENT" if row["layer"] == sheet.layers[0] else row["layer"]))
         else:
             flags.append("No standard permanent-lining brick in library - permanent lining given as volume only")
     if not perm_in_bom and sheet.L > 1:

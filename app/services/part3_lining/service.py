@@ -93,11 +93,14 @@ def add_entered_bricks(lib, payload, st):
     if pb.get("width") and pb.get("height"):
         ts = set()
         mono = payload.get("monolithic") or {}
+        names = design.get("layers") or []
+        pidx = [0] + [i for i, n in enumerate(names[:-1]) if i and re.fullmatch(r"PERMANENT \d+", str(n))]
         for band in design.get("bands", []):
             for sec in band.get("sectors", []):
                 lay = sec.get("layers") or []
-                if len(lay) > 1 and lay[0].get("grade") not in mono:      # castable / filling is not bricks
-                    ts.add(float(lay[0]["thickness"]))
+                for i in pidx:                                          # every permanent layer (bottom may have several)
+                    if len(lay) > 1 and i < len(lay) - 1 and lay[i].get("grade") not in mono:   # castable / filling is not bricks
+                        ts.add(float(lay[i]["thickness"]))
         for t in sorted(ts):
             if t > 0:
                 put({"mark": f"PL-{float(pb['width']):g}x{float(pb['height']):g}x{t:g}", "shape_family": "safety_lining_std",

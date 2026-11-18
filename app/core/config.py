@@ -67,6 +67,9 @@ class Settings(BaseSettings):
     @classmethod
     def ensure_directories_exist(cls, v: str | Path) -> Path:
         p = Path(v)
+        if not p.is_absolute():
+            project_root = Path(__file__).resolve().parent.parent.parent
+            p = project_root / p
         p.mkdir(parents=True, exist_ok=True)
         return p
 

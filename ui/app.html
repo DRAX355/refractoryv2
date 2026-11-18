@@ -1782,7 +1782,7 @@
         concept: { kW: 8, kP: 3, hOut: 25, tAmb: 40, balTol: 15 }, junc: {},
         asm: { thBlockKg: 520, thSleeves: 6, thSleeveKg: 180, thRamT: 0.45, stirProd: 'GRADE-L', stirKg: 42, surrProd: 'GRADE-K', surrPer: 4, surrKg: 6.5, castProd: 'Castable (stirring base)', castKg: 120, custom: [] },
         bottom: {
-          grade: 'GRADE-A', mand: '', keyR: 160, ringW: 155, tanW: 119, minCut: 40, cutsPerEl: 2, tol: 5, growMin: 6, growMax: 10, depthTol: 2, brickL: 900, wear: 0.125, lengths: '700,800,900,1000', resid: 150, tOver: '', permGrade: 'GRADE-E', permT: 150, permBack: 0, permDens: 2.95, dens: 3.02, elDia: 250, exact: 'No',
+          grade: 'GRADE-A', mand: '', keyR: 160, ringW: 155, tanW: 119, minCut: 40, cutsPerEl: 2, tol: 5, growMin: 6, growMax: 10, depthTol: 2, brickL: 900, wear: 0.125, lengths: '700,800,900,1000', resid: 150, tOver: '', permGrade: 'GRADE-E', permT: 150, permBack: 0, permDens: 2.95, permExtra: [], dens: 3.02, elDia: 250, exact: 'No',
           bands: [['SH-01', 1, 3], ['SH-02', 4, 7], ['SH-03', 8, 8], ['SH-04', 9, 11], ['SH-05', 12, 99]].map(([mark, from, to]) => ({ mark, from, to, aHot: '', aCold: '', bHot: '', bCold: '' }))
         },
         lc: Object.assign(wallCommon(), {
@@ -2168,10 +2168,12 @@ function permSVG() {
   // naked shell interior
   P.push(`<path d="M${side(inner, -1).join(' L')} L${side(inner.slice().reverse(), 1).join(' L')}Z" fill="var(--paper)"/>`);
   // bottom permanent layer following the dish
-  const Rb = XN('lcIDb') / 2, R = dishShellR(), B = S.bottom, tB = (+B.permT) * x, bB = (+B.permBack) * x, hs = r => R - Math.sqrt(Math.max(0, R * R - r * r));
+  const Rb = XN('lcIDb') / 2, R = dishShellR(), B = S.bottom, tB = botPermT() * x, bB = (+B.permBack) * x, hs = r => R - Math.sqrt(Math.max(0, R * R - r * r));
   const rs = []; for (let i = -60; i <= 60; i++) rs.push(Rb * i / 60);
   const bandB = (o0, o1, col) => `<path d="M${rs.map(r => `${cx + r * s},${Y(hs(Math.abs(r)) + o0)}`).join(' L')} L${rs.slice().reverse().map(r => `${cx + r * s},${Y(hs(Math.abs(r)) + o1)}`).join(' L')}Z" fill="${col}"/>`;
-  P.push(bandB(0, tB, PCOL.perm)); if (bB > 0) P.push(bandB(tB, tB + bB, PCOL.back));
+  const bLine = (o, col, w) => `<path d="M${rs.map(r => `${cx + r * s},${Y(hs(Math.abs(r)) + o)}`).join(' L')}" fill="none" stroke="${col}" stroke-width="${w}"/>`;
+  let oB = 0; botPerm().forEach((l, i) => { const t1 = l.t * x; P.push(bandB(oB, oB + t1, PCOL.perm)); if (i) P.push(bLine(oB, '#0d4f6e', 0.9)); oB += t1; });
+  if (bB > 0) P.push(bandB(tB, tB + bB, PCOL.back));
   P.push(`<path d="M${rs.map(r => `${cx + r * s},${Y(hs(Math.abs(r)) + tB + bB)}`).join(' L')}" fill="none" stroke="var(--accent)" stroke-width="1.2" stroke-dasharray="5 3"/>`);
   // wall permanent layer, run by section
   const runs = []; let cur = null; const lc0 = XN('lcH0');
@@ -2187,7 +2189,7 @@ function permSVG() {
   const labels = [];
   PSEC.forEach(([sec, name, type]) => { const bd = bandOf(type); if (!bd) return; const F = PF(sec), P0 = S[sec], t = +P0[F.t], b = +P0[F.b];
     const txt = [`${name}: ${t} mm${b ? ` + ${b} backfill` : ''}`, `${P0[F.g]} · ${S.permSrc[sec]}${isEdited(sec + '.' + F.t) ? ' ✎' : ''}`];
-    if (sec === 'bottom') { labels.push({ bottom: 1, txt }); return; }
+    if (sec === 'bottom') { const BL = botPerm(); if (BL.length > 1) { txt[0] = `${name}: ${BL.length} layers ${BL.map(l => l.t).join(' + ')} = ${botPermT()} mm${b ? ` + ${b} backfill` : ''}`; txt[1] = `${BL.map(l => l.grade).join(' / ')} · ${S.permSrc[sec]}${isEdited(sec + '.' + F.t) ? ' ✎' : ''}`; } labels.push({ bottom: 1, txt }); return; }
     const hm = (bd.h0 + bd.h1) / 2; labels.push({ y: Y(hm), ax: Xp(rIn(hm) - t * x / 2, 1), ay: Y(hm), txt });
     P.push(`<line x1="${Xp(maxR, -1)}" x2="${Xp(maxR, 1) + 6}" y1="${Y(bd.h1)}" y2="${Y(bd.h1)}" stroke="var(--info)" stroke-width=".6" stroke-dasharray="3 3"/>`); });
   const mb = bandOf('Mouth'); if (mb) labels.push({ y: Y((mb.h0 + mb.h1) / 2), ax: Xp(rIn((mb.h0 + mb.h1) / 2), 1), ay: Y((mb.h0 + mb.h1) / 2), txt: ['Mouth: no permanent lining', 'steel-clad bricks + filling'], muted: 1 });
@@ -2199,9 +2201,9 @@ function permSVG() {
 }
 function permLayerBars() {
   const pl = XN('plate') || 0;
-  return PSEC.filter(([, , type]) => bandOf(type)).map(([sec, name]) => { const F = PF(sec), t = +S[sec][F.t], b = +S[sec][F.b];
-    return `<div style="margin:6px 0"><div class="small"><b>${name}</b> · shell ${fv(pl)} + permanent ${fv(t)}${b ? ` + backfill ${fv(b)}` : ''} mm → working lining starts</div>
-    <div class="sbar"><div style="flex:${pl};background:${PCOL.plate}">${pl >= 60 ? 'Shell' : ''}</div><div style="flex:${t};background:${PCOL.perm}">${fv(t)}</div>${b ? `<div style="flex:${b};background:${PCOL.back}">${fv(b)}</div>` : ''}<div style="flex:${Math.max(250, 600 - t - b)};background:var(--paper);color:var(--muted);border-left:2px dashed var(--accent)">working lining →</div></div></div>`; }).join('');
+  return PSEC.filter(([, , type]) => bandOf(type)).map(([sec, name]) => { const F = PF(sec), BL = sec === 'bottom' ? botPerm() : [{ t: +S[sec][F.t] }], t = BL.reduce((a, l) => a + l.t, 0), b = +S[sec][F.b];
+    return `<div style="margin:6px 0"><div class="small"><b>${name}</b> · shell ${fv(pl)} + permanent ${BL.length > 1 ? BL.map(l => fv(l.t)).join(' + ') + ` (${BL.length} layers)` : fv(t)}${b ? ` + backfill ${fv(b)}` : ''} mm → working lining starts</div>
+    <div class="sbar"><div style="flex:${pl};background:${PCOL.plate}">${pl >= 60 ? 'Shell' : ''}</div>${BL.map((l, i) => `<div style="flex:${l.t};background:${PCOL.perm}${i ? ';border-left:2px solid #0d4f6e' : ''}">${fv(l.t)}</div>`).join('')}${b ? `<div style="flex:${b};background:${PCOL.back}">${fv(b)}</div>` : ''}<div style="flex:${Math.max(250, 600 - t - b)};background:var(--paper);color:var(--muted);border-left:2px dashed var(--accent)">working lining →</div></div></div>`; }).join('');
 }
 function permPic() {
   return `<h3>Naked shell + permanent lining <span class="small">updates as you type</span></h3>
@@ -2498,6 +2500,9 @@ function sessionCard() {
     /* ============ PERMANENT LINING ============ */
     const PSEC = [['bottom', 'Bottom', 'Bottom'], ['lc', 'Lower cone', 'Lower cone'], ['barrel', 'Barrel', 'Barrel'], ['cone', 'Top cone', 'Top cone']];
     const PF = sec => sec === 'bottom' ? { g: 'permGrade', t: 'permT', b: 'permBack', d: 'permDens' } : { g: 'perm', t: 'tPerm', b: 'back', d: 'permDens' };
+    // Bottom permanent lining layers (shell side first): layer 1 = permGrade / permT / permDens, layers 2, 3 … = bottom.permExtra
+    const botPerm = () => { const B = S.bottom; return [{ grade: B.permGrade, t: +B.permT || 0, dens: +B.permDens, tp: 'bottom.permT' }].concat((B.permExtra || []).map((e, i) => ({ grade: e.grade, t: +e.t || 0, dens: +e.dens, tp: `bottom.permExtra.${i}.t` }))); };
+    const botPermT = () => botPerm().reduce((a, l) => a + l.t, 0);
     function applyPermSource() {
       PSEC.forEach(([sec]) => {
         const src = S.permSrc[sec], F = PF(sec), P = S[sec];
@@ -2508,26 +2513,45 @@ function sessionCard() {
       applyPermSource();
       const rows = [], items = []; const B = S.permBrick;
       PSEC.forEach(([sec, name, type]) => {
-        const band = bandOf(type); if (!band) return; const P = S[sec], F = PF(sec), t = +P[F.t], dens = +P[F.d]; let area = 0, vol = 0;
+        const band = bandOf(type); if (!band) return; const P = S[sec], F = PF(sec);
+        (sec === 'bottom' ? botPerm() : [{ grade: P[F.g], t: +P[F.t], dens: +P[F.d], tp: `${sec}.${F.t}` }]).forEach((ly, li, LS) => {
+        const t = ly.t, dens = ly.dens, nm = LS.length > 1 ? `${name} · layer ${li + 1}` : name; let area = 0, vol = 0;
         if (sec === 'bottom') { const R = XN('lcIDb') / 2; area = fxCalc('ui_perm_bottom_area', { r_bot: R }, () => Math.PI * R * R); vol = fxCalc('ui_perm_bottom_vol', { area, thickness: t }, () => area * t); }
         else { const dh = 10; for (let h = band.h0 + dh / 2; h < band.h1; h += dh) { const Rs = rIn(h), c = Math.cos(rad(Math.abs(phiAt(h)))), rp = Rs - t / c; area += fxCalc('ui_perm_wall_slice_area', { r_shell: Rs, thickness: t, cos_phi: c, dh }, () => 2 * Math.PI * (Rs - t / 2 / c) * dh / c); vol += fxCalc('ui_perm_wall_slice_vol', { r_shell: Rs, thickness: t, cos_phi: c, dh }, () => Math.PI * (Rs * Rs - rp * rp) * dh); } }
         const bricks = fxCalc('ui_perm_bricks', { area, brick_w: +B.w, brick_h: +B.h, cut_pct: +B.cut }, () => Math.ceil(area / ((+B.w) * (+B.h)) * (1 + (+B.cut) / 100))); const tonnes = fxCalc('ui_perm_tonnes', { vol_mm3: vol, density: dens }, () => vol * dens / 1e9);
-        rows.push({ sec, name, src: S.permSrc[sec], grade: P[F.g], t, back: +P[F.b], area, vol, bricks, tonnes, dens });
-        if (S.permReuse !== 'Yes') items.push({ zone: 'Permanent · ' + name, mark: `PL-${B.w}×${B.h}×${t}`, grade: P[F.g], qty: bricks, tonnes });
+        rows.push({ sec, name: nm, src: S.permSrc[sec], grade: ly.grade, t, back: li === LS.length - 1 ? +P[F.b] : 0, area, vol, bricks, tonnes, dens, tp: ly.tp, layer: li + 1 });
+        if (S.permReuse !== 'Yes') items.push({ zone: 'Permanent · ' + nm, mark: `PL-${B.w}×${B.h}×${t}`, grade: ly.grade, qty: bricks, tonnes });
+        });
       });
       return { rows, items };
     }
     function permChecks(D) {
       const out = [];
       D.rows.forEach(r => {
-        if (r.src === 'Drawing') out.push(CHK('P1', `Source · ${r.name}`, 'err', 'The customer drawing is a naked shell: no permanent lining was extracted. Choose Customer spec or Supplier input.', { fixes: [{ label: `Use Supplier input for ${r.name}`, spec: `permSrc.${r.sec}=Supplier input` }] }));
+        if (r.layer > 1) { const ok = r.t > 0 && String(r.grade || '').trim() && r.dens > 0; out.push(CHK('P1', `Layer data · ${r.name}`, ok ? 'ok' : 'err', ok ? `${r.grade}, ${f(r.t)} mm, ${r.dens} t/m³ (laid on layer ${r.layer - 1}).` : 'Enter grade, thickness > 0 and density for this permanent layer, or remove the layer.')); }
+        else if (r.src === 'Drawing') out.push(CHK('P1', `Source · ${r.name}`, 'err', 'The customer drawing is a naked shell: no permanent lining was extracted. Choose Customer spec or Supplier input.', { fixes: [{ label: `Use Supplier input for ${r.name}`, spec: `permSrc.${r.sec}=Supplier input` }] }));
         else if (r.src === 'Customer spec' && S.job.cusPerm !== 'Yes') out.push(CHK('P1', `Source · ${r.name}`, 'err', 'Customer spec selected, but the job card says the customer did not specify a permanent lining.', { hint: 'Either set "Customer specifies the permanent lining?" to Yes and enter the grade and thickness, or use Supplier input.', fixes: [{ label: `Use Supplier input for ${r.name}`, spec: `permSrc.${r.sec}=Supplier input` }] }));
         else out.push(CHK('P1', `Source · ${r.name}`, 'ok', `${r.src}: ${r.grade}, ${f(r.t)} mm.`));
-        out.push(CHK('P2', `Thickness range · ${r.name}`, r.t >= +S.permLim.min && r.t <= +S.permLim.max ? 'ok' : 'warn', `${f(r.t)} mm vs Supplier range ${S.permLim.min}–${S.permLim.max} mm.`, { fixes: [{ label: `Set ${r.name} to ${Math.min(Math.max(r.t, +S.permLim.min), +S.permLim.max)} mm`, spec: `${r.sec}.${PF(r.sec).t}=${Math.min(Math.max(r.t, +S.permLim.min), +S.permLim.max)}` }] }));
+        out.push(CHK('P2', `Thickness range · ${r.name}`, r.t >= +S.permLim.min && r.t <= +S.permLim.max ? 'ok' : 'warn', `${f(r.t)} mm vs Supplier range ${S.permLim.min}–${S.permLim.max} mm.`, { fixes: [{ label: `Set ${r.name} to ${Math.min(Math.max(r.t, +S.permLim.min), +S.permLim.max)} mm`, spec: `${r.tp || `${r.sec}.${PF(r.sec).t}`}=${Math.min(Math.max(r.t, +S.permLim.min), +S.permLim.max)}` }] }));
       });
-      if (S.job.cusPerm === 'Yes') { const bad = D.rows.filter(r => r.grade !== S.job.cusPermGrade || r.t !== +S.job.cusPermT); out.push(CHK('P3', 'Matches customer specification', bad.length ? 'warn' : 'ok', bad.length ? `Differs from customer spec (${S.job.cusPermGrade}, ${S.job.cusPermT} mm) in: ${bad.map(r => r.name).join(', ')}.` : 'All sections follow the customer specification.')); }
+      if (S.job.cusPerm === 'Yes') { const bad = D.rows.filter(r => !(r.layer > 1) && (r.grade !== S.job.cusPermGrade || r.t !== +S.job.cusPermT)); out.push(CHK('P3', 'Matches customer specification', bad.length ? 'warn' : 'ok', bad.length ? `Differs from customer spec (${S.job.cusPermGrade}, ${S.job.cusPermT} mm) in: ${bad.map(r => r.name).join(', ')}.` : 'All sections follow the customer specification.')); }
       out.push(CHK('P4', 'Reuse of existing permanent lining', S.permReuse === 'Yes' ? 'warn' : 'na', S.permReuse === 'Yes' ? 'Permanent lining is reused (reline): it is left out of the BOM. Site inspection must confirm its condition.' : 'New permanent lining is included in the BOM.'));
       return out;
+    }
+    function setBotPermN(n) {
+      const B = S.bottom; if (!Array.isArray(B.permExtra)) B.permExtra = []; const want = Math.max(0, (+n || 1) - 1), had = B.permExtra.length;
+      while (B.permExtra.length < want) { const l = B.permExtra[B.permExtra.length - 1] || { grade: B.permGrade, t: B.permT, dens: B.permDens }; B.permExtra.push({ grade: l.grade, t: +l.t, dens: +l.dens }); }
+      B.permExtra.length = want;
+      if (want !== had) { log('Value changed', `bottom permanent layers: ${had + 1} → ${want + 1}`); reopenFrom(ST.perm); }
+    }
+    function botLayersHTML() {
+      const X = S.bottom.permExtra || [];
+      return `<h4 style="margin:10px 0 4px">Bottom permanent lining layers ${tagS('T')}</h4>
+    <div class="fld inline" style="margin:4px 0 6px"><span><b>Number of bottom permanent layers</b></span><select data-p="bottomPermN">${[1, 2, 3, 4, 5].map(n => `<option ${n === X.length + 1 ? 'selected' : ''}>${n}</option>`).join('')}</select><span class="small">choose 2 for two light-blue bottom layers (as on the client drawing)</span></div>
+    <div class="tw"><table class="tbl pairtbl"><tr><th>Layer</th><th>Grade</th><th>Thickness (mm)</th><th>Density (t/m³)</th><th></th></tr>
+    <tr><td>1 · on the shell</td><td>${esc(S.bottom.permGrade)}</td><td>${f(S.bottom.permT)}</td><td>${esc(S.bottom.permDens)}</td><td class="small">rows above</td></tr>
+    ${X.map((e, i) => `<tr><td>${i + 2}${i === X.length - 1 ? ' · under working' : ''}</td><td><input list="grades" style="width:120px" data-p="bottom.permExtra.${i}.grade" value="${esc(e.grade)}"></td><td><input type="number" step="any" class="mini" data-p="bottom.permExtra.${i}.t" value="${esc(e.t)}"></td><td><input type="number" step="any" class="mini" data-p="bottom.permExtra.${i}.dens" value="${esc(e.dens)}"></td><td><button class="btn xs" data-act="delPermLayer" data-i="${i}" title="Remove layer ${i + 2}">✕</button></td></tr>`).join('')}
+    </table></div><button class="btn xs" data-act="addPermLayer">+ Add permanent layer</button> <span class="small">Total ${X.length + 1} layer${X.length ? 's' : ''} = ${f(botPermT())} mm. Layer 2, 3 … are laid on top of layer 1 (towards the working bottom); each is drawn as its own band with a joint line and has its own BOM line.</span>`;
     }
     function vPerm() {
       const D = permDesign(), cs = permChecks(D); const srcOpts = ['Supplier input', 'Customer spec', 'Drawing'];
@@ -2538,6 +2562,7 @@ function sessionCard() {
     ${frow([`permSrc.${sec}`, 'Source of permanent lining data', '', 'sel', 'T', 1, 'Drawing / customer specification / Supplier input', srcOpts])}
     ${frow([p + F.g, 'Permanent Lining Grade', '', ty || 'grade', ro ? 'C' : 'T', 1, ''])}${frow([p + F.t, 'Permanent Lining Thickness', 'mm', ty || 'n', ro ? 'C' : 'T', 1, sec === 'bottom' ? 'Measured vertically under the working bottom' : 'Measured normal to the shell'])}
     ${frow([p + F.b, 'Backfill / Gap Thickness', 'mm', 'n', 'T', 0, 'Rammed fill between permanent and working lining (0 if none)'])}${frow([p + F.d, 'Permanent lining bulk density', 't/m³', 'n', 'T', 1, 'For weight and tonnage'])}</table>
+    ${sec === 'bottom' ? botLayersHTML() : ''}
     ${S.permSrc[sec] === 'Drawing' ? '<div class="note bad">⚠ No permanent lining on the customer drawing (naked shell). Choose another source.</div>' : ''}</div>`;
       };
       const tot = D.rows.reduce((a, r) => a + r.tonnes, 0);
@@ -2571,7 +2596,7 @@ function sessionCard() {
     }
     function conceptVessel() {
       if (CACHE.concept) return CACHE.concept;
-      const H = XN('H'), dh = 10, bt = bottomThick(), tb = (+S.bottom.permT) + (+S.bottom.permBack) + bt.t; let V = 0, W = 0; const cum = [], prof = [];
+      const H = XN('H'), dh = 10, bt = bottomThick(), tb = botPermT() + (+S.bottom.permBack) + bt.t; let V = 0, W = 0; const cum = [], prof = [];
       for (let h = dh / 2; h < H; h += dh) {
         const L = layerAt(h); if (!L) continue; const Rs = rIn(h), c = Math.cos(rad(Math.abs(phiAt(h))));
         const rWall = fxCalc('ui_hot_radius_wall', { r_shell: Rs, t_perm: L.perm, t_back: L.back, t_work: L.t, cos_phi: c }, () => Rs - (L.perm + L.back + L.t) / c);
@@ -2579,7 +2604,7 @@ function sessionCard() {
         V += Math.PI * rHot * rHot * dh; cum.push([h, V]); prof.push([h, rHot, Rs]);
         if (L.type !== 'Bottom') { const r1 = Rs - L.perm / c, r2 = r1 - L.back / c, r3 = Math.max(0, r2 - L.t / c); W += Math.PI * dh * ((Rs * Rs - r1 * r1) * L.permDens + (r1 * r1 - r2 * r2) * L.backDens + (r2 * r2 - r3 * r3) * L.dens); }
       }
-      const Rb = XN('lcIDb') / 2, Ab = Math.PI * Rb * Rb; W += Ab * ((+S.bottom.permT) * (+S.bottom.permDens) + bt.t * (+S.bottom.dens));
+      const Rb = XN('lcIDb') / 2, Ab = Math.PI * Rb * Rb; W += Ab * (botPerm().reduce((a, l) => a + l.t * l.dens, 0) + bt.t * (+S.bottom.dens));
       const Vm = fxCalc('ui_metal_volume', { heat_tons: +S.job.heat, steel_density: +S.job.rho }, () => (+S.job.heat) / (+S.job.rho) * 1e9), Vs = (+S.job.slagVol) * 1e9;
       const lvl = v => { const p = cum.find(x => x[1] >= v); return p ? p[0] : NaN; };
       const hb = lvl(Vm), hs = lvl(Vm + Vs);
@@ -3362,7 +3387,7 @@ function sessionCard() {
       return `${guide('The bottom is laid as concentric rings around a central key brick. Drawing values are pre-filled; enter the Supplier and customer values. Results update when you change a value.')}
   <div class="grid2"><div>
   ${fgroup('A. From the drawing (confirm or edit)', 'D', [ex('dishR', 'Bottom Dish Radius', 'Spherical radius of the working-lining hot face; 0 = flat bottom'), ex('botDia'), ex('dishDepth'), ex('nStir'), ex('pcd'), ex('botGrade', null, 'Cross-check only', 0)])}
-  <div class="note">Working bottom thickness <b>${f(bottomThick().t)} mm</b> and permanent bottom ${esc(S.bottom.permGrade)} ${f(S.bottom.permT)} mm come from the Permanent lining and Lining concept steps.</div>
+  <div class="note">Working bottom thickness <b>${f(bottomThick().t)} mm</b> and permanent bottom ${botPerm().map(l => `${esc(l.grade)} ${f(l.t)}`).join(' + ')} mm come from the Permanent lining and Lining concept steps.</div>
   ${fgroup('C. Customer', 'C', [[P + 'elDia', 'Stirring Element Diameter', 'mm', 'n', 'C', 1, 'Outer diameter of the element block'], [P + 'mand', 'Mandated Bottom Grade', '', 'grade', 'C', 0, 'Optional; overrides the Supplier grade']])}
   </div><div>
   ${fgroup('B. Supplier inputs', 'T', [[P + 'grade', 'Bottom Zone Grade', '', 'grade', 'T', 1, 'Set in step 4'], [P + 'keyR', 'Key Brick Radius', 'mm', 'n', 'T', 1, 'Radius covered by the central key brick'], [P + 'ringW', 'Ring Radial Width', 'mm', 'n', 'T', 1, 'Along the dish surface'], [P + 'tanW', 'Average Brick Tangential Width', 'mm', 'n', 'T', 1, 'For the approximate count'], [P + 'exact', 'Use exact closure with tapered pairs', '', 'yn', 'T', 0, 'If Yes, enter A/B widths per band'], [P + 'cutsPerEl', 'Cut Pieces per Element per Ring', 'no.', 'n', 'T', 1, ''], [P + 'minCut', 'Minimum Cut Brick Width', 'mm', 'n', 'T', 1, ''], [P + 'tol', 'Brick Count Tolerance', '%', 'n', 'T', 1, ''], [P + 'growMin', 'Ring Growth Band – minimum', 'bricks', 'n', 'T', 1, ''], [P + 'growMax', 'Ring Growth Band – maximum', 'bricks', 'n', 'T', 1, ''], [P + 'depthTol', 'Dish Depth Tolerance', 'mm', 'n', 'T', 1, ''], [P + 'dens', 'Bulk density of bottom grade', 't/m³', 'n', 'T', 1, 'For tonnage']])}
@@ -3628,8 +3653,10 @@ function sessionCard() {
       delAsm: el => { S.asm.custom.splice(+el.dataset.i, 1); reopenFrom(ST.junc); render(); },
       addBand: () => { const b = S.bottom.bands; const l = b[b.length - 1]; b.push({ mark: 'SH-0' + (b.length + 1), from: (+l.to || 0) + 1, to: 99, aHot: '', aCold: '', bHot: '', bCold: '' }); reopenFrom(ST.bottom); render(); },
       delBand: el => { S.bottom.bands.splice(+el.dataset.i, 1); reopenFrom(ST.bottom); render(); },
+      addPermLayer: () => { const B = S.bottom; if (!Array.isArray(B.permExtra)) B.permExtra = []; const l = B.permExtra[B.permExtra.length - 1] || { grade: B.permGrade, t: B.permT, dens: B.permDens }; B.permExtra.push({ grade: l.grade, t: +l.t, dens: +l.dens }); log('Value changed', `bottom permanent layer ${B.permExtra.length + 1} added`); reopenFrom(ST.perm); render(); autoSave(); },
+      delPermLayer: el => { S.bottom.permExtra.splice(+el.dataset.i, 1); log('Value changed', `bottom permanent layer ${+el.dataset.i + 2} removed`); reopenFrom(ST.perm); render(); autoSave(); },
       csv: () => { if (S.lin && S.lin.result && S.lin.result.files['bom.csv']) return linDownload('bom.csv'); const rows = [['Zone', 'Mark', 'Grade', 'Qty', 'Tonnes']].concat(allBOQ().map(i => [i.zone, i.mark, i.grade, isFinite(i.qty) ? i.qty : '', i.tonnes.toFixed(3)])); download('BOM_' + S.job.ref.replace(/\W+/g, '_') + '.csv', rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n'), 'text/csv'); },
-      json: () => download('Design_' + S.job.ref.replace(/\W+/g, '_') + '.json', JSON.stringify({ job: S.job, extraction: S.ext, zones: S.zones, segmentDesign: S.segz, permanentLining: { source: S.permSrc, reuse: S.permReuse, bottom: { grade: S.bottom.permGrade, t: S.bottom.permT } }, concept: conceptVessel(), junctions: S.junc, nozzles: nozzles(), assemblies: S.asm, chargeSide: S.chargeSide, bottom: S.bottom, lowerCone: S.lc, barrel: S.barrel, topCone: S.cone, mouth: S.mouth, boq: allBOQ(), bomFromDrawing: S.lin && S.lin.result ? S.lin.result.bom : null, checks: allChecks(), log: S.log }, null, 1), 'application/json'),
+      json: () => download('Design_' + S.job.ref.replace(/\W+/g, '_') + '.json', JSON.stringify({ job: S.job, extraction: S.ext, zones: S.zones, segmentDesign: S.segz, permanentLining: { source: S.permSrc, reuse: S.permReuse, bottom: { grade: S.bottom.permGrade, t: S.bottom.permT, layers: botPerm().map(l => ({ grade: l.grade, t: l.t, density: l.dens })) } }, concept: conceptVessel(), junctions: S.junc, nozzles: nozzles(), assemblies: S.asm, chargeSide: S.chargeSide, bottom: S.bottom, lowerCone: S.lc, barrel: S.barrel, topCone: S.cone, mouth: S.mouth, boq: allBOQ(), bomFromDrawing: S.lin && S.lin.result ? S.lin.result.bom : null, checks: allChecks(), log: S.log }, null, 1), 'application/json'),
       fast: () => { if (!S.job.drawing) ACT.sample(); if (!S.zones.length) ACT.suggestZones(); EXT_GROUPS.forEach(g => S.extOk[g] = true); for (let n = 0; n < LAST; n++) S.gates[n] = { t: nowT() }; S.step = LAST; VIEW = 'step'; log('Demo: all steps confirmed'); render(); autoSave(); },
       apiConfig: () => {
         const cur = getApiBase();
@@ -3781,9 +3808,11 @@ function sessionCard() {
       const cosAt = name => { const i = prof.findIndex(s => s.name === name); if (i < 0) return 1; const s = prof[i], p = i ? prof[i - 1] : { end_r: 0, end_z: 0 }; if (s.shape === 'arc') return 1; const dr = s.end_r - p.end_r, dz = s.end_z - p.end_z, L = Math.hypot(dr, dz) || 1; return Math.abs(dz) / L; };
       // 2. layers
       const backAny = [+S.bottom.permBack, +S.lc.back, +S.barrel.back, +S.cone.back].some(x => x > 0);
-      const layers = backAny ? ['PERMANENT', 'BACKFILL', 'WORKING'] : ['PERMANENT', 'WORKING'];
+      const bpx = (S.bottom.permExtra || []), nPx = bpx.length;
+      const layers = ['PERMANENT'].concat(bpx.map((_, i) => 'PERMANENT ' + (i + 2)), backAny ? ['BACKFILL', 'WORKING'] : ['WORKING']);
       if (backAny) mono['Backfill'] = { density: 2.8, fill_factor: 1 };
-      const mkLayers = (pg, pt, back, wg, wt) => backAny ? [{ grade: pg, thickness: pt }, { grade: 'Backfill', thickness: back || 0 }, { grade: wg, thickness: wt }] : [{ grade: pg, thickness: pt }, { grade: wg, thickness: wt }];
+      const mkLayers = (pg, pt, back, wg, wt, ex) => [{ grade: pg, thickness: pt }].concat(bpx.map((_, i) => ex && ex[i] ? { grade: ex[i].grade, thickness: +ex[i].t } : { grade: pg, thickness: 0 }),
+        backAny ? [{ grade: 'Backfill', thickness: back || 0 }] : [], [{ grade: wg, thickness: wt }]);
       // 3. bands from the zones, split at shell breaks / zone height limits / stepped taper
       const bands = [], names = new Set(); const uniq = n => { let m = n, i = 2; while (names.has(m)) m = `${n} (${i++})`; names.add(m); return m; };
       const zones = S.zones.slice().sort((a, b) => a.h0 - b.h0);
@@ -3814,9 +3843,11 @@ function sessionCard() {
             const B = S.bottom, t = bottomThick().t, g = (B.mand || '').trim() || B.grade;
             if (!isFinite(t)) errs.push('Bottom: no standard length ≥ required working thickness (step 6).');
             band.kind = sz.s.shape === 'arc' || /Bottom/.test(sz.name) ? 'bottom' : undefined;
-            band.sectors.push({ from: 0, to: 360, name: 'Bottom', layers: mkLayers(B.permGrade, +B.permT, +B.permBack, g, t) });
+            band.sectors.push({ from: 0, to: 360, name: 'Bottom', layers: mkLayers(B.permGrade, +B.permT, +B.permBack, g, t, bpx) });
             dens[`${name}|Bottom|${g}`] = +B.dens; dens[`${name}|PERMANENT|${B.permGrade}`] = +B.permDens;
             dens[g] = dens[g] || +B.dens; dens[B.permGrade] = dens[B.permGrade] || +B.permDens;
+            bpx.forEach((e, i) => { if (!(+e.t > 0) || !String(e.grade || '').trim()) errs.push(`Bottom permanent layer ${i + 2}: enter grade and thickness > 0 (step 5).`);
+              dens[`${name}|PERMANENT ${i + 2}|${e.grade}`] = +e.dens; dens[e.grade] = dens[e.grade] || +e.dens; });
           } else if (zn.type === 'Mouth') {
             const Mo = S.mouth, trans = mT != null && mid < mT; const L = trans ? +Mo.transL : +Mo.mL, g = trans ? Mo.transGrade : Mo.grade;
             band.kind = 'mouth'; band.course_height = M ? M.chUsed : (+Mo.course) + (+Mo.joint); band.brick_height = band.course_height; band.course_origin = M ? M.band.h0 : zn.h0;
@@ -3854,9 +3885,9 @@ function sessionCard() {
       prof.forEach(s => { if (!bands.some(b => b.segments.includes(s.name))) { const lower = bands.filter(b => b.z_to <= s.end_z + 0.01).pop(); if (lower) lower.segments.push(s.name); else errs.push(`Shell segment ${s.name} is not covered by any zone (step 3).`); } });
       // rows for the zone table
       bands.forEach(b => b.sectors.forEach(sc => {
-        const w = sc.layers[sc.layers.length - 1], p = sc.layers[0];
+        const w = sc.layers[sc.layers.length - 1], pls = sc.layers.slice(0, nPx + 1).filter((l, i) => !i || l.thickness > 0);
         row('Zones & lining (steps 3–11)', `${b.name} · ${sc.name} · ${fv(sc.from)}–${fv(sc.to)}° · EL ${fv(b.z_from)}–${fv(b.z_to)}`,
-          `perm. ${esc(p.grade)} ${fv(+p.thickness.toFixed(1))} · working ${esc(w.grade)} ${sc.brick_length && Math.abs(sc.brick_length - w.thickness) > 0.05 ? `brick ${fv(sc.brick_length)} (laid horizontally = ${fv(+w.thickness.toFixed(1))} square to the wall)` : fv(+w.thickness.toFixed(1))} mm${sc.pairs && sc.pairs.length ? ' · pairs ' + sc.pairs.map(q => `${q.A}/${q.B} L${q.L}`).join(', ') : ''}`,
+          `perm. ${pls.map(p => `${esc(p.grade)} ${fv(+p.thickness.toFixed(1))}`).join(' + ')} · working ${esc(w.grade)} ${sc.brick_length && Math.abs(sc.brick_length - w.thickness) > 0.05 ? `brick ${fv(sc.brick_length)} (laid horizontally = ${fv(+w.thickness.toFixed(1))} square to the wall)` : fv(+w.thickness.toFixed(1))} mm${sc.pairs && sc.pairs.length ? ' · pairs ' + sc.pairs.map(q => `${q.A}/${q.B} L${q.L}`).join(', ') : ''}`,
           'Entered / confirmed in the steps', b.kind === 'bottom' ? ST.bottom : b.kind === 'mouth' ? ST.mouth : ST.concept, '');
       }));
       // 4. nozzles
@@ -4253,7 +4284,7 @@ function sessionCard() {
       if (op.tapping_temperature_c) S.job.tapT = +op.tapping_temperature_c;
       S.extSrc = src;
       INIT.ext = clone(S.ext);
-      EXT_GROUPS.forEach(g => S.extOk[g] = false);
+      EXT_GROUPS.forEach(g => S.extOk[g] = true);
       S.annAll = true;
       reopenFrom(1);
       const miss = LIN_EXT.filter(([k]) => !src[k]).map(([k]) => S.ext[k].label);
@@ -4336,6 +4367,7 @@ function sessionCard() {
           return;
         }
         const p = el.dataset.p; if (!p) return;
+        if (p === 'bottomPermN') { setBotPermN(el.value); render(); autoSave(); return; }
         const old = el.dataset.orig !== undefined ? el.dataset.orig : getP(S, p); delete el.dataset.orig; let v = el.value; if (el.type === 'checkbox') v = el.checked; else if (el.type === 'number') v = v === '' ? '' : +v; else if (typeof old === 'number' && v !== '' && !isNaN(+v)) v = +v;
         if (p.startsWith('zones.') && p.endsWith('.h1')) { const i = +p.split('.')[1]; const H = S.zones[S.zones.length - 1].type === 'Mouth' ? mouthPlan().start : XN('H'); v = Math.max(S.zones[i].h0 + 1, Math.min(+v, H)); S.zones[i].h1 = v; if (S.zones[i + 1]) S.zones[i + 1].h0 = v; for (let j = i + 1; j < S.zones.length; j++) { if (S.zones[j].h1 <= S.zones[j].h0) S.zones[j].h1 = Math.min(H, S.zones[j].h0 + 1); if (S.zones[j + 1]) S.zones[j + 1].h0 = S.zones[j].h1; } }
         else setP(S, p, v);

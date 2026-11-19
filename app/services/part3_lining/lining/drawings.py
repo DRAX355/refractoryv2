@@ -323,7 +323,7 @@ class LiningSheet(Sheet):
                 dia = float(n.get("diameter") or 0)
                 if dia > 0:
                     inc = math.radians(float(n.get("inclination") or 0))
-                    nx, nz = math.sin(inc), math.cos(inc)        # normal to the axis in (r, z)
+                    nx, nz = -math.sin(inc), math.cos(inc)       # normal to the axis (+cos, +sin) in (r, z)
                     for s in (-1, 1):
                         q1 = (p_o[0] + s * nx * dia / 2, p_o[1] + s * nz * dia / 2)
                         q2 = (p_e[0] + s * nx * dia / 2, p_e[1] + s * nz * dia / 2)

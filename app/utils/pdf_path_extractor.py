@@ -40,6 +40,7 @@ class PDFPathProfile:
     max_radius_mm: float = 0.0
     page_width_pt: float = 0.0
     page_height_pt: float = 0.0
+    taphole_inclination_deg: float | None = None
     success: bool = False
 
 
@@ -168,6 +169,38 @@ def extract_pdf_path_profile(pdf_path: str | Path, text_polygons: list = None) -
                 ProfilePoint(y_mm=p.y_mm * PT_TO_MM, r_mm=p.r_mm * PT_TO_MM)
                 for p in profile_pts
             ]
+
+            # Detect taphole centerline inclination from magenta centerline segments (CAD convention)
+            mag_angles_h: list[float] = []
+            mag_angles_v: list[float] = []
+            has_horiz_cl = False
+            has_vert_cl = False
+            for line in (page.lines or []):
+                try:
+                    col = line.get("stroking_color")
+                    if col == (1, 0, 1) or (isinstance(col, (list, tuple)) and len(col) == 3 and col[0] > 0.8 and col[1] < 0.2 and col[2] > 0.8):
+                        dx = float(line["x1"]) - float(line["x0"])
+                        dy = float(line["y1"]) - float(line["y0"])
+                        ln = math.hypot(dx, dy)
+                        if ln > 10.0:
+                            ang = abs(math.degrees(math.atan2(dy, dx)))
+                            if ang > 90.0:
+                                ang = 180.0 - ang
+                            if ang < 1.0:
+                                has_horiz_cl = True
+                            elif ang > 89.0:
+                                has_vert_cl = True
+                            elif 55.0 <= ang <= 88.5:
+                                mag_angles_h.append(90.0 - ang)
+                            elif 1.5 <= ang <= 35.0:
+                                mag_angles_v.append(ang)
+                except (KeyError, TypeError):
+                    pass
+            incls = mag_angles_h if (has_horiz_cl and mag_angles_h) else (mag_angles_v if (has_vert_cl and mag_angles_v) else (mag_angles_h or mag_angles_v))
+            if incls:
+                incls.sort()
+                result.taphole_inclination_deg = round(incls[len(incls) // 2], 1)
+                logger.info(f"[PDF-Paths] Extracted taphole inclination from centerline: {result.taphole_inclination_deg}°")
 
             result.points = profile_mm
             result.total_height_mm = profile_mm[-1].y_mm - profile_mm[0].y_mm if profile_mm else 0.0

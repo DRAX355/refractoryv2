@@ -84,7 +84,7 @@ def assemble_vessel_geometry(
         cap_m = re.search(r"\b(\d{2,3})\s*(?:T|TON|TONS|MT)\b", all_s)
         if cap_m:
             geometry.operating_conditions.vessel_capacity_tons = float(cap_m.group(1))
-    geometry.nozzles               = _assemble_nozzles(dino_detections, ocr_result)
+    geometry.nozzles               = _assemble_nozzles(dino_detections, ocr_result, pdf_path_profile=pdf_path_profile)
     geometry.detected_views        = _build_view_regions(dino_detections, ocr_result)
     geometry.raw_ocr_texts         = ocr_result.raw_texts
     geometry.dino_detections       = dino_detections
@@ -978,6 +978,7 @@ def _compute_slopes(segments: list[VesselSegment]) -> None:
 def _assemble_nozzles(
     dino_detections: list[BoundingBox],
     ocr: OCRResult,
+    pdf_path_profile=None,
 ) -> list[Nozzle]:
     import re
     nozzles: list[Nozzle] = []
@@ -991,20 +992,20 @@ def _assemble_nozzles(
 
     all_text = " ".join(ocr.raw_texts).upper()
 
-    # Taphole detection (from drawing text / labels or inclination annotation e.g. 10°)
+    # Taphole detection (from drawing text / labels, rotated OCR, or PDF centerline angle)
     tap_match = re.search(r"TAP\s*HOLE|TAPHODE|\bTAP\b", all_text)
     inc_m = re.search(r"(\d{1,2}(?:\.\d+)?)\s*°", all_text)
-    if not inc_m:
-        # Check for rotated/upside-down degree annotation (e.g. ".01" or "°01" from 180° rotated "10°")
+    if inc_m:
+        inc_val = float(inc_m.group(1))
+    else:
+        inc_val = None
         for t in ocr.raw_texts:
             t_s = t.strip()
             if re.fullmatch(r"[.°oO']\s*01|10\s*[°oO']", t_s):
                 inc_val = 10.0
                 break
-        else:
-            inc_val = None
-    else:
-        inc_val = float(inc_m.group(1))
+        if inc_val is None and pdf_path_profile is not None and getattr(pdf_path_profile, "taphole_inclination_deg", None) is not None:
+            inc_val = float(pdf_path_profile.taphole_inclination_deg)
     if tap_match or inc_val is not None:
         dia_m = re.search(r"(?:TAP\s*HOLE|TAPHODE)[^\d]*[Ø#@]?\s*(\d{2,4})", all_text)
         dia = float(dia_m.group(1)) if dia_m else None

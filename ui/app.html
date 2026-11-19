@@ -1491,6 +1491,47 @@
       font-weight: 600
     }
 
+    .sgrp {
+      margin: 12px 8px 3px;
+      font-size: 10px;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      opacity: .45;
+      font-weight: 700
+    }
+
+    .subnav {
+      margin: 0 0 4px 19px;
+      padding-left: 5px;
+      border-left: 1px solid #2c3d33
+    }
+
+    .st.sub {
+      padding: 4px 6px;
+      gap: 7px;
+      font-size: 12.5px;
+      border-radius: 6px
+    }
+
+    .st.sub .sw {
+      flex: none;
+      border-color: rgba(255, 255, 255, .3)
+    }
+
+    .st.sub small {
+      font-size: 10px
+    }
+
+    .st.sub.cur {
+      background: #1c2721;
+      color: #fff;
+      box-shadow: inset 3px 0 #4cc27f
+    }
+
+    #permZone .ftbl select {
+      width: 240px
+    }
+
     .st .errb {
       margin-left: auto;
       background: var(--bad);
@@ -1782,7 +1823,7 @@
         concept: { kW: 8, kP: 3, hOut: 25, tAmb: 40, balTol: 15 }, junc: {},
         asm: { thBlockKg: 520, thSleeves: 6, thSleeveKg: 180, thRamT: 0.45, stirProd: 'GRADE-L', stirKg: 42, surrProd: 'GRADE-K', surrPer: 4, surrKg: 6.5, castProd: 'Castable (stirring base)', castKg: 120, custom: [] },
         bottom: {
-          grade: 'GRADE-A', mand: '', keyR: 160, ringW: 155, tanW: 119, minCut: 40, cutsPerEl: 2, tol: 5, growMin: 6, growMax: 10, depthTol: 2, brickL: 900, wear: 0.125, lengths: '700,800,900,1000', resid: 150, tOver: '', permGrade: 'GRADE-E', permT: 150, permBack: 0, permDens: 2.95, permExtra: [], dens: 3.02, elDia: 250, exact: 'No',
+          grade: 'GRADE-A', mand: '', keyR: 160, ringW: 155, tanW: 119, minCut: 40, cutsPerEl: 2, tol: 5, growMin: 6, growMax: 10, depthTol: 2, brickL: 900, wear: 0.125, lengths: '700,800,900,1000', resid: 150, tOver: '', permGrade: 'GRADE-E', permT: 150, permBack: 0, permDens: 2.95, dens: 3.02, elDia: 250, exact: 'No',
           bands: [['SH-01', 1, 3], ['SH-02', 4, 7], ['SH-03', 8, 8], ['SH-04', 9, 11], ['SH-05', 12, 99]].map(([mark, from, to]) => ({ mark, from, to, aHot: '', aCold: '', bHot: '', bCold: '' }))
         },
         lc: Object.assign(wallCommon(), {
@@ -2014,7 +2055,7 @@
       for (let k = 1; k <= nC; k++) {
         const elev = fxCalc('ui_wall_course_elev', { h0: band.h0, course_k: k, ch }, () => band.h0 + (k - 0.5) * ch), Rs = rIn(elev), phi = phiAt(elev), cphi = Math.cos(rad(Math.abs(phi)));
         const sg = segAt(elev), zs = sg.zs, th = sg.th; sg.courses++; const lbl = n => multi ? `${sg.z.name} · ${n}` : n;
-        const cold = fxCalc('ui_wall_cold_radius', { r_shell: Rs, t_perm: +P.tPerm, t_back: +P.back, cos_phi: cphi }, () => Rs - ((+P.tPerm) + (+P.back)) / cphi);
+        const pq = permOf(sg.sid), cold = fxCalc('ui_wall_cold_radius', { r_shell: Rs, t_perm: +pq.t, t_back: +pq.back || 0, cos_phi: cphi }, () => Rs - ((+pq.t) + (+pq.back || 0)) / cphi);
         const inRange = k >= +P.expFrom && k <= +P.expTo;
         const active = zs.filter(z => { const a = z.h0 === '' ? sg.z.h0 : +z.h0, b = z.h1 === '' ? sg.z.h1 : +z.h1; return elev >= a && elev <= b; });
         const spare = zs.filter(z => !active.includes(z)).reduce((a, z) => a + (+z.span), 0);
@@ -2063,7 +2104,7 @@
           out.push(CHK('V4', pre(sg) + 'Span total', Math.abs(sum - 360) < 0.01 && +Z.rest.span > +Z.tapSide.span ? 'ok' : 'err', `Rest ${f(Z.rest.span)}° + tap side ${f(Z.tapSide.span)}° = ${f(sum)}°. Rest area must be larger than tap-side area.`, { fixes: [{ label: `Set tap-side to 60°`, spec: `segz.${sg.sid}.zones.tapSide.span=60` }] }));
         }
         zs.forEach(z => { const t = sg.th[z.key]; out.push(CHK('V-T', `Thickness vs life · ${pre(sg)}${z.name}`, !isFinite(t.t) ? 'err' : t.t >= t.req ? 'ok' : 'warn', !isFinite(t.t) ? `No standard length ≥ required ${f(t.req)} mm.` : `${f(t.t)} mm vs required ${f(t.req)} mm → expected life ${f(t.life)} heats${t.t < t.req ? ` (short by ${f(S.job.life - t.life)} heats)` : ''}.`)); });
-        if (seg === 'barrel') zs.forEach(z => { const ts = shellTemp('barrel', sg.th[z.key].t); out.push(CHK('V8', `Shell temperature · ${pre(sg)}${z.name}`, ts <= +S.job.maxTs ? 'ok' : 'err', `1-D estimate ${f(ts)} °C (limit ${S.job.maxTs} °C).`)); });
+        if (seg === 'barrel') zs.forEach(z => { const ts = shellTemp('barrel', sg.th[z.key].t, sg.sid); out.push(CHK('V8', `Shell temperature · ${pre(sg)}${z.name}`, ts <= +S.job.maxTs ? 'ok' : 'err', `1-D estimate ${f(ts)} °C (limit ${S.job.maxTs} °C).`)); });
         if (!sg.courses) out.push(CHK('V-S', pre(sg) + 'Courses in segment', 'warn', 'Segment is shorter than one course; it gets no courses.'));
       });
       if (seg === 'cone') {
@@ -2151,66 +2192,79 @@
     }
 
     
-/* ============ PERMANENT LINING PICTURE (naked shell + permanent layer, live) ============ */
+/* ============ PERMANENT LINING PICTURE (naked shell + permanent layer per zone, live) ============ */
 const PCOL = { plate: '#3a4048', perm: '#35b6e8', back: '#c9a36b' };
-function permSecAt(h) {
-  const z = S.zones.find(q => h >= q.h0 && h < q.h1) || (S.zones.length && h >= S.zones[S.zones.length - 1].h0 ? S.zones[S.zones.length - 1] : null);
-  const t = z ? z.type : h < XN('lcH0') ? 'Bottom' : h < XN('lcH1') ? 'Lower cone' : h < XN('barH1') ? 'Barrel' : h < mouthPlan().start ? 'Top cone' : 'Mouth';
-  return ({ Bottom: 'bottom', 'Lower cone': 'lc', Barrel: 'barrel', 'Top cone': 'cone' })[t] || null;
-}
+const permCol = Q => (Q && Q.grade ? gcol(Q.grade) : PCOL.perm);
+function permZoneAt(h) { return S.zones.find(q => h >= q.h0 && h < q.h1) || (S.zones.length && h >= S.zones[S.zones.length - 1].h0 ? S.zones[S.zones.length - 1] : null); }
 function permSVG() {
   applyPermSource();
-  const H = XN('H'), x = +S.permX || 1, pl = XN('plate') || 0, W = 460, padT = 20, padB = 58, Lm = 14, Rm = 170;
+  const H = XN('H'), x = +S.permX || 1, pl = XN('plate') || 0, W = 460, padT = 20, padB = 58, Lm = 14, Rm = 170, sel = S.permTab;
   const maxR = Math.max(XN('barID') / 2, XN('lcIDt') / 2, XN('topIDb') / 2) + pl;
   const s = (W - Lm - Rm) / (2 * maxR), cx = Lm + maxR * s, Hh = padT + H * s + padB;
   const Xp = (r, sd) => cx + sd * r * s, Y = h => padT + (H - h) * s, P = [];
   const { inner, outer } = profilePts(0, H, 300); const side = (arr, sd) => arr.map(p => `${Xp(p[0], sd)},${Y(p[1])}`);
+  const selA = id => id && id === sel ? ' stroke="var(--ink)" stroke-width="1.6"' : '';
+  const clk = (id, nm) => id ? ` class="zp" data-act="permTab" data-id="${id}"><title>${esc(nm)} · click to edit its permanent lining</title></path>` : '></path>';
+  P.push(`<defs><pattern id="pmono" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" stroke="#fff" stroke-width="1.4" opacity=".7"/></pattern></defs>`);
   // naked shell interior
   P.push(`<path d="M${side(inner, -1).join(' L')} L${side(inner.slice().reverse(), 1).join(' L')}Z" fill="var(--paper)"/>`);
-  // bottom permanent layer following the dish
-  const Rb = XN('lcIDb') / 2, R = dishShellR(), B = S.bottom, tB = botPermT() * x, bB = (+B.permBack) * x, hs = r => R - Math.sqrt(Math.max(0, R * R - r * r));
+  // bottom permanent layer following the dish (bottom zone's own material)
+  const bz = S.zones.find(z => z.type === 'Bottom'), bq = botPerm();
+  const Rb = XN('lcIDb') / 2, R = dishShellR(), tB = (+bq.t) * x, bB = (+bq.back || 0) * x, hs = r => R - Math.sqrt(Math.max(0, R * R - r * r));
   const rs = []; for (let i = -60; i <= 60; i++) rs.push(Rb * i / 60);
-  const bandB = (o0, o1, col) => `<path d="M${rs.map(r => `${cx + r * s},${Y(hs(Math.abs(r)) + o0)}`).join(' L')} L${rs.slice().reverse().map(r => `${cx + r * s},${Y(hs(Math.abs(r)) + o1)}`).join(' L')}Z" fill="${col}"/>`;
-  const bLine = (o, col, w) => `<path d="M${rs.map(r => `${cx + r * s},${Y(hs(Math.abs(r)) + o)}`).join(' L')}" fill="none" stroke="${col}" stroke-width="${w}"/>`;
-  let oB = 0; botPerm().forEach((l, i) => { const t1 = l.t * x; P.push(bandB(oB, oB + t1, PCOL.perm)); if (i) P.push(bLine(oB, '#0d4f6e', 0.9)); oB += t1; });
-  if (bB > 0) P.push(bandB(tB, tB + bB, PCOL.back));
+  const dB = (o0, o1) => `M${rs.map(r => `${cx + r * s},${Y(hs(Math.abs(r)) + o0)}`).join(' L')} L${rs.slice().reverse().map(r => `${cx + r * s},${Y(hs(Math.abs(r)) + o1)}`).join(' L')}Z`;
+  const bL = permLayers(bq) || [bq]; let o = 0;
+  bL.forEach((l, i) => { const lt = (+l.t || 0) * x; P.push(`<path d="${dB(o, o + lt)}" fill="${gcol(l.grade || 'GRADE-E')}" stroke="var(--bg)" stroke-width=".5"${clk(bz && bz.id, bz ? `${bz.name} · layer ${i + 1} ${l.grade}` : '')}`); if (isMono(l)) P.push(`<path d="${dB(o, o + lt)}" fill="url(#pmono)" pointer-events="none"/>`); o += lt; });
+  if (bz && bz.id === sel) P.push(`<path d="${dB(0, tB)}" fill="none" stroke="var(--ink)" stroke-width="1.6" pointer-events="none"/>`);
+  if (bB > 0) P.push(`<path d="${dB(tB, tB + bB)}" fill="${PCOL.back}"/>`);
   P.push(`<path d="M${rs.map(r => `${cx + r * s},${Y(hs(Math.abs(r)) + tB + bB)}`).join(' L')}" fill="none" stroke="var(--accent)" stroke-width="1.2" stroke-dasharray="5 3"/>`);
-  // wall permanent layer, run by section
+  // wall permanent layer, one run per zone / segment (each with its own material and thickness)
   const runs = []; let cur = null; const lc0 = XN('lcH0');
-  for (let h = lc0; h <= H; h += 20) { const sec = permSecAt(Math.min(h, H - 0.1)); if (!sec || sec === 'bottom') { cur = null; continue; }
-    const Rs = rIn(h), c = Math.cos(rad(Math.abs(phiAt(h)))), F = PF(sec), t = (+S[sec][F.t]) * x, b = (+S[sec][F.b]) * x;
-    const pt = [h, Rs, Rs - t / c, Rs - (t + b) / c]; if (!cur || cur.sec !== sec) { if (cur) cur.pts.push(pt); cur = { sec, pts: [] }; runs.push(cur); } cur.pts.push(pt); }
-  const band = (pts, a, b, col, sd) => `<path d="M${pts.map(p => `${Xp(p[a], sd)},${Y(p[0])}`).join(' L')} L${pts.slice().reverse().map(p => `${Xp(p[b], sd)},${Y(p[0])}`).join(' L')}Z" fill="${col}"/>`;
-  runs.forEach(rn => [-1, 1].forEach(sd => { P.push(band(rn.pts, 1, 2, PCOL.perm, sd)); if (rn.pts.some(p => p[3] < p[2] - 0.1)) P.push(band(rn.pts, 2, 3, PCOL.back, sd));
-    P.push(`<path d="M${rn.pts.map(p => `${Xp(p[3], sd)},${Y(p[0])}`).join(' L')}" fill="none" stroke="var(--accent)" stroke-width="1.2" stroke-dasharray="5 3"/>`); }));
+  for (let h = lc0; h <= H; h += 20) {
+    const z = permZoneAt(Math.min(h, H - 0.1)); if (!z || z.type === 'Bottom' || z.type === 'Mouth') { cur = null; continue; }
+    const Q = permOf(z.id), Rs = rIn(h), c = Math.cos(rad(Math.abs(phiAt(h)))), t = (+Q.t) * x, b = (+Q.back || 0) * x;
+    if (!cur || cur.id !== z.id) { if (cur) { const tp = (+cur.Q.t) * x, bp = (+cur.Q.back || 0) * x; cur.pts.push([h, Rs, Rs - tp / c, Rs - (tp + bp) / c]); } cur = { id: z.id, z, Q, pts: [] }; runs.push(cur); }
+    cur.pts.push([h, Rs, Rs - t / c, Rs - (t + b) / c]);
+  }
+  const bandW = (pts, a, b, sd) => `M${pts.map(p => `${Xp(p[a], sd)},${Y(p[0])}`).join(' L')} L${pts.slice().reverse().map(p => `${Xp(p[b], sd)},${Y(p[0])}`).join(' L')}Z`;
+  runs.forEach(rn => [-1, 1].forEach(sd => {
+    P.push(`<path d="${bandW(rn.pts, 1, 2, sd)}" fill="${permCol(rn.Q)}"${selA(rn.id)}${clk(rn.id, rn.z.name)}`);
+    if (isMono(rn.Q)) P.push(`<path d="${bandW(rn.pts, 1, 2, sd)}" fill="url(#pmono)" pointer-events="none"/>`);
+    if (rn.pts.some(p => p[3] < p[2] - 0.1)) P.push(`<path d="${bandW(rn.pts, 2, 3, sd)}" fill="${PCOL.back}"/>`);
+    P.push(`<path d="M${rn.pts.map(p => `${Xp(p[3], sd)},${Y(p[0])}`).join(' L')}" fill="none" stroke="var(--accent)" stroke-width="1.2" stroke-dasharray="5 3"/>`);
+  }));
   // steel shell (plate)
   [-1, 1].forEach(sd => P.push(`<path d="M${side(outer, sd).join(' L')} L${side(inner.slice().reverse(), sd).join(' L')}Z" fill="${PCOL.plate}"/>`));
-  // section boundaries and labels
+  // zone boundaries and labels
   const labels = [];
-  PSEC.forEach(([sec, name, type]) => { const bd = bandOf(type); if (!bd) return; const F = PF(sec), P0 = S[sec], t = +P0[F.t], b = +P0[F.b];
-    const txt = [`${name}: ${t} mm${b ? ` + ${b} backfill` : ''}`, `${P0[F.g]} · ${S.permSrc[sec]}${isEdited(sec + '.' + F.t) ? ' ✎' : ''}`];
-    if (sec === 'bottom') { const BL = botPerm(); if (BL.length > 1) { txt[0] = `${name}: ${BL.length} layers ${BL.map(l => l.t).join(' + ')} = ${botPermT()} mm${b ? ` + ${b} backfill` : ''}`; txt[1] = `${BL.map(l => l.grade).join(' / ')} · ${S.permSrc[sec]}${isEdited(sec + '.' + F.t) ? ' ✎' : ''}`; } labels.push({ bottom: 1, txt }); return; }
-    const hm = (bd.h0 + bd.h1) / 2; labels.push({ y: Y(hm), ax: Xp(rIn(hm) - t * x / 2, 1), ay: Y(hm), txt });
-    P.push(`<line x1="${Xp(maxR, -1)}" x2="${Xp(maxR, 1) + 6}" y1="${Y(bd.h1)}" y2="${Y(bd.h1)}" stroke="var(--info)" stroke-width=".6" stroke-dasharray="3 3"/>`); });
+  permZones().forEach(z => {
+    const Q = permOf(z.id), t = +Q.t, b = +Q.back || 0, on = z.id === sel, ed = ['t', 'grade', 'shape', 'w', 'h'].some(k => isEdited(`permz.${z.id}.${k}`));
+    const txt = [`${on ? '▶ ' : ''}${z.name}: ${fv(t)} mm${b ? ` + ${fv(b)} backfill` : ''}`, `${Q.grade} · ${permShapeShort(Q)}${ed ? ' ✎' : ''}`];
+    if (z.type === 'Bottom') { labels.push({ bottom: 1, txt, on, col: permCol(Q) }); return; }
+    const hm = (z.h0 + z.h1) / 2; labels.push({ y: Y(hm), ax: Xp(rIn(hm) - t * x / 2, 1), ay: Y(hm), txt, on, col: permCol(Q) });
+    P.push(`<line x1="${Xp(maxR, -1)}" x2="${Xp(maxR, 1) + 6}" y1="${Y(z.h1)}" y2="${Y(z.h1)}" stroke="var(--info)" stroke-width=".6" stroke-dasharray="3 3"/>`);
+  });
   const mb = bandOf('Mouth'); if (mb) labels.push({ y: Y((mb.h0 + mb.h1) / 2), ax: Xp(rIn((mb.h0 + mb.h1) / 2), 1), ay: Y((mb.h0 + mb.h1) / 2), txt: ['Mouth: no permanent lining', 'steel-clad bricks + filling'], muted: 1 });
-  labels.filter(l => !l.bottom).sort((a, b) => a.y - b.y); let lastY = -1e9; const lx = W - Rm + 12;
-  labels.filter(l => !l.bottom).sort((a, b) => a.y - b.y).forEach(l => { l.y = Math.max(l.y - 8, lastY + 6); lastY = l.y + 22; const c = l.muted ? 'var(--muted)' : '#1b7fa8';
-    P.push(`<polyline points="${l.ax},${l.ay} ${lx - 6},${l.y + 4} ${lx - 2},${l.y + 4}" fill="none" stroke="${c}" stroke-width=".7"/>`); l.txt.forEach((t, i) => P.push(TX(lx, l.y + 7 + i * 11, esc(t), { c: i ? 'var(--muted)' : c, b: !i }))); });
-  const lb = labels.find(l => l.bottom); if (lb) { const yb = Y(0) + 22; P.push(`<line x1="${cx}" y1="${Y(tB / 2)}" x2="${cx}" y2="${yb - 8}" stroke="#1b7fa8" stroke-width=".7"/>`); lb.txt.forEach((t, i) => P.push(TX(cx, yb + i * 11, esc(t), { a: 'middle', c: i ? 'var(--muted)' : '#1b7fa8', b: !i }))); }
-  return `<svg viewBox="0 0 ${W} ${Hh}" class="svgv" role="img" aria-label="Naked shell with permanent lining">${P.join('')}</svg>`;
+  let lastY = -1e9; const lx = W - Rm + 12;
+  labels.filter(l => !l.bottom).sort((a, b) => a.y - b.y).forEach(l => { l.y = Math.max(l.y - 8, lastY + 6); lastY = l.y + 22; const c = l.muted ? 'var(--muted)' : l.on ? 'var(--ink)' : '#1b7fa8';
+    P.push(`<polyline points="${l.ax},${l.ay} ${lx - 6},${l.y + 4} ${lx - 2},${l.y + 4}" fill="none" stroke="${c}" stroke-width=".7"/>`);
+    if (!l.muted) P.push(`<rect x="${lx}" y="${l.y}" width="7" height="7" rx="1.5" fill="${l.col}" stroke="var(--edge)"/>`);
+    l.txt.forEach((t, i) => P.push(TX(lx + (l.muted ? 0 : 10), l.y + 7 + i * 11, esc(t), { c: i ? 'var(--muted)' : c, b: !i }))); });
+  const lb = labels.find(l => l.bottom); if (lb) { const yb = Y(0) + 22, c = lb.on ? 'var(--ink)' : '#1b7fa8'; P.push(`<line x1="${cx}" y1="${Y(tB / 2)}" x2="${cx}" y2="${yb - 8}" stroke="${c}" stroke-width=".7"/>`); lb.txt.forEach((t, i) => P.push(TX(cx, yb + i * 11, esc(t), { a: 'middle', c: i ? 'var(--muted)' : c, b: !i }))); }
+  return `<svg viewBox="0 0 ${W} ${Hh}" class="svgv" role="img" aria-label="Naked shell with permanent lining by zone">${P.join('')}</svg>`;
 }
 function permLayerBars() {
   const pl = XN('plate') || 0;
-  return PSEC.filter(([, , type]) => bandOf(type)).map(([sec, name]) => { const F = PF(sec), BL = sec === 'bottom' ? botPerm() : [{ t: +S[sec][F.t] }], t = BL.reduce((a, l) => a + l.t, 0), b = +S[sec][F.b];
-    return `<div style="margin:6px 0"><div class="small"><b>${name}</b> · shell ${fv(pl)} + permanent ${BL.length > 1 ? BL.map(l => fv(l.t)).join(' + ') + ` (${BL.length} layers)` : fv(t)}${b ? ` + backfill ${fv(b)}` : ''} mm → working lining starts</div>
-    <div class="sbar"><div style="flex:${pl};background:${PCOL.plate}">${pl >= 60 ? 'Shell' : ''}</div>${BL.map((l, i) => `<div style="flex:${l.t};background:${PCOL.perm}${i ? ';border-left:2px solid #0d4f6e' : ''}">${fv(l.t)}</div>`).join('')}${b ? `<div style="flex:${b};background:${PCOL.back}">${fv(b)}</div>` : ''}<div style="flex:${Math.max(250, 600 - t - b)};background:var(--paper);color:var(--muted);border-left:2px dashed var(--accent)">working lining →</div></div></div>`; }).join('');
+  return permZones().map(z => { const Q = permOf(z.id), t = +Q.t, b = +Q.back || 0, on = z.id === S.permTab;
+    return `<div style="margin:6px 0;cursor:pointer" data-act="permTab" data-id="${z.id}"><div class="small">${on ? '▶ ' : ''}<b>${esc(z.name)}</b> · shell ${fv(pl)} + ${esc(Q.grade)} ${fv(t)} (${esc(permShapeShort(Q))})${b ? ` + backfill ${fv(b)}` : ''} mm → working lining starts</div>
+    <div class="sbar" style="${on ? 'outline:2px solid var(--accent);outline-offset:1px' : ''}"><div style="flex:${pl};background:${PCOL.plate}">${pl >= 60 ? 'Shell' : ''}</div>${(permLayers(Q) || [Q]).map(l => `<div style="flex:${+l.t || 0};background:${gcol(l.grade || 'GRADE-E')}${isMono(l) ? ';background-image:repeating-linear-gradient(45deg,rgba(255,255,255,.35) 0 3px,transparent 3px 7px)' : ''};border-right:1px solid var(--bg)" title="${esc(l.grade)} ${fv(+l.t)} mm">${fv(+l.t)}</div>`).join('')}${b ? `<div style="flex:${b};background:${PCOL.back}">${fv(b)}</div>` : ''}<div style="flex:${Math.max(250, 600 - t - b)};background:var(--paper);color:var(--muted);border-left:2px dashed var(--accent)">working lining →</div></div></div>`; }).join('');
 }
 function permPic() {
-  return `<h3>Naked shell + permanent lining <span class="small">updates as you type</span></h3>
+  return `<h3>Naked shell + permanent lining <span class="small">by zone · updates as you type · click a zone</span></h3>
   <div class="fld inline"><span>Thickness drawn</span>${input('permX', 'sel', [1, 2, 3, 4])}<span>× true scale</span></div>
   ${permSVG()}
-  <p class="small"><span class="sw" style="background:${PCOL.plate}"></span> steel shell (naked, from drawing) · <span class="sw" style="background:${PCOL.perm}"></span> permanent lining · <span class="sw" style="background:${PCOL.back}"></span> backfill · <span style="color:var(--accent);font-weight:700">- - -</span> working lining starts here${+S.permX > 1 ? ` · thickness drawn ×${S.permX} for visibility` : ''}</p>
-  <h4>Layer build-up at the shell (to scale)</h4>${permLayerBars()}`;
+  <p class="small"><span class="sw" style="background:${PCOL.plate}"></span> steel shell (naked, from drawing) · permanent lining: colour = material grade of the zone, hatched = monolithic · <span class="sw" style="background:${PCOL.back}"></span> backfill · <span style="color:var(--accent);font-weight:700">- - -</span> working lining starts here · outlined = zone being edited${+S.permX > 1 ? ` · thickness drawn ×${S.permX} for visibility` : ''}</p>
+  <h4>Layer build-up at the shell, per zone (to scale)</h4>${permLayerBars()}`;
 }
 
 
@@ -2230,7 +2284,8 @@ function nozInfo(n) {
   const axis = Math.min(80, Math.abs(phi + n.incl)), len = fxCalc('ui_noz_length', { total_lining_t: tn, axis_angle_deg: axis }, () => tn / Math.cos(rad(axis))), halfH = fxCalc('ui_noz_half_height', { nozzle_size: n.size, incl_deg: n.incl }, () => (n.size / 2) / Math.cos(rad(n.incl)));
   let removed = 0, crossed = 0; ['lc', 'barrel', 'cone'].forEach(s => { const D = wallDesignCached(s); if (D && D.nozRem) { removed += D.nozRem[n.i] || 0; crossed += D.nozC[n.i] || 0; } });
   const halfDeg = deg((n.size / 2) / Math.max(1, Rs - perm - back - work / 2));
-  return { zone, seg, zz, phi, Rs, perm, back, work, tn, axis, len, halfH, removed, crossed, halfDeg, grade: zz ? zz.grade : '' };
+  const pq = zone && zone.type !== 'Mouth' ? permOf(zone.id) : null;
+  return { zone, seg, zz, phi, Rs, perm, back, work, tn, axis, len, halfH, removed, crossed, halfDeg, grade: zz ? zz.grade : '', pcol: pq ? permCol(pq) : PCOL.perm, pgrade: pq ? pq.grade : '' };
 }
 function nozChecks() {
   const out = [], L = nozzles(), mw = +S.noz.minWall, bnd = [['bottom of lower cone', XN('lcH0')], ['top of lower cone', XN('lcH1')], ['top of barrel', XN('barH1')], ['mouth start', mouthPlan().start]];
@@ -2269,8 +2324,8 @@ function nozSideSVG(sel) {
   nozzles().forEach(n => { if (!isFinite(n.elev)) return; const on = n.i === sel, col = on ? '#7a3cd0' : '#a58bd6', Rs = rIn(n.elev), hot = (C.prof.find(p => p[0] >= n.elev) || [0, Rs])[1], c = Math.cos(rad(n.ang)), ti = Math.tan(rad(n.incl));
     const lbl = `${esc(n.name)} · EL ${fv(n.elev)} · ${fv(n.ang)}°`;
     if (Math.abs(c) > 0.35) { const sd = c > 0 ? 1 : -1, ac = Math.abs(c), r0 = Rs + 300, r1 = Math.max(0, hot - 100);
-      P.push(`<line x1="${X(r0 * ac, sd)}" y1="${Y(n.elev - (r0 - Rs) * ti)}" x2="${X(r1 * ac, sd)}" y2="${Y(n.elev + (Rs - r1) * ti)}" stroke="${col}" stroke-width="${on ? 6 : 4}" stroke-linecap="round" class="zp" data-act="selNoz" data-i="${n.i}"><title>${lbl}</title></line>`);
-      P.push(TX(X(r0 * ac, sd), Y(n.elev - (r0 - Rs) * ti) + 14, lbl, { a: sd > 0 ? 'end' : 'start', c: col, b: on }));
+      P.push(`<line x1="${X(r0 * ac, sd)}" y1="${Y(n.elev + (r0 - Rs) * ti)}" x2="${X(r1 * ac, sd)}" y2="${Y(n.elev - (Rs - r1) * ti)}" stroke="${col}" stroke-width="${on ? 6 : 4}" stroke-linecap="round" class="zp" data-act="selNoz" data-i="${n.i}"><title>${lbl}</title></line>`);
+      P.push(TX(X(r0 * ac, sd), Y(n.elev + (r0 - Rs) * ti) + 14, lbl, { a: sd > 0 ? 'end' : 'start', c: col, b: on }));
     } else { const xx = cx + Rs * c * s; P.push(`<circle cx="${xx}" cy="${Y(n.elev)}" r="${Math.max(4, n.size / 2 * s)}" fill="none" stroke="${col}" stroke-width="${on ? 2.5 : 1.5}" class="zp" data-act="selNoz" data-i="${n.i}"><title>${lbl}</title></circle>` + TX(xx, Y(n.elev) - 8, lbl, { a: 'middle', c: col, b: on })); }
   });
   P.push(`<circle cx="${cx}" cy="${Y(0)}" r="3" fill="var(--bad)"/>`);
@@ -2279,7 +2334,7 @@ function nozSideSVG(sel) {
 function nozPlanSVG(sel) {
   const L = nozzles(), n = L[sel]; if (!n || !isFinite(n.elev)) return ''; const I = nozInfo(n), pl = XN('plate') || 0, c = 150, sc = 112 / (I.Rs + pl), r = v => Math.max(0, v * sc), P = [];
   P.push(`<circle cx="${c}" cy="${c}" r="${r(I.Rs + pl)}" fill="${PCOL.plate}"/><circle cx="${c}" cy="${c}" r="${r(I.Rs)}" fill="var(--bg)"/>`);
-  P.push(`<path d="${arcPath(c, c, r(I.Rs - I.perm), r(I.Rs), 0, 360)}" fill="${PCOL.perm}" fill-rule="evenodd"/>`);
+  P.push(`<path d="${arcPath(c, c, r(I.Rs - I.perm), r(I.Rs), 0, 360)}" fill="${I.pcol}" fill-rule="evenodd"><title>Permanent lining ${esc(I.pgrade)} · ${fv(I.perm)} mm</title></path>`);
   const r0 = I.Rs - I.perm - I.back;
   if (I.seg && I.zone && S.segz[I.zone.id]) wallZones(I.seg, I.zone.id).forEach(z => { const t = zoneThick(I.seg, z).t; P.push(`<path d="${arcPath(c, c, r(r0 - t), r(r0), z.centre - z.span / 2, z.centre + z.span / 2)}" fill="${gcol(z.grade)}" fill-rule="evenodd" opacity=".85" stroke="var(--bg)" stroke-width="1"><title>${esc(z.name)} · ${esc(z.grade)} · ${fv(t)} mm</title></path>`); });
   L.forEach(m => { if (!isFinite(m.elev) || Math.abs(m.elev - n.elev) > 1500) return; const on = m.i === sel, a = rad(m.ang), col = on ? '#7a3cd0' : '#a58bd6';
@@ -2297,18 +2352,18 @@ function nozDetailSVG(sel) {
   const cp = h => Math.cos(rad(Math.abs(phiAt(h))));
   const fPlate = h => rIn(h) + pl / cp(h), fShell = h => rIn(h), fPerm = h => rIn(h) - I.perm / cp(h), fBack = h => rIn(h) - (I.perm + I.back) / cp(h), fHot = h => rIn(h) - tn / cp(h);
   const poly = (fa, fb) => `M${hs.map(h => `${X(fa(h))},${Y(h)}`).join(' L')} L${hs.slice().reverse().map(h => `${X(fb(h))},${Y(h)}`).join(' L')}Z`;
-  const ti = rad(n.incl), dr = -Math.cos(ti), dh = Math.sin(ti), nr = Math.sin(ti), nh = Math.cos(ti);
+  const ti = rad(n.incl), dr = -Math.cos(ti), dh = -Math.sin(ti), nr = -Math.sin(ti), nh = Math.cos(ti);
   const pt = (t, o) => [I.Rs + t * dr + o * nr, he + t * dh + o * nh], sp = p => `${X(p[0])},${Y(p[1])}`;
   const rect = (t0, t1, w) => `M${sp(pt(t0, w / 2))} L${sp(pt(t1, w / 2))} L${sp(pt(t1, -w / 2))} L${sp(pt(t0, -w / 2))}Z`;
   const t0 = -(pl + 400), t1 = I.len + 400, wc = gcol(I.grade || 'GRADE-B'), P = [];
   P.push(`<defs><clipPath id="nzw"><path d="${poly(fBack, fHot)}"/></clipPath><clipPath id="nzp"><path d="${poly(fPlate, fShell)}"/></clipPath><clipPath id="nza"><path d="${poly(fPlate, fHot)}"/></clipPath></defs>`);
   P.push(`<rect x="0" y="0" width="${W}" height="${Hh}" fill="var(--bg)"/>`);
-  P.push(`<path d="${poly(fPlate, fShell)}" fill="${PCOL.plate}"/><path d="${poly(fShell, fPerm)}" fill="${PCOL.perm}"/>${I.back > 0 ? `<path d="${poly(fPerm, fBack)}" fill="${PCOL.back}"/>` : ''}<path d="${poly(fBack, fHot)}" fill="${wc}" opacity=".8"/>`);
+  P.push(`<path d="${poly(fPlate, fShell)}" fill="${PCOL.plate}"/><path d="${poly(fShell, fPerm)}" fill="${I.pcol}"/>${I.back > 0 ? `<path d="${poly(fPerm, fBack)}" fill="${PCOL.back}"/>` : ''}<path d="${poly(fBack, fHot)}" fill="${wc}" opacity=".8"/>`);
   P.push(`<path d="${rect(t0, t1, n.size)}" fill="#c9b3ef" stroke="#7a3cd0" stroke-width="1.2" clip-path="url(#nzw)"/>`);
   P.push(`<path d="${rect(t0, t1, n.dia)}" fill="var(--bg)" clip-path="url(#nzp)"/>`);
   P.push(`<path d="${rect(t0, t1, n.bore)}" fill="var(--bg)" stroke="#7a3cd0" stroke-width="1.5" clip-path="url(#nza)"/>`);
   P.push(`<line x1="${X(pt(t0, 0)[0])}" y1="${Y(pt(t0, 0)[1])}" x2="${X(pt(t1, 0)[0])}" y2="${Y(pt(t1, 0)[1])}" stroke="#7a3cd0" stroke-width=".8" stroke-dasharray="8 3 2 3"/>`);
-  const yTop = 14, lines = [[`${esc(n.name)} · EL ${fv(n.elev)} · ${fv(n.ang)}° plan · ${fv(n.incl)}° incl.`, 'var(--ink)', 1], [`Block ${fv(n.size)} mm (${esc(n.block)}) · bore Ø${fv(n.bore)} · shell opening Ø${fv(n.dia)}`, '#7a3cd0'], [`Lining ${fv(I.perm)} perm + ${fv(I.back)} backfill + ${fv(I.work)} working = ${fv(I.tn)} mm`, '#1b7fa8'], [`Wall angle ${f(I.phi, 1)}° · nozzle length ≈ ${fv(Math.round(I.len))} mm`, 'var(--muted)']];
+  const yTop = 14, lines = [[`${esc(n.name)} · EL ${fv(n.elev)} · ${fv(n.ang)}° plan · ${fv(n.incl)}° incl.`, 'var(--ink)', 1], [`Block ${fv(n.size)} mm (${esc(n.block)}) · bore Ø${fv(n.bore)} · shell opening Ø${fv(n.dia)}`, '#7a3cd0'], [`Lining ${fv(I.perm)} perm (${esc(I.pgrade)}) + ${fv(I.back)} backfill + ${fv(I.work)} working = ${fv(I.tn)} mm`, '#1b7fa8'], [`Wall angle ${f(I.phi, 1)}° · nozzle length ≈ ${fv(Math.round(I.len))} mm`, 'var(--muted)']];
   P.push(`<rect x="4" y="3" width="${W - 8}" height="${lines.length * 12 + 6}" rx="4" fill="var(--bg)" opacity=".88"/>`);
   lines.forEach(([t, c, b], i) => P.push(TX(10, yTop + i * 12, t, { c, b })));
   P.push(TX(X(fHot(he - win * 0.42)) - 4, Y(he - win * 0.42), 'hot face', { a: 'end', c: 'var(--muted)' }) + TX(X(fPlate(he - win * 0.42)) + 4, Y(he - win * 0.42), 'shell', { c: 'var(--muted)' }));
@@ -2361,7 +2416,7 @@ function mouthSVG() {
   P.push(`<rect x="${Xr(rMin)}" y="${Y(hMax)}" width="${(rMax - rMin) * s}" height="${(hMax - hMin) * s}" fill="var(--bg)"/>`);
   // last top cone courses (context)
   cr.forEach(r => { const y0 = r.elev - C.ch / 2, y1 = r.elev + C.ch / 2, c = r.cells.reduce((a, b) => (b.span > a.span ? b : a), r.cells[0]);
-    P.push(R(r.cold, r.Rs, y0, y1, PCOL.perm) + R(c.hot, r.cold, y0, y1, gcol(c.z.grade), 'opacity=".75" stroke="var(--bg)" stroke-width=".6"')); });
+    P.push(R(r.cold, r.Rs, y0, y1, permCol(permOf(r.sg.sid))) + R(c.hot, r.cold, y0, y1, gcol(c.z.grade), 'opacity=".75" stroke="var(--bg)" stroke-width=".6"')); });
   if (cr.length) P.push(TX(Xr(cr[0].cells[0].hot) - 4, Y(cr[0].elev) + 3, 'top cone', { a: 'end', c: 'var(--muted)' }));
   // steel: cone shell up to the ring, then the mouth ring
   const hs = []; for (let k = 0; k <= 30; k++) hs.push(hMin + (ringH0 - hMin) * k / 30);
@@ -2497,87 +2552,219 @@ function sessionCard() {
   <div class="note ok">(${f(S.mouth.transCount)} + ${f(S.mouth.count)}) × (${f(S.mouth.course)} + ${f(S.mouth.joint)}) = <b>${f(mp.h)} mm</b> → mouth from EL ${fv(mp.start)} to EL ${fv(mp.H)}. Extracted mouth ring: EL ${fv(XN('ringH0'))}–${fv(XN('ringH1'))} (${fv(XN('ringHt'))} mm), so the mouth bricks also line the top ${fv(+(XN('ringH0') - mp.start).toFixed(1))} mm of the top cone.</div></div>`;
     }
 
-    /* ============ PERMANENT LINING ============ */
+    /* ============ PERMANENT LINING (per zone: material, product form / brick shape, size) ============ */
+    // legacy section-level fields (S.bottom.permT, S.barrel.tPerm …) are only used to seed the per-zone values (older sessions)
     const PSEC = [['bottom', 'Bottom', 'Bottom'], ['lc', 'Lower cone', 'Lower cone'], ['barrel', 'Barrel', 'Barrel'], ['cone', 'Top cone', 'Top cone']];
     const PF = sec => sec === 'bottom' ? { g: 'permGrade', t: 'permT', b: 'permBack', d: 'permDens' } : { g: 'perm', t: 'tPerm', b: 'back', d: 'permDens' };
-    // Bottom permanent lining layers (shell side first): layer 1 = permGrade / permT / permDens, layers 2, 3 … = bottom.permExtra
-    const botPerm = () => { const B = S.bottom; return [{ grade: B.permGrade, t: +B.permT || 0, dens: +B.permDens, tp: 'bottom.permT' }].concat((B.permExtra || []).map((e, i) => ({ grade: e.grade, t: +e.t || 0, dens: +e.dens, tp: `bottom.permExtra.${i}.t` }))); };
-    const botPermT = () => botPerm().reduce((a, l) => a + l.t, 0);
-    function applyPermSource() {
-      PSEC.forEach(([sec]) => {
-        const src = S.permSrc[sec], F = PF(sec), P = S[sec];
-        if (src === 'Customer spec' && S.job.cusPerm === 'Yes') { P[F.g] = S.job.cusPermGrade; P[F.t] = +S.job.cusPermT; }
+    const PSHAPE = { brick: 'Straight brick', taper: 'Tapered pair (radial)', mono: 'Monolithic (castable / ramming)' };
+    const PSHAPES_WALL = [PSHAPE.brick, PSHAPE.taper, PSHAPE.mono], PSHAPES_BOT = [PSHAPE.brick, PSHAPE.mono];
+    const isTap = Q => /^Tapered/.test((Q && Q.shape) || ''), isMono = Q => /^Monolithic/.test((Q && Q.shape) || '');
+    const permZones = () => S.zones.filter(z => z.type !== 'Mouth');
+    /* Suggested permanent bricks per zone type (Supplier). Shape sizes are placeholders until production confirms the moulds. */
+    /* Permanent brick marks offered in every permanent-lining selection, in every zone (not tied to one zone type). */
+    const PERM_MARKS = ['BSM-1', 'LC-1', 'LC-2', 'MC-4', 'TM-1', 'TM-2'];
+    const permMarkOpts = (v, blank) => [...(blank ? [''] : []), ...PERM_MARKS, ...(v && !PERM_MARKS.includes(v) ? [v] : [])];
+    function permMarkSel(path, v, opt = {}) {   // dropdown of the permanent brick marks
+      const o = permMarkOpts(v, opt.blank);
+      return `<select data-p="${path}"${opt.w ? ` style="width:${opt.w}px"` : ''}>${o.map(m => `<option value="${esc(m)}" ${String(m) === String(v || '') ? 'selected' : ''}>${m ? esc(m) + (PERM_MARKS.includes(m) ? '' : ' (custom)') : '— auto (PL-w×h×t) —'}</option>`).join('')}</select>`;
+    }
+    function permPairTable(path, pairs) {   // tapered permanent pairs: marks A and B chosen from the dropdown
+      return `<div class="tw"><table class="tbl pairtbl"><tr><th>Mark A</th><th>Mark B</th><th>Length L</th><th>A hot</th><th>A cold</th><th>B hot</th><th>B cold</th><th></th></tr>
+  ${pairs.map((q, i) => `<tr><td>${permMarkSel(`${path}.${i}.A`, q.A, { w: 96 })}</td><td>${permMarkSel(`${path}.${i}.B`, q.B, { w: 96 })}</td>${['L', 'aHot', 'aCold', 'bHot', 'bCold'].map(k => `<td><input type="number" step="any" data-p="${path}.${i}.${k}" value="${esc(q[k])}"></td>`).join('')}<td>${pairs.length > 1 ? `<button class="btn xs" data-act="delPair" data-p="${path}" data-i="${i}">✕</button>` : ''}</td></tr>`).join('')}
+  </table></div><button class="btn xs" data-act="addPair" data-p="${path}">+ Add pair</button> <span class="small">Marks: ${PERM_MARKS.join(', ')} – any mark can be used in any zone. Widths in mm (hot face / cold face). The pair whose length equals the permanent thickness is used.</span>`;
+    }
+    const PERM_SUGGEST = {
+      'Bottom': { shape: PSHAPE.brick, mark: 'BSM-1', w: 150, h: 230 },
+      'Lower cone': { shape: PSHAPE.taper, h: 100, pair: ['LC-1', 'LC-2', 100, 100, 95, 105] },
+      'Barrel': { shape: PSHAPE.brick, mark: 'MC-4', w: 150, h: 100 },
+      'Top cone': { shape: PSHAPE.taper, h: 100, pair: ['TM-1', 'TM-2', 100, 100, 95, 105] },
+    };
+    function permDefaultFor(z) {
+      const sib = S.permz && S.zones.find(q => q.type === z.type && q.id !== z.id && S.permz[q.id]);
+      if (sib) return clone(S.permz[sib.id]);
+      const sec = TYPESEG[z.type] || 'bottom', P = S[sec], F = PF(sec), B = S.permBrick, t = +P[F.t] || 150, sg = PERM_SUGGEST[z.type] || {};
+      const pair = sg.pair || ['PL-A', 'PL-B', 100, 100, 95, 105];
+      return { src: (S.permSrc && S.permSrc[sec]) || 'Supplier input', grade: P[F.g] || 'GRADE-E', shape: sg.shape || PSHAPE.brick, t, w: sg.w || +B.w, h: sg.h || +B.h, mark: sg.mark || '',
+        dens: +P[F.d] || 2.95, k: '', cut: +B.cut, back: +P[F.b] || 0, reuse: S.permReuse || 'No', minCut: 40, pairs: [pr(pair[0], pair[1], t, pair[2], pair[3], pair[4], pair[5])] };
+    }
+    function ensurePermz() {
+      S.permz = S.permz || {}; INIT.permz = INIT.permz || {};
+      permZones().forEach(z => {
+        if (!z.id) z.id = newId();
+        if (!S.permz[z.id]) { S.permz[z.id] = permDefaultFor(z); INIT.permz[z.id] = clone(S.permz[z.id]); }
+        const Q = S.permz[z.id]; if (!Array.isArray(Q.pairs) || !Q.pairs.length) Q.pairs = [pr('PL-A', 'PL-B', +Q.t || 150, 100, 100, 95, 105)];
+        if (z.type === 'Bottom') { if (isTap(Q)) Q.shape = PSHAPE.brick; syncBotLayers(Q); }
       });
+    }
+    /* Bottom dish: the permanent (safety) lining can be several layers. Layer 1 lies on the steel shell, the last layer is
+       directly under the working bottom. The zone totals (thickness, density, conductivity) are derived from the layers so the
+       vessel checks, shell temperature and drawings use the whole build-up. */
+    function syncBotLayers(Q) {
+      let n = Math.round(+Q.nLayers); if (!(n >= 1)) n = 1; n = Math.min(5, n); Q.nLayers = n;
+      if (!Array.isArray(Q.layers) || !Q.layers.length) Q.layers = [{ grade: Q.grade, shape: isMono(Q) ? PSHAPE.mono : PSHAPE.brick, mark: Q.mark || '', t: +Q.t, w: +Q.w, h: +Q.h, dens: +Q.dens, k: Q.k || '', cut: +Q.cut || 0 }];
+      while (Q.layers.length < n) { const l = clone(Q.layers[Q.layers.length - 1]); Q.layers.push(l); }
+      if (Q.layers.length > n) Q.layers.length = n;
+      Q.layers.forEach(l => { if (isTap(l)) l.shape = PSHAPE.brick; });
+      const L = Q.layers, T = L.reduce((a, l) => a + (+l.t || 0), 0);
+      Q.t = T; Q.dens = T > 0 ? +(L.reduce((a, l) => a + (+l.t || 0) * (+l.dens || 0), 0) / T).toFixed(3) : 0;
+      Q.k = T > 0 && L.every(l => +l.k > 0) ? +(T / L.reduce((a, l) => a + (+l.t || 0) / (+l.k), 0)).toFixed(3) : '';
+      Q.grade = L[0].grade; Q.shape = L.every(l => isMono(l)) ? PSHAPE.mono : PSHAPE.brick; Q.mark = L[0].mark; Q.w = +L[0].w; Q.h = +L[0].h; Q.cut = +L[0].cut || 0;
+    }
+    const permLayers = Q => (Array.isArray(Q.layers) && Q.layers.length && Q.nLayers ? Q.layers : null);
+    const PNONE = { grade: '', t: 0, back: 0, dens: 0, k: '', shape: PSHAPE.brick, w: 0, h: 0, cut: 0, reuse: 'No', src: '', mark: '', pairs: [] };
+    function permOf(id) { if (!id) return PNONE; if (!S.permz || !S.permz[id]) ensurePermz(); return (S.permz && S.permz[id]) || PNONE; }
+    function botPerm() { const z = S.zones.find(q => q.type === 'Bottom'); if (z) return permOf(z.id); const B = S.bottom; return Object.assign({}, PNONE, { grade: B.permGrade, t: +B.permT, back: +B.permBack, dens: +B.permDens }); }
+    const permT = id => +permOf(id).t || 0;
+    const permK = id => { const k = +permOf(id).k; return k > 0 ? k : +S.concept.kP; };
+    function curPermZone() { const zs = permZones(); if (!zs.find(z => z.id === S.permTab)) S.permTab = zs[0] ? zs[0].id : null; return S.permTab; }
+    function permMark(Q) { return Q.mark || `PL-${fv(+Q.w)}×${fv(+Q.h)}×${fv(+Q.t)}`; }
+    function permShapeShort(Q) { const L = permLayers(Q); if (L && L.length > 1) return `${L.length} layers: ${L.map(l => isMono(l) ? (l.mark || 'monolithic') : permMark(l)).join(' + ')}`; return isMono(Q) ? `monolithic${Q.mark ? ' ' + Q.mark : ''}` : isTap(Q) ? `tapered ${(Q.pairs || []).map(p => p.A + '/' + p.B).join(', ')}` : `straight ${permMark(Q)}`; }
+    function applyPermSource() {
+      ensurePermz(); if (S.job.cusPerm !== 'Yes') return;
+      permZones().forEach(z => { const Q = S.permz[z.id]; if (!Q || Q.src !== 'Customer spec') return; const L = permLayers(Q);
+        if (L) { L.forEach(l => l.grade = S.job.cusPermGrade); if (L.length === 1) L[0].t = +S.job.cusPermT; syncBotLayers(Q); } else { Q.grade = S.job.cusPermGrade; Q.t = +S.job.cusPermT; } });
     }
     function permDesign() {
       applyPermSource();
-      const rows = [], items = []; const B = S.permBrick;
-      PSEC.forEach(([sec, name, type]) => {
-        const band = bandOf(type); if (!band) return; const P = S[sec], F = PF(sec);
-        (sec === 'bottom' ? botPerm() : [{ grade: P[F.g], t: +P[F.t], dens: +P[F.d], tp: `${sec}.${F.t}` }]).forEach((ly, li, LS) => {
-        const t = ly.t, dens = ly.dens, nm = LS.length > 1 ? `${name} · layer ${li + 1}` : name; let area = 0, vol = 0;
-        if (sec === 'bottom') { const R = XN('lcIDb') / 2; area = fxCalc('ui_perm_bottom_area', { r_bot: R }, () => Math.PI * R * R); vol = fxCalc('ui_perm_bottom_vol', { area, thickness: t }, () => area * t); }
-        else { const dh = 10; for (let h = band.h0 + dh / 2; h < band.h1; h += dh) { const Rs = rIn(h), c = Math.cos(rad(Math.abs(phiAt(h)))), rp = Rs - t / c; area += fxCalc('ui_perm_wall_slice_area', { r_shell: Rs, thickness: t, cos_phi: c, dh }, () => 2 * Math.PI * (Rs - t / 2 / c) * dh / c); vol += fxCalc('ui_perm_wall_slice_vol', { r_shell: Rs, thickness: t, cos_phi: c, dh }, () => Math.PI * (Rs * Rs - rp * rp) * dh); } }
-        const bricks = fxCalc('ui_perm_bricks', { area, brick_w: +B.w, brick_h: +B.h, cut_pct: +B.cut }, () => Math.ceil(area / ((+B.w) * (+B.h)) * (1 + (+B.cut) / 100))); const tonnes = fxCalc('ui_perm_tonnes', { vol_mm3: vol, density: dens }, () => vol * dens / 1e9);
-        rows.push({ sec, name: nm, src: S.permSrc[sec], grade: ly.grade, t, back: li === LS.length - 1 ? +P[F.b] : 0, area, vol, bricks, tonnes, dens, tp: ly.tp, layer: li + 1 });
-        if (S.permReuse !== 'Yes') items.push({ zone: 'Permanent · ' + nm, mark: `PL-${B.w}×${B.h}×${t}`, grade: ly.grade, qty: bricks, tonnes });
-        });
+      const rows = [], items = [];
+      permZones().forEach(z => {
+        const Q = permOf(z.id), isBot = z.type === 'Bottom', t = +Q.t, dens = +Q.dens, cut = +Q.cut || 0;
+        const shape = isBot && isTap(Q) ? PSHAPE.brick : Q.shape; let area = 0, vol = 0;
+        if (isBot && permLayers(Q)) {
+          const R = XN('lcIDb') / 2; area = fxCalc('ui_perm_bottom_area', { r_bot: R }, () => Math.PI * R * R);
+          const layers = permLayers(Q).map((l, i) => { const lt = +l.t || 0, lc = +l.cut || 0, mono = isMono(l), v = fxCalc('ui_perm_bottom_vol', { area, thickness: lt }, () => area * lt);
+            const q = !mono && +l.w > 0 && +l.h > 0 ? fxCalc('ui_perm_bricks', { area, brick_w: +l.w, brick_h: +l.h, cut_pct: lc }, () => Math.ceil(area / ((+l.w) * (+l.h)) * (1 + lc / 100))) : NaN;
+            const tn = mono ? v * (+l.dens || 0) / 1e9 * (1 + lc / 100) : fxCalc('ui_perm_tonnes', { vol_mm3: v, density: +l.dens || 0 }, () => v * (+l.dens || 0) / 1e9);
+            return { i: i + 1, l, t: lt, vol: v, qty: q, tonnes: tn, mono, mark: mono ? (l.mark || 'Permanent monolithic') : permMark(l) }; });
+          vol = layers.reduce((a, x) => a + x.vol, 0); const tonnes = layers.reduce((a, x) => a + x.tonnes, 0), bq = layers.filter(x => !x.mono && isFinite(x.qty));
+          const reuse = Q.reuse === 'Yes', parts = bq.map(x => ({ mark: x.mark, qty: x.qty }));
+          rows.push({ id: z.id, z, name: z.name, Q, src: Q.src, grade: Q.grade, shape, t, back: +Q.back || 0, area, vol, bricks: bq.length ? bq.reduce((a, x) => a + x.qty, 0) : NaN, tonnes, dens: +Q.dens, parts, closeFail: 0, cutBad: 0, courses: 0, reuse, layers });
+          if (!reuse) layers.forEach(x => items.push({ zone: `Permanent · ${z.name} · layer ${x.i}`, mark: x.mark, grade: x.l.grade, qty: x.mono ? NaN : x.qty, unit: x.mono ? 't' : undefined, tonnes: x.tonnes }));
+          return;
+        }
+        if (isBot) { const R = XN('lcIDb') / 2; area = fxCalc('ui_perm_bottom_area', { r_bot: R }, () => Math.PI * R * R); vol = fxCalc('ui_perm_bottom_vol', { area, thickness: t }, () => area * t); }
+        else { const dh = 10; for (let h = z.h0 + dh / 2; h < z.h1; h += dh) { const Rs = rIn(h), c = Math.cos(rad(Math.abs(phiAt(h)))), rp = Rs - t / c; area += fxCalc('ui_perm_wall_slice_area', { r_shell: Rs, thickness: t, cos_phi: c, dh }, () => 2 * Math.PI * (Rs - t / 2 / c) * dh / c); vol += fxCalc('ui_perm_wall_slice_vol', { r_shell: Rs, thickness: t, cos_phi: c, dh }, () => Math.PI * (Rs * Rs - rp * rp) * dh); } }
+        let qty = NaN, parts = [], closeFail = 0, cutBad = 0, courses = 0;
+        if (/^Straight/.test(shape)) {
+          qty = (+Q.w > 0 && +Q.h > 0) ? fxCalc('ui_perm_bricks', { area, brick_w: +Q.w, brick_h: +Q.h, cut_pct: cut }, () => Math.ceil(area / ((+Q.w) * (+Q.h)) * (1 + cut / 100))) : NaN;
+          parts = isFinite(qty) ? [{ mark: permMark(Q), qty }] : [];
+        } else if (/^Tapered/.test(shape)) {
+          const ch = +Q.h, Hz = z.h1 - z.h0, nC = ch > 0 && t > 0 ? Math.max(1, Math.round(Hz / ch)) : 0, step = nC ? Hz / nC : 0, acc = {};
+          const ok = (Q.pairs || []).filter(q => +q.aHot > 0 && +q.aCold > 0 && +q.bHot > 0 && +q.bCold > 0); let cands = ok.filter(q => +q.L === t); if (!cands.length) cands = ok;
+          for (let k = 1; k <= nC && cands.length; k++) {
+            const e = z.h0 + (k - 0.5) * step, Rs = rIn(e), c = Math.cos(rad(Math.abs(phiAt(e)))), coldArc = 2 * Math.PI * Rs, hotArc = 2 * Math.PI * (Rs - t / c);
+            let best = null, bp = null; cands.forEach(q => { const r = closeArc(q, hotArc, coldArc, +Q.minCut || 40); if (r.ok && (!best || r.waste < best.waste)) { best = r; bp = q; } });
+            if (!best) { closeFail++; continue; } if (!best.cutOk) cutBad++;
+            acc[bp.A] = (acc[bp.A] || 0) + best.nA; acc[bp.B] = (acc[bp.B] || 0) + best.nB; if (best.cut) acc[bp.B + '-cut'] = (acc[bp.B + '-cut'] || 0) + 1;
+          }
+          courses = nC; if (!cands.length && nC) closeFail = nC;
+          parts = Object.entries(acc).filter(([, q]) => q > 0).map(([mark, q]) => ({ mark, qty: Math.ceil(q * (1 + cut / 100)) }));
+          qty = parts.length ? parts.reduce((a, x) => a + x.qty, 0) : NaN;
+        }
+        const tonnes = /^Monolithic/.test(shape) ? vol * dens / 1e9 * (1 + cut / 100) : fxCalc('ui_perm_tonnes', { vol_mm3: vol, density: dens }, () => vol * dens / 1e9);
+        const reuse = Q.reuse === 'Yes';
+        rows.push({ id: z.id, z, name: z.name, Q, src: Q.src, grade: Q.grade, shape, t, back: +Q.back || 0, area, vol, bricks: qty, tonnes, dens, parts, closeFail, cutBad, courses, reuse });
+        if (!reuse) {
+          if (/^Monolithic/.test(shape)) items.push({ zone: 'Permanent · ' + z.name, mark: Q.mark || 'Permanent monolithic', grade: Q.grade, qty: NaN, unit: 't', tonnes });
+          else { const tq = parts.reduce((a, x) => a + x.qty, 0) || 1; parts.forEach(x => items.push({ zone: 'Permanent · ' + z.name, mark: x.mark, grade: Q.grade, qty: x.qty, tonnes: tonnes * x.qty / tq })); }
+        }
       });
       return { rows, items };
     }
     function permChecks(D) {
       const out = [];
       D.rows.forEach(r => {
-        if (r.layer > 1) { const ok = r.t > 0 && String(r.grade || '').trim() && r.dens > 0; out.push(CHK('P1', `Layer data · ${r.name}`, ok ? 'ok' : 'err', ok ? `${r.grade}, ${f(r.t)} mm, ${r.dens} t/m³ (laid on layer ${r.layer - 1}).` : 'Enter grade, thickness > 0 and density for this permanent layer, or remove the layer.')); }
-        else if (r.src === 'Drawing') out.push(CHK('P1', `Source · ${r.name}`, 'err', 'The customer drawing is a naked shell: no permanent lining was extracted. Choose Customer spec or Supplier input.', { fixes: [{ label: `Use Supplier input for ${r.name}`, spec: `permSrc.${r.sec}=Supplier input` }] }));
-        else if (r.src === 'Customer spec' && S.job.cusPerm !== 'Yes') out.push(CHK('P1', `Source · ${r.name}`, 'err', 'Customer spec selected, but the job card says the customer did not specify a permanent lining.', { hint: 'Either set "Customer specifies the permanent lining?" to Yes and enter the grade and thickness, or use Supplier input.', fixes: [{ label: `Use Supplier input for ${r.name}`, spec: `permSrc.${r.sec}=Supplier input` }] }));
-        else out.push(CHK('P1', `Source · ${r.name}`, 'ok', `${r.src}: ${r.grade}, ${f(r.t)} mm.`));
-        out.push(CHK('P2', `Thickness range · ${r.name}`, r.t >= +S.permLim.min && r.t <= +S.permLim.max ? 'ok' : 'warn', `${f(r.t)} mm vs Supplier range ${S.permLim.min}–${S.permLim.max} mm.`, { fixes: [{ label: `Set ${r.name} to ${Math.min(Math.max(r.t, +S.permLim.min), +S.permLim.max)} mm`, spec: `${r.tp || `${r.sec}.${PF(r.sec).t}`}=${Math.min(Math.max(r.t, +S.permLim.min), +S.permLim.max)}` }] }));
+        const zid = r.id, pf = `permz.${zid}.`, Q = r.Q;
+        if (r.src === 'Drawing') out.push(CHK('P1', `Source · ${r.name}`, 'err', 'The customer drawing is a naked shell: no permanent lining was extracted. Choose Customer spec or Supplier input.', { zid, fixes: [{ label: `Use Supplier input for ${r.name}`, spec: `${pf}src=Supplier input` }] }));
+        else if (r.src === 'Customer spec' && S.job.cusPerm !== 'Yes') out.push(CHK('P1', `Source · ${r.name}`, 'err', 'Customer spec selected, but the job card says the customer did not specify a permanent lining.', { zid, hint: 'Either set "Customer specifies the permanent lining?" to Yes and enter the grade and thickness, or use Supplier input.', fixes: [{ label: `Use Supplier input for ${r.name}`, spec: `${pf}src=Supplier input` }] }));
+        else out.push(CHK('P1', `Source · ${r.name}`, 'ok', `${r.src}: ${r.grade}, ${f(r.t)} mm.`, { zid }));
+        const cl = Math.min(Math.max(r.t, +S.permLim.min), +S.permLim.max), l0 = r.layers ? r.t - r.layers[0].t : 0;
+        out.push(CHK('P2', `Thickness range · ${r.name}`, r.t >= +S.permLim.min && r.t <= +S.permLim.max ? 'ok' : 'warn', `${f(r.t)} mm${r.layers && r.layers.length > 1 ? ` (${r.layers.map(x => fv(x.t)).join(' + ')}, ${r.layers.length} layers)` : ''} vs Supplier range ${S.permLim.min}–${S.permLim.max} mm.`, { zid, fixes: cl - l0 > 0 ? [{ label: r.layers && r.layers.length > 1 ? `Set ${r.name} layer 1 so the total is ${cl} mm` : `Set ${r.name} to ${cl} mm`, spec: r.layers ? `${pf}layers.0.t=${cl - l0}` : `${pf}t=${cl}` }] : [] }));
+        const miss = []; if (!(r.t > 0)) miss.push('thickness'); if (!r.grade) miss.push('material / grade'); if (!(+Q.dens > 0)) miss.push('bulk density');
+        if (r.layers) r.layers.forEach(x => { const pre = r.layers.length > 1 ? `layer ${x.i} ` : ''; if (!(x.t > 0)) miss.push(pre + 'thickness'); if (!x.l.grade) miss.push(pre + 'material'); if (!(+x.l.dens > 0)) miss.push(pre + 'density'); if (!x.mono && !(+x.l.w > 0 && +x.l.h > 0)) miss.push(pre + 'brick size'); });
+        else if (/^Straight/.test(r.shape)) { if (!(+Q.w > 0)) miss.push('brick width'); if (!(+Q.h > 0)) miss.push('brick height'); }
+        if (/^Tapered/.test(r.shape)) { if (!(+Q.h > 0)) miss.push('course height'); if (!(Q.pairs || []).some(q => +q.aHot > 0 && +q.aCold > 0 && +q.bHot > 0 && +q.bCold > 0)) miss.push('A/B hot and cold widths'); }
+        out.push(CHK('P5', `Material, shape & size · ${r.name}`, miss.length ? 'err' : 'ok', miss.length ? `Missing: ${miss.join(', ')}.` : `${r.grade} · ${permShapeShort(Q)} · ${f(r.t)} mm · ${Q.dens} t/m³.`, miss.length ? { zid, hint: 'Complete the zone card in this step, or copy the settings from another zone.', fixes: r.layers ? [] : [{ label: `Use straight ${S.permBrick.w}×${S.permBrick.h} bricks`, spec: `${pf}shape=${PSHAPE.brick};${pf}w=${S.permBrick.w};${pf}h=${S.permBrick.h}` }] } : { zid }));
+        if (/^Tapered/.test(r.shape) && !miss.length) out.push(CHK('P6', `Ring closure · ${r.name}`, r.closeFail ? 'err' : r.cutBad ? 'warn' : 'ok', r.closeFail ? `${r.closeFail} of ${r.courses} permanent courses cannot close with the pair(s) ${(Q.pairs || []).map(q => q.A + '/' + q.B).join(', ')}.` : `${r.courses} courses close${r.cutBad ? `; ${r.cutBad} need a cut under ${Q.minCut || 40} mm` : ''} → ${r.parts.map(x => `${x.qty} × ${x.mark}`).join(', ')}.`, r.closeFail ? { zid, hint: 'One brick of the pair must be less tapered and the other more tapered than the ring (cold ÷ hot face ≈ shell radius ÷ (shell radius − thickness)). Check the widths, or use straight bricks.' } : { zid }));
+        if (r.reuse) out.push(CHK('P4', `Reuse · ${r.name}`, 'warn', 'Permanent lining in this zone is reused (reline): it is left out of the BOM. Site inspection must confirm its condition.', { zid }));
       });
-      if (S.job.cusPerm === 'Yes') { const bad = D.rows.filter(r => !(r.layer > 1) && (r.grade !== S.job.cusPermGrade || r.t !== +S.job.cusPermT)); out.push(CHK('P3', 'Matches customer specification', bad.length ? 'warn' : 'ok', bad.length ? `Differs from customer spec (${S.job.cusPermGrade}, ${S.job.cusPermT} mm) in: ${bad.map(r => r.name).join(', ')}.` : 'All sections follow the customer specification.')); }
-      out.push(CHK('P4', 'Reuse of existing permanent lining', S.permReuse === 'Yes' ? 'warn' : 'na', S.permReuse === 'Yes' ? 'Permanent lining is reused (reline): it is left out of the BOM. Site inspection must confirm its condition.' : 'New permanent lining is included in the BOM.'));
+      if (!D.rows.some(r => r.reuse)) out.push(CHK('P4', 'Reuse of existing permanent lining', 'na', 'New permanent lining in every zone: all are included in the BOM.'));
+      if (S.job.cusPerm === 'Yes') { const bad = D.rows.filter(r => r.grade !== S.job.cusPermGrade || r.t !== +S.job.cusPermT); out.push(CHK('P3', 'Matches customer specification', bad.length ? 'warn' : 'ok', bad.length ? `Differs from customer spec (${S.job.cusPermGrade}, ${S.job.cusPermT} mm) in: ${bad.map(r => r.name).join(', ')}.` : 'All zones follow the customer specification.')); }
+      const wz = D.rows.filter(r => r.z.type !== 'Bottom'), steps = [];
+      wz.forEach((r, i) => { const n = wz[i + 1]; if (n && Math.abs(n.z.h0 - r.z.h1) < 1 && Math.abs((n.t + n.back) - (r.t + r.back)) > 0.5) steps.push(`${r.name} → ${n.name}: ${fv(r.t + r.back)} → ${fv(n.t + n.back)} mm at EL ${fv(r.z.h1)}`); });
+      out.push(CHK('P7', 'Thickness change between zones', steps.length ? 'warn' : 'ok', steps.length ? `The working-lining cold face steps where the permanent (+ backfill) thickness changes: ${steps.join('; ')}.` : 'Permanent + backfill thickness is continuous across the wall zone boundaries.', steps.length ? { hint: 'Intended changes are fine: plan the step at that joint in Junctions & assemblies. Otherwise copy the thickness from the neighbouring zone.' } : {}));
       return out;
     }
-    function setBotPermN(n) {
-      const B = S.bottom; if (!Array.isArray(B.permExtra)) B.permExtra = []; const want = Math.max(0, (+n || 1) - 1), had = B.permExtra.length;
-      while (B.permExtra.length < want) { const l = B.permExtra[B.permExtra.length - 1] || { grade: B.permGrade, t: B.permT, dens: B.permDens }; B.permExtra.push({ grade: l.grade, t: +l.t, dens: +l.dens }); }
-      B.permExtra.length = want;
-      if (want !== had) { log('Value changed', `bottom permanent layers: ${had + 1} → ${want + 1}`); reopenFrom(ST.perm); }
-    }
-    function botLayersHTML() {
-      const X = S.bottom.permExtra || [];
-      return `<h4 style="margin:10px 0 4px">Bottom permanent lining layers ${tagS('T')}</h4>
-    <div class="fld inline" style="margin:4px 0 6px"><span><b>Number of bottom permanent layers</b></span><select data-p="bottomPermN">${[1, 2, 3, 4, 5].map(n => `<option ${n === X.length + 1 ? 'selected' : ''}>${n}</option>`).join('')}</select><span class="small">choose 2 for two light-blue bottom layers (as on the client drawing)</span></div>
-    <div class="tw"><table class="tbl pairtbl"><tr><th>Layer</th><th>Grade</th><th>Thickness (mm)</th><th>Density (t/m³)</th><th></th></tr>
-    <tr><td>1 · on the shell</td><td>${esc(S.bottom.permGrade)}</td><td>${f(S.bottom.permT)}</td><td>${esc(S.bottom.permDens)}</td><td class="small">rows above</td></tr>
-    ${X.map((e, i) => `<tr><td>${i + 2}${i === X.length - 1 ? ' · under working' : ''}</td><td><input list="grades" style="width:120px" data-p="bottom.permExtra.${i}.grade" value="${esc(e.grade)}"></td><td><input type="number" step="any" class="mini" data-p="bottom.permExtra.${i}.t" value="${esc(e.t)}"></td><td><input type="number" step="any" class="mini" data-p="bottom.permExtra.${i}.dens" value="${esc(e.dens)}"></td><td><button class="btn xs" data-act="delPermLayer" data-i="${i}" title="Remove layer ${i + 2}">✕</button></td></tr>`).join('')}
-    </table></div><button class="btn xs" data-act="addPermLayer">+ Add permanent layer</button> <span class="small">Total ${X.length + 1} layer${X.length ? 's' : ''} = ${f(botPermT())} mm. Layer 2, 3 … are laid on top of layer 1 (towards the working bottom); each is drawn as its own band with a joint line and has its own BOM line.</span>`;
-    }
     function vPerm() {
-      const D = permDesign(), cs = permChecks(D); const srcOpts = ['Supplier input', 'Customer spec', 'Drawing'];
-      const secCard = ([sec, name, type]) => {
-        if (!bandOf(type)) return ''; const F = PF(sec), p = sec + '.', ro = S.permSrc[sec] === 'Customer spec' && S.job.cusPerm === 'Yes';
-        const ty = ro ? 'ro' : null;
-        return `<div class="card"><h3>${name} <span class="small">EL ${fv(bandOf(type).h0)}–${fv(bandOf(type).h1)}</span></h3><table class="tbl ftbl">
-    ${frow([`permSrc.${sec}`, 'Source of permanent lining data', '', 'sel', 'T', 1, 'Drawing / customer specification / Supplier input', srcOpts])}
-    ${frow([p + F.g, 'Permanent Lining Grade', '', ty || 'grade', ro ? 'C' : 'T', 1, ''])}${frow([p + F.t, 'Permanent Lining Thickness', 'mm', ty || 'n', ro ? 'C' : 'T', 1, sec === 'bottom' ? 'Measured vertically under the working bottom' : 'Measured normal to the shell'])}
-    ${frow([p + F.b, 'Backfill / Gap Thickness', 'mm', 'n', 'T', 0, 'Rammed fill between permanent and working lining (0 if none)'])}${frow([p + F.d, 'Permanent lining bulk density', 't/m³', 'n', 'T', 1, 'For weight and tonnage'])}</table>
-    ${sec === 'bottom' ? botLayersHTML() : ''}
-    ${S.permSrc[sec] === 'Drawing' ? '<div class="note bad">⚠ No permanent lining on the customer drawing (naked shell). Choose another source.</div>' : ''}</div>`;
-      };
-      const tot = D.rows.reduce((a, r) => a + r.tonnes, 0);
-      return `${guide('The permanent (safety) lining is laid first, against the steel shell, and often stays for several campaigns. Decide it before the working lining, because the working lining starts at its hot face. For each section choose where the data comes from: the drawing (only if shown), the customer specification, or a Supplier input.')}
+      const D = permDesign(), cs = permChecks(D), zs = permZones();
+      if (!zs.length) return `${guide('Create the zones first (Zone creation step): the permanent lining is defined zone by zone.')}<div class="note bad">No zones defined yet.</div>${gateBar(ST.perm, false, 'Confirm permanent lining', 'Create the zones first.')}`;
+      const id = curPermZone(), z = zs.find(q => q.id === id), Q = S.permz[id], r = D.rows.find(x => x.id === id), p = `permz.${id}.`, isBot = z.type === 'Bottom';
+      const ro = Q.src === 'Customer spec' && S.job.cusPerm === 'Yes', mono = isMono(Q), tap = isTap(Q) && !isBot;
+      const L = isBot ? permLayers(Q) : null;
+      const layerTable = !L ? '' : (() => { const lr = r && r.layers ? r.layers : [], inp = (pp, k, v, num, w) => `<input ${num ? 'type="number" step="any"' : ''} style="width:${w || 70}px" data-p="${pp}${k}" value="${esc(v == null ? '' : v)}">`;
+        return `<h4>Permanent (safety) layers ${tagS('T')} <span class="small">layer 1 lies on the steel shell · layer ${L.length} is directly under the working bottom</span></h4>
+        <div class="tw"><table class="tbl pairtbl"><tr><th>#</th><th>Material / grade</th><th>Form</th><th>Mark</th><th>Thickness (mm)</th><th>Brick width</th><th>Brick length</th><th>Density (t/m³)</th><th>k (W/m·K)</th><th>Allow. %</th><th>Qty</th><th>Tonnes</th></tr>
+        ${L.map((l, i) => { const pp = `${p}layers.${i}.`, mono = isMono(l), x = lr[i]; return `<tr><td class="nowrap"><span class="sw" style="background:${gcol(l.grade)}"></span> ${i + 1}</td><td><input list="grades" style="width:96px" data-p="${pp}grade" value="${esc(l.grade)}"></td><td><select style="width:128px" data-p="${pp}shape">${PSHAPES_BOT.map(o => `<option ${o === l.shape ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select></td><td>${mono ? inp(pp, 'mark', l.mark, 0, 84) : permMarkSel(pp + 'mark', l.mark, { blank: 1, w: 96 })}</td><td>${inp(pp, 't', l.t, 1)}</td><td>${mono ? '—' : inp(pp, 'w', l.w, 1)}</td><td>${mono ? '—' : inp(pp, 'h', l.h, 1)}</td><td>${inp(pp, 'dens', l.dens, 1, 60)}</td><td>${inp(pp, 'k', l.k, 1, 56)}</td><td>${inp(pp, 'cut', l.cut, 1, 50)}</td><td>${x && isFinite(x.qty) ? f(x.qty) : '—'}</td><td>${x ? f(x.tonnes, 2) : '—'}</td></tr>`; }).join('')}
+        <tr class="tot"><td colspan="4">Total permanent bottom</td><td>${f(Q.t)} mm</td><td colspan="2"></td><td>${Q.dens}</td><td>${Q.k || '—'}</td><td></td><td>${r && isFinite(r.bricks) ? f(r.bricks) : '—'}</td><td>${r ? f(r.tonnes, 2) : '—'}</td></tr></table></div>
+        <p class="small">Total thickness, thickness-weighted density and series conductivity of the layers are used for the vessel volume, weight, freeboard and drawings. Blank mark = PL-width×length×thickness.</p>`; })();
+      const rowsZ = L ? [
+        [p + 'src', 'Source of permanent lining data', '', 'sel', 'T', 1, 'Drawing / customer specification / Supplier input', ['Supplier input', 'Customer spec', 'Drawing']],
+        [p + 'nLayers', 'Number of permanent (safety) layers', 'no.', 'n', 'T', 1, '1–5 layers under the working bottom; each layer has its own material, form and size'],
+        [p + 'back', 'Backfill / gap thickness', 'mm', 'n', 'T', 0, 'Rammed fill between the top permanent layer and the working bottom (0 if none)'],
+        [p + 'reuse', 'Reuse existing permanent lining (reline)?', '', 'yn', 'T', 1, 'If Yes, the bottom permanent layers are left out of the BOM'],
+      ] : [
+        [p + 'src', 'Source of permanent lining data', '', 'sel', 'T', 1, 'Drawing / customer specification / Supplier input', ['Supplier input', 'Customer spec', 'Drawing']],
+        [p + 'grade', mono ? 'Material / product' : 'Material / grade', '', ro ? 'ro' : 'grade', ro ? 'C' : 'T', 1, 'Each zone can use a different material'],
+        [p + 'shape', 'Product form / brick shape', '', 'sel', 'T', 1, isBot ? 'Bottom: straight bricks or monolithic' : 'Straight bricks, a tapered radial pair, or monolithic', isBot ? PSHAPES_BOT : PSHAPES_WALL],
+        [p + 't', mono ? 'Permanent lining thickness' : 'Thickness (= brick length into the wall)', 'mm', ro ? 'ro' : 'n', ro ? 'C' : 'T', 1, isBot ? 'Measured vertically under the working bottom' : 'Measured normal to the shell'],
+        ...(mono ? [[p + 'mark', 'Product mark', '', 'w', 'T', 0, 'e.g. castable / ramming mass code']]
+          : tap ? [[p + 'h', 'Course height', 'mm', 'n', 'T', 1, 'Height of one permanent course'], [p + 'minCut', 'Minimum cut brick width', 'mm', 'n', 'T', 1, '']]
+          : [[p + 'mark', 'Brick mark', '', 'sel', 'T', 1, `Any of ${PERM_MARKS.join(', ')} in any zone (auto = PL-w×h×t)`, permMarkOpts(Q.mark, 1)], [p + 'w', isBot ? 'Brick plan width' : 'Brick width (along the ring)', 'mm', 'n', 'T', 1, ''], [p + 'h', isBot ? 'Brick plan length' : 'Brick height (course)', 'mm', 'n', 'T', 1, '']]),
+        [p + 'dens', 'Bulk density', 't/m³', 'n', 'T', 1, 'For weight and tonnage'],
+        [p + 'k', 'Thermal conductivity', 'W/m·K', 'n', 'T', 0, `Blank = default ${S.concept.kP} (Lining concept); used for the shell temperature`],
+        [p + 'cut', mono ? 'Fill / rebound allowance' : 'Cutting allowance', '%', 'n', 'T', 1, ''],
+        [p + 'back', 'Backfill / gap thickness', 'mm', 'n', 'T', 0, 'Rammed fill between permanent and working lining (0 if none)'],
+        [p + 'reuse', 'Reuse existing permanent lining (reline)?', '', 'yn', 'T', 1, 'If Yes, this zone is left out of the BOM'],
+      ];
+      const others = zs.filter(q => q.id !== id);
+      const tabs = `<div class="tabs big">${zs.map(q => { const e = cs.filter(c => c.zid === q.id && c.st === 'err').length; return `<button class="tab ${q.id === id ? 'on' : ''}" data-act="permTab" data-id="${q.id}"><span class="sw" style="background:${permCol(S.permz[q.id])}"></span> ${esc(q.name)}${e ? ` <b class="${q.id === id ? '' : 'err-t'}">⚠${e}</b>` : ''}</button>`; }).join('')}</div>`;
+      const res = r ? `<div class="note ok"><b>${esc(z.name)}:</b> ${r.reuse ? 'reused – not in the BOM' : r.parts.length ? r.parts.map(x => `${f(x.qty)} × ${esc(x.mark)}`).join(' + ') : mono ? 'monolithic, by volume' : 'no quantity yet'} · ${f(r.area / 1e6, 1)} m² · ${f(r.vol / 1e9, 2)} m³ · <b>${f(r.tonnes, 1)} t</b> ${esc(r.grade)}</div>` : '';
+      const zoneCard = `<div class="card zonecard" id="permZone" style="border-left-color:${permCol(Q)}"><h3>${esc(z.name)} <span class="small">EL ${fv(z.h0)}–${fv(z.h1)} · ${esc(z.type)}</span></h3>
+        <div class="tw"><table class="tbl ftbl">${rowsZ.map(frow).join('')}</table></div>
+        ${tap ? `<h4>Tapered pair(s) ${tagS('T')}</h4>${permPairTable(p + 'pairs', Q.pairs)}` : ''}${layerTable}
+        ${Q.src === 'Drawing' ? '<div class="note bad">⚠ No permanent lining on the customer drawing (naked shell). Choose another source.</div>' : ''}
+        ${PERM_SUGGEST[z.type] ? `<p class="small">Suggested permanent brick for ${esc(z.type.toLowerCase())}: <b>${esc(PERM_SUGGEST[z.type].mark || PERM_SUGGEST[z.type].pair.slice(0, 2).join(' / '))}</b> (sizes are placeholders until production confirms the mould).</p>` : ''}
+        ${res}
+        <p class="small">${others.length ? `Copy from: ${others.map(o => `<button class="btn xs" data-act="permCopy" data-from="${o.id}" data-to="${id}">${esc(o.name)}</button>`).join(' ')} · ` : ''}<button class="btn xs" data-act="permAll" data-from="${id}">Apply ${esc(z.name)} settings to all zones</button></p></div>`;
+      const tot = D.rows.reduce((a, x) => a + (x.reuse ? 0 : x.tonnes), 0), pcs = D.rows.reduce((a, x) => a + (!x.reuse && isFinite(x.bricks) ? x.bricks : 0), 0);
+      const resRows = D.rows.map(x => `<tr class="${x.id === id ? 'sel' : ''}" data-act="permTab" data-id="${x.id}"><td><b>${esc(x.name)}</b></td><td>${fv(x.z.h0)}–${fv(x.z.h1)}</td><td>${esc(x.src)}</td><td><span class="sw" style="background:${gcol(x.grade)}"></span> ${esc(x.grade)}</td><td>${esc(permShapeShort(x.Q))}</td><td>${f(x.t)}</td><td>${f(x.back)}</td><td>${f(x.area / 1e6, 1)}</td><td>${f(x.vol / 1e9, 2)}</td><td>${isFinite(x.bricks) ? f(x.bricks) : '—'}</td><td>${f(x.tonnes, 1)}</td><td>${x.reuse ? 'Reused' : 'New'}</td></tr>`).join('');
+      const bot = D.rows.find(x => x.z.type === 'Bottom');
+      const rules = [
+        ['PL0', 'Permanent lining per zone', 'Each zone and segment has its own source, material, product form, size, density, conductivity, allowance, backfill and reuse', `${zs.length} zones · ${new Set(D.rows.map(x => x.grade)).size} material(s) · ${new Set(D.rows.map(x => x.shape)).size} product form(s)`],
+        ['PL1', 'Wall area per slice', 'Area = 2π × (Shell radius − t/2 ÷ cos φ) × dh ÷ cos φ (φ = wall angle from vertical), summed over the zone', r && !isBot ? `${z.name}: ${f(r.area / 1e6, 2)} m²` : '—'],
+        ['PL2', 'Wall volume per slice', 'Volume = π × (Shell radius² − (Shell radius − t ÷ cos φ)²) × dh, summed over the zone', r && !isBot ? `${z.name}: ${f(r.vol / 1e9, 3)} m³` : '—'],
+        ['PL3', 'Bottom (per permanent layer)', 'Area = π × (lower cone ID at bottom ÷ 2)²; Volume_i = Area × thickness of layer i; total thickness = Σ layers; density = Σ(t_i × ρ_i) ÷ Σ t_i; k = Σ t_i ÷ Σ(t_i ÷ k_i)', bot ? (bot.layers ? bot.layers.map(x => `L${x.i}: ${f(bot.area / 1e6, 2)} m² × ${fv(x.t)} = ${f(x.vol / 1e9, 3)} m³`).join(' · ') + ` → ${fv(bot.t)} mm, ${f(bot.vol / 1e9, 3)} m³` : `${f(bot.area / 1e6, 2)} m² × ${fv(bot.t)} mm = ${f(bot.vol / 1e9, 3)} m³`) : '—'],
+        ['PL4', 'Straight bricks', 'Bricks = Area ÷ (brick width × brick height) × (1 + cutting allowance)', r && r.layers ? r.layers.filter(x => !x.mono).map(x => `L${x.i}: ${f(r.area / 1e6, 2)} m² ÷ (${fv(+x.l.w)} × ${fv(+x.l.h)}) × (1 + ${fv(+x.l.cut || 0)}%) = ${f(x.qty)} ${x.mark}`).join(' · ') || '—' : r && /^Straight/.test(r.shape) ? `${f(r.area / 1e6, 2)} m² ÷ (${fv(+Q.w)} × ${fv(+Q.h)}) × (1 + ${fv(+Q.cut)}%) = ${f(r.bricks)}` : '—'],
+        ['PL4a', 'Tapered pair (radial)', 'Per course: Count_A × hot_A + Count_B × hot_B = 2π(R_shell − t ÷ cos φ); Count_A × cold_A + Count_B × cold_B = 2π × R_shell; close with a cut ≥ minimum; × (1 + cutting allowance)', r && /^Tapered/.test(r.shape) ? `${r.courses} courses → ${r.parts.map(x => `${x.qty} × ${x.mark}`).join(' + ') || 'no closure'}` : '—'],
+        ['PL5', 'Tonnes', 'Tonnes = Volume × bulk density (monolithic: × (1 + fill allowance))', r ? `${f(r.vol / 1e9, 3)} m³ × ${r.dens} = ${f(r.tonnes, 2)} t` : '—'],
+        ['PL6', 'Shell temperature input', 'The shell temperature check uses this zone\'s permanent thickness and conductivity (blank = default)', `${fv(+Q.t)} mm · k = ${permK(id)} W/m·K`],
+      ];
+      return `${guide('The permanent (safety) lining is laid first, against the steel shell, and often stays for several campaigns. It is defined <b>zone by zone</b>: each zone (and each segment from Zone creation) can have its own material, product form (straight brick, tapered radial pair or monolithic), brick size, density, allowance and backfill. Pick a zone here or in the left menu under <b>Lining concept · layers → Permanent lining</b>.')}
   <div class="grid-side"><div>
   <div class="grid2"><div>
-   ${fgroup('Customer specification (from job card)', 'C', [['job.cusPerm', 'Customer specifies the permanent lining?', '', 'ro', 'C', 1, ''], ['job.cusPermGrade', 'Specified grade', '', 'ro', 'C', 0, 'Used where the source is Customer spec'], ['job.cusPermT', 'Specified thickness', 'mm', 'ro', 'C', 0, '']])}
-   ${fgroup('Common Supplier inputs', 'T', [['permReuse', 'Reuse existing permanent lining (reline)?', '', 'yn', 'T', 1, 'If Yes, it is not included in the BOM'], ['permBrick.w', 'Permanent brick width', 'mm', 'n', 'T', 1, ''], ['permBrick.h', 'Permanent brick height', 'mm', 'n', 'T', 1, ''], ['permBrick.cut', 'Cutting allowance', '%', 'n', 'T', 1, ''], ['permLim.min', 'Permanent thickness – Supplier minimum', 'mm', 'n', 'T', 1, 'For check P2'], ['permLim.max', 'Permanent thickness – Supplier maximum', 'mm', 'n', 'T', 1, '']])}
-  </div><div>${PSEC.map(secCard).join('')}</div></div>
-  <div class="card"><h3>Result</h3>${kpis([[f(tot, 1) + ' t', 'permanent lining'], [f(D.rows.reduce((a, r) => a + r.bricks, 0)), 'bricks (approx.)'], [S.permReuse === 'Yes' ? 'Reused' : 'New', 'BOM treatment']])}
-  <div class="tw"><table class="tbl"><tr><th>Section</th><th>Source</th><th>Grade</th><th>Thickness</th><th>Backfill</th><th>Area (m²)</th><th>Volume (m³)</th><th>Bricks</th><th>Tonnes</th></tr>${D.rows.map(r => `<tr><td>${r.name}</td><td>${esc(r.src)}</td><td><span class="sw" style="background:${gcol(r.grade)}"></span> ${esc(r.grade)}</td><td>${f(r.t)}</td><td>${f(r.back)}</td><td>${f(r.area / 1e6, 1)}</td><td>${f(r.vol / 1e9, 2)}</td><td>${f(r.bricks)}</td><td>${f(r.tonnes, 1)}</td></tr>`).join('')}</table></div>
+   ${fgroup('Customer specification (from job card)', 'C', [['job.cusPerm', 'Customer specifies the permanent lining?', '', 'ro', 'C', 1, ''], ['job.cusPermGrade', 'Specified grade', '', 'ro', 'C', 0, 'Used where a zone\'s source is Customer spec'], ['job.cusPermT', 'Specified thickness', 'mm', 'ro', 'C', 0, '']])}
+  </div><div>
+   ${fgroup('Supplier defaults & limits', 'T', [['permBrick.w', 'Default brick width', 'mm', 'n', 'T', 0, 'Starting value for zones added later'], ['permBrick.h', 'Default brick height', 'mm', 'n', 'T', 0, ''], ['permBrick.cut', 'Default cutting allowance', '%', 'n', 'T', 0, ''], ['permReuse', 'Default: reuse existing lining?', '', 'yn', 'T', 0, 'Each zone can differ'], ['permLim.min', 'Permanent thickness – Supplier minimum', 'mm', 'n', 'T', 1, 'For check P2'], ['permLim.max', 'Permanent thickness – Supplier maximum', 'mm', 'n', 'T', 1, '']])}
+  </div></div>
+  <div class="card" style="border-color:var(--info)"><h3>Zones <span class="small">each zone has its own permanent lining</span></h3>${tabs}</div>
+  ${zoneCard}
+  <div class="card"><h3>Result (all zones)</h3>${kpis([[f(tot, 1) + ' t', 'permanent lining (new)'], [f(pcs), 'bricks (all zones)'], [String(new Set(D.rows.map(x => x.grade)).size), 'materials'], [String(D.rows.filter(x => x.reuse).length), 'zones reused']])}
+  <div class="tw"><table class="tbl"><tr><th>Zone</th><th>EL (mm)</th><th>Source</th><th>Material</th><th>Form / shape</th><th>Thickness</th><th>Backfill</th><th>Area (m²)</th><th>Volume (m³)</th><th>Bricks</th><th>Tonnes</th><th>BOM</th></tr>${resRows}</table></div>
+  <h4>Permanent lining BOQ</h4>${boqTable(D.items)}
   <h4>Validation</h4>${checksHTML(cs)}</div>
-  ${rulesCard([['PL1', 'Wall area per slice', 'Area = 2π × (Shell radius − t/2 ÷ cos φ) × dh ÷ cos φ (φ = wall angle from vertical)'], ['PL2', 'Wall volume per slice', 'Volume = π × (Shell radius² − (Shell radius − t ÷ cos φ)²) × dh'], ['PL3', 'Bottom', 'Area = π × (lower cone ID at bottom ÷ 2)²; Volume = Area × t'], ['PL4', 'Bricks', 'Bricks = Area ÷ (brick width × brick height) × (1 + cutting allowance)'], ['PL5', 'Tonnes', 'Tonnes = Volume × bulk density']])}
+  ${rulesCard(rules, `Worked values are for the selected zone (${esc(z.name)}).`)}
   </div><div class="sticky card annp" data-live-pic="perm">${permPic()}</div></div>
-  ${gateBar(ST.perm, !errCount(cs), 'Confirm permanent lining', 'Fix the source errors first.')}`;
+  ${gateBar(ST.perm, !errCount(cs), 'Confirm permanent lining', 'Fix the errors in the zones marked ⚠ first.')}`;
     }
 
     /* ============ LINING CONCEPT (thickness first, vessel checks) ============ */
@@ -2591,12 +2778,12 @@ function sessionCard() {
       const z = S.zones.find(q => h >= q.h0 && h < q.h1) || S.zones[S.zones.length - 1]; if (!z) return null;
       if (z.type === 'Mouth') return { type: 'Mouth', t: +S.mouth.mL, perm: 0, back: +S.mouth.minFill, dens: +S.mouth.mDens, permDens: 0, backDens: +S.mouth.fillDens };
       let seg = TYPESEG[z.type], zz = z; if (!seg) { const nx = S.zones.find(q => TYPESEG[q.type]); if (!nx) return null; seg = TYPESEG[nx.type]; zz = nx; }
-      const P = S[seg], zs = wallZones(seg, zz.id); let t = 0, d = 0, sp = 0; zs.forEach(q => { t += zoneThick(seg, q).t * (+q.span); d += (+q.dens) * (+q.span); sp += +q.span; });
-      return { type: z.type, seg, t: t / sp, dens: d / sp, perm: +P.tPerm, back: +P.back, permDens: +P.permDens, backDens: 2.8 };
+      const Q = permOf(zz.id), zs = wallZones(seg, zz.id); let t = 0, d = 0, sp = 0; zs.forEach(q => { t += zoneThick(seg, q).t * (+q.span); d += (+q.dens) * (+q.span); sp += +q.span; });
+      return { type: z.type, seg, t: t / sp, dens: d / sp, perm: +Q.t, back: +Q.back || 0, permDens: +Q.dens, backDens: 2.8, permZone: zz.id };
     }
     function conceptVessel() {
       if (CACHE.concept) return CACHE.concept;
-      const H = XN('H'), dh = 10, bt = bottomThick(), tb = botPermT() + (+S.bottom.permBack) + bt.t; let V = 0, W = 0; const cum = [], prof = [];
+      const H = XN('H'), dh = 10, bt = bottomThick(), bq = botPerm(), tb = (+bq.t) + (+bq.back || 0) + bt.t; let V = 0, W = 0; const cum = [], prof = [];
       for (let h = dh / 2; h < H; h += dh) {
         const L = layerAt(h); if (!L) continue; const Rs = rIn(h), c = Math.cos(rad(Math.abs(phiAt(h))));
         const rWall = fxCalc('ui_hot_radius_wall', { r_shell: Rs, t_perm: L.perm, t_back: L.back, t_work: L.t, cos_phi: c }, () => Rs - (L.perm + L.back + L.t) / c);
@@ -2604,7 +2791,7 @@ function sessionCard() {
         V += Math.PI * rHot * rHot * dh; cum.push([h, V]); prof.push([h, rHot, Rs]);
         if (L.type !== 'Bottom') { const r1 = Rs - L.perm / c, r2 = r1 - L.back / c, r3 = Math.max(0, r2 - L.t / c); W += Math.PI * dh * ((Rs * Rs - r1 * r1) * L.permDens + (r1 * r1 - r2 * r2) * L.backDens + (r2 * r2 - r3 * r3) * L.dens); }
       }
-      const Rb = XN('lcIDb') / 2, Ab = Math.PI * Rb * Rb; W += Ab * (botPerm().reduce((a, l) => a + l.t * l.dens, 0) + bt.t * (+S.bottom.dens));
+      const Rb = XN('lcIDb') / 2, Ab = Math.PI * Rb * Rb; W += Ab * ((+bq.t) * (+bq.dens) + bt.t * (+S.bottom.dens));
       const Vm = fxCalc('ui_metal_volume', { heat_tons: +S.job.heat, steel_density: +S.job.rho }, () => (+S.job.heat) / (+S.job.rho) * 1e9), Vs = (+S.job.slagVol) * 1e9;
       const lvl = v => { const p = cum.find(x => x[1] >= v); return p ? p[0] : NaN; };
       const hb = lvl(Vm), hs = lvl(Vm + Vs);
@@ -2612,16 +2799,17 @@ function sessionCard() {
       const fb = fxCalc('ui_freeboard', { vessel_h: H, bath_level: hb }, () => H - hb);
       return CACHE.concept = { V: cavM3, sv, W: W / 1e9, hb, hs, fb, fbSlag: H - hs, prof, tb, H, Vm: Vm / 1e9 };
     }
-    function shellTemp(seg, t) {
-      const C = S.concept, P = S[seg] || S.barrel;
-      return fxCalc('ui_shell_temperature', { t_hot: +S.job.tapT, t_amb: +C.tAmb, t_work: t, k_work: +C.kW, t_perm: +P.tPerm, k_perm: +C.kP, h_out: +C.hOut }, () => {
-        const R = (t / 1000) / (+C.kW) + (+P.tPerm / 1000) / (+C.kP) + 1 / (+C.hOut); const q = ((+S.job.tapT) - (+C.tAmb)) / R; return (+C.tAmb) + q / (+C.hOut);
+    function shellTemp(seg, t, zid) {
+      const C = S.concept; zid = zid || (segsOf(seg)[0] || {}).id; const tp = permT(zid), kp = permK(zid);
+      return fxCalc('ui_shell_temperature', { t_hot: +S.job.tapT, t_amb: +C.tAmb, t_work: t, k_work: +C.kW, t_perm: tp, k_perm: kp, h_out: +C.hOut }, () => {
+        const R = (t / 1000) / (+C.kW) + (tp / 1000) / kp + 1 / (+C.hOut); const q = ((+S.job.tapT) - (+C.tAmb)) / R; return (+C.tAmb) + q / (+C.hOut);
       });
     }
     function conceptRows() {
       const rows = [], bt = bottomThick();
-      rows.push({ sec: 'Bottom', seg: '—', zone: 'Bottom', grade: (S.bottom.mand || '').trim() || S.bottom.grade, wearP: 'bottom.wear', overP: 'bottom.tOver', th: bt, ts: NaN });
-      ['lc', 'barrel', 'cone'].forEach(seg => segsOf(seg).forEach(z => wallZones(seg, z.id).forEach(q => { const th = zoneThick(seg, q); rows.push({ sec: SEGTYPE[seg], seg: segsOf(seg).length > 1 ? z.name : '—', zone: q.name, grade: q.grade, wearP: `segz.${z.id}.zones.${q.key}.wear`, overP: `segz.${z.id}.zones.${q.key}.tOver`, th, ts: shellTemp(seg, th.t), segKey: seg }); })));
+      const bz = S.zones.find(q => q.type === 'Bottom');
+      rows.push({ sec: 'Bottom', seg: '—', zone: 'Bottom', grade: (S.bottom.mand || '').trim() || S.bottom.grade, wearP: 'bottom.wear', overP: 'bottom.tOver', th: bt, ts: NaN, permId: bz && bz.id });
+      ['lc', 'barrel', 'cone'].forEach(seg => segsOf(seg).forEach(z => wallZones(seg, z.id).forEach(q => { const th = zoneThick(seg, q); rows.push({ sec: SEGTYPE[seg], seg: segsOf(seg).length > 1 ? z.name : '—', zone: q.name, grade: q.grade, wearP: `segz.${z.id}.zones.${q.key}.wear`, overP: `segz.${z.id}.zones.${q.key}.tOver`, th, ts: shellTemp(seg, th.t, z.id), segKey: seg, zid: z.id, permId: z.id }); })));
       rows.push({ sec: 'Mouth', seg: '—', zone: 'Steel-clad', grade: S.mouth.grade, fixed: true, th: { t: +S.mouth.mL, req: NaN, life: NaN }, ts: NaN });
       return rows;
     }
@@ -2658,15 +2846,15 @@ function sessionCard() {
     // (permSVG replaced with detailed scale drawing above)
     function vConcept() {
       const rows = conceptRows(), C = conceptVessel(), cs = conceptChecks();
-      const tr = rows.map(r => `<tr class="${isFinite(r.ts) && r.ts > +S.job.maxTs ? 'flag' : (!r.fixed && r.th.t < r.th.req) ? 'low' : ''}"><td>${r.sec}</td><td>${esc(r.seg)}</td><td>${esc(r.zone)}</td><td><span class="sw" style="background:${gcol(r.grade)}"></span> ${esc(r.grade)}</td>
+      const tr = rows.map(r => `<tr class="${isFinite(r.ts) && r.ts > +S.job.maxTs ? 'flag' : (!r.fixed && r.th.t < r.th.req) ? 'low' : ''}"><td>${r.sec}</td><td>${esc(r.seg)}</td><td>${esc(r.zone)}</td><td><span class="sw" style="background:${gcol(r.grade)}"></span> ${esc(r.grade)}</td><td class="nowrap">${r.permId ? (() => { const Q = permOf(r.permId); return `<span class="sw" style="background:${permCol(Q)}"></span> ${esc(Q.grade)} · ${f(Q.t)} <button class="btn xs" data-act="permGo" data-id="${r.permId}" title="Edit in Permanent lining">✎</button>`; })() : '—'}</td>
     <td>${r.fixed ? '—' : input(r.wearP, 'n')}</td><td>${r.fixed ? '—' : f(r.th.req)}</td><td>${r.fixed ? '—' : isFinite(r.th.std) ? f(r.th.std) : '<span class="err-t">none</span>'}</td><td>${r.fixed ? '<span class="small">Mouth step</span>' : input(r.overP, 'n')}</td><td><b>${f(r.th.t)}</b></td><td>${r.fixed ? '—' : f(r.th.life)}</td><td>${isFinite(r.ts) ? `<span class="${r.ts > +S.job.maxTs ? 'err-t' : ''}">${f(r.ts)}</span>` : '—'}</td></tr>`).join('');
       const lim = (v, l, ok) => `<span class="${ok ? 'ok-t' : 'err-t'}">${v}</span><span class="small"> / ${l}</span>`;
       return `${guide('Fix the working-lining thickness for every zone first, then check the vessel as a whole. Thickness = target life × wear rate + residual, rounded up to a standard brick length (or your override). The vessel checks use the permanent lining from the previous step. Detailed brickwork comes after this step.')}
   <div class="grid-side"><div>
-  <div class="card"><h3>Working-lining thickness by zone</h3><div class="tw"><table class="tbl ftbl"><tr><th>Section</th><th>Segment</th><th>Zone</th><th>Grade</th><th>Wear rate (mm/heat) ${tagS('T')}</th><th>Required</th><th>Standard</th><th>Override ${tagS('T')}</th><th>Used (mm)</th><th>Life (heats)</th><th>Shell °C</th></tr>${tr}</table></div>
+  <div class="card"><h3>Working-lining thickness by zone</h3><div class="tw"><table class="tbl ftbl"><tr><th>Section</th><th>Segment</th><th>Zone</th><th>Working grade</th><th>Permanent (zone)</th><th>Wear rate (mm/heat) ${tagS('T')}</th><th>Required</th><th>Standard</th><th>Override ${tagS('T')}</th><th>Used (mm)</th><th>Life (heats)</th><th>Shell °C</th></tr>${tr}</table></div>
   <p class="small">Amber row = thinner than required · red row = shell temperature over the limit. Zone cards in the later steps show these values read-only.</p></div>
   <div class="grid2"><div>${fgroup('Thickness rules (Supplier)', 'T', [['bottom.lengths', 'Bottom standard brick lengths', 'mm', 'w', 'T', 1, 'Comma-separated'], ['bottom.resid', 'Bottom minimum residual thickness', 'mm', 'n', 'T', 1, ''], ['lc.lengths', 'Lower cone standard lengths', 'mm', 'w', 'T', 1, ''], ['lc.resid', 'Lower cone minimum residual', 'mm', 'n', 'T', 1, ''], ['barrel.lengths', 'Barrel standard lengths', 'mm', 'w', 'T', 1, ''], ['barrel.resid', 'Barrel minimum residual', 'mm', 'n', 'T', 1, ''], ['cone.lengths', 'Top cone standard lengths', 'mm', 'w', 'T', 1, ''], ['cone.resid', 'Top cone minimum residual', 'mm', 'n', 'T', 1, ''], ['concept.balTol', 'Balanced wear tolerance', '%', 'n', 'T', 1, '']])}
-  ${fgroup('Thermal inputs (Supplier)', 'T', [['concept.kW', 'Working lining conductivity', 'W/m·K', 'n', 'T', 1, ''], ['concept.kP', 'Permanent lining conductivity', 'W/m·K', 'n', 'T', 1, ''], ['concept.hOut', 'Shell surface heat-transfer coefficient', 'W/m²·K', 'n', 'T', 1, ''], ['concept.tAmb', 'Ambient temperature', '°C', 'n', 'T', 1, '']])}</div>
+  ${fgroup('Thermal inputs (Supplier)', 'T', [['concept.kW', 'Working lining conductivity', 'W/m·K', 'n', 'T', 1, ''], ['concept.kP', 'Permanent lining conductivity (default)', 'W/m·K', 'n', 'T', 1, 'Used for zones whose permanent lining has no own value'], ['concept.hOut', 'Shell surface heat-transfer coefficient', 'W/m²·K', 'n', 'T', 1, ''], ['concept.tAmb', 'Ambient temperature', '°C', 'n', 'T', 1, '']])}</div>
   <div>${fgroup('Customer limits & process data', 'C', [['job.life', 'Target Lining Life', 'heats', 'n', 'C', 1, ''], ['job.heat', 'Heat size', 't', 'n', 'C', 1, ''], ['job.slagVol', 'Slag volume at end of blow', 'm³', 'n', 'C', 1, 'Sets the slag level above the bath'], ['job.minSV', 'Minimum Specific Volume', 'm³/t', 'n', 'C', 1, ''], ['job.minFB', 'Minimum freeboard (bath to mouth top)', 'mm', 'n', 'C', 1, ''], ['job.maxTs', 'Maximum Shell Temperature', '°C', 'n', 'C', 1, ''], ['job.maxW', 'Maximum lining weight', 't', 'n', 'C', 1, 'Tilt drive / trunnion limit'], ['job.tapT', 'Tapping Temperature', '°C', 'n', 'C', 0, 'Used as hot-face temperature'], ['job.rho', 'Liquid steel density', 't/m³', 'n', 'T', 1, 'Supplier convention']])}</div></div>
   </div><div class="card annp"><h3>Vessel checks</h3>
    <table class="tbl"><tr><td>Inside volume</td><td><b>${f(C.V, 1)} m³</b></td></tr><tr><td>Specific volume</td><td>${lim(f(C.sv, 3) + ' m³/t', '≥ ' + S.job.minSV, C.sv >= +S.job.minSV)}</td></tr><tr><td>Bath level</td><td>EL ${f(C.hb)} mm</td></tr><tr><td>Freeboard</td><td>${lim(f(C.fb) + ' mm', '≥ ' + f(S.job.minFB), C.fb >= +S.job.minFB)}</td></tr><tr><td>Max shell temperature</td><td>${(() => { const m = Math.max(...rows.filter(r => isFinite(r.ts)).map(r => r.ts)); return lim(f(m) + ' °C', '≤ ' + S.job.maxTs, m <= +S.job.maxTs); })()}</td></tr><tr><td>Lining weight</td><td>${lim(f(C.W, 1) + ' t', '≤ ' + f(S.job.maxW), C.W <= +S.job.maxW)}</td></tr></table>
@@ -2761,7 +2949,7 @@ function sessionCard() {
       'V8': 'Shell temperature is driven by thickness: increase working thickness in the Lining concept step, or use a lower-conductivity permanent lining.',
       'V7': 'See the specific volume check on the Lining concept step.',
       'C6': 'Wear is unbalanced: the zone with the shortest life fails first. Increase its thickness or lower its wear rate (better grade).',
-      'P3': 'Set the source to Customer spec for each section to follow the customer\'s specification, or record why Supplier deviates.',
+      'P3': 'Set the source to Customer spec in each zone to follow the customer\'s specification, or record why Supplier deviates.',
       'P4': 'Confirm the condition of the existing permanent lining at site before reusing it.',
     };
     function cFix1(r) {
@@ -2771,12 +2959,12 @@ function sessionCard() {
     }
     function cFix4(r) {
       if (!(r.ts > +S.job.maxTs) || !r.segKey) return {};
-      const C = S.concept, P = S[r.segKey], Th = +S.job.tapT, Ta = +C.tAmb, lim = +S.job.maxTs;
-      const tw = fxCalc('ui_req_work_t_for_ts', { t_hot: Th, t_amb: Ta, t_shell_max: lim, t_perm: +P.tPerm, k_perm: +C.kP, k_work: +C.kW, h_out: +C.hOut }, () => {
-        const Rn = (Th - Ta) / ((+C.hOut) * (lim - Ta)); return (Rn - (+P.tPerm / 1000) / (+C.kP) - 1 / (+C.hOut)) * (+C.kW) * 1000;
+      const C = S.concept, P = S[r.segKey], Th = +S.job.tapT, Ta = +C.tAmb, lim = +S.job.maxTs, tp = permT(r.zid), kp = permK(r.zid);
+      const tw = fxCalc('ui_req_work_t_for_ts', { t_hot: Th, t_amb: Ta, t_shell_max: lim, t_perm: tp, k_perm: kp, k_work: +C.kW, h_out: +C.hOut }, () => {
+        const Rn = (Th - Ta) / ((+C.hOut) * (lim - Ta)); return (Rn - (tp / 1000) / kp - 1 / (+C.hOut)) * (+C.kW) * 1000;
       });
       const Ls = lengthsOf(P.lengths), pick = Ls.find(l => l >= tw);
-      return { hint: `To stay at or below ${f(lim)} °C this zone needs about ${f(tw)} mm working lining (1-D estimate) instead of ${f(r.th.t)} mm. Alternatively use a lower-conductivity permanent lining or confirm the limit with the customer.`, fixes: pick ? [{ label: `Override ${r.zone} to ${f(pick)} mm`, spec: `${r.overP}=${pick}` }] : [{ label: `Add ${Math.ceil(tw / 50) * 50} mm length and use it for ${r.zone}`, spec: `${r.segKey}.lengths=${Ls.concat(Math.ceil(tw / 50) * 50).join(',')};${r.overP}=${Math.ceil(tw / 50) * 50}` }] };
+      return { hint: `To stay at or below ${f(lim)} °C this zone needs about ${f(tw)} mm working lining (1-D estimate) instead of ${f(r.th.t)} mm. Alternatively use a thicker or lower-conductivity permanent lining in this zone (Permanent lining step) or confirm the limit with the customer.`, fixes: pick ? [{ label: `Override ${r.zone} to ${f(pick)} mm`, spec: `${r.overP}=${pick}` }] : [{ label: `Add ${Math.ceil(tw / 50) * 50} mm length and use it for ${r.zone}`, spec: `${r.segKey}.lengths=${Ls.concat(Math.ceil(tw / 50) * 50).join(',')};${r.overP}=${Math.ceil(tw / 50) * 50}` }] };
     }
     function svHint() {
       const C = conceptVessel(), b = bandOf('Barrel'); if (!b) return 'Reduce working thickness in the largest zones.'; const r = XN('barID') / 2 - 1000, dV = 2 * Math.PI * r * 50 * (b.h1 - b.h0) / 1e9; const need = (+S.job.minSV - C.sv) * (+S.job.heat);
@@ -2830,7 +3018,7 @@ function sessionCard() {
         ['R4', 'Working Thickness used', 'Smallest standard length ≥ Required, unless overridden', `lengths ${Ls.join(', ')} → ${fm(th.t, 0)} mm${th.over ? ' (override)' : ''}`],
         ['R5', 'Course mid-elevation', 'Elevation_k = Bottom Elevation + (k − 0.5) × (Course Height + Joint)', `course 1: ${fm(D.band.h0)} + 0.5 × ${ch} = ${fm(r0.elev)} mm`],
         ['R6', 'Shell inner radius at course', cone ? 'Shell Radius_k = from extracted profile at Elevation_k (ID bottom ÷ 2 − (Elev − start) × tan φ)' : 'Shell Radius = Barrel Shell ID ÷ 2', `course 1: ${fm(r0.Rs)} mm${cone ? ` · course ${rl.k}: ${fm(rl.Rs)} mm` : ''}`],
-        ['R7', 'Working Lining Cold-Face Radius', cone ? 'Cold Radius_k = Shell Radius_k − (Permanent + Backfill) ÷ cos φ' : 'Cold Radius = Shell Radius − Permanent − Backfill', `${fm(r0.Rs)} − (${P.tPerm} + ${P.back})${cone ? ` ÷ cos ${fm(phi0)}°` : ''} = ${fm(r0.cold)} mm`],
+        ['R7', 'Working Lining Cold-Face Radius', (cone ? 'Cold Radius_k = Shell Radius_k − (Permanent + Backfill) ÷ cos φ' : 'Cold Radius = Shell Radius − Permanent − Backfill') + ' (permanent lining of the segment the course is in)', `${fm(r0.Rs)} − (${permT(r0.sg.sid)} + ${+permOf(r0.sg.sid).back || 0})${cone ? ` ÷ cos ${fm(phi0)}°` : ''} = ${fm(r0.cold)} mm`],
         ['R8', `Hot-Face Radius (${z0.name})`, cone && D.perp ? 'Hot Radius = Cold Radius − Thickness × cos φ' : 'Hot Radius = Cold Radius − Thickness', `${fm(r0.cold)} − ${fm(c0.t, 0)} = ${fm(c0.hot)} mm`],
         ['R9', 'Zone spans and limits', 'Base zone span = 360° − other zones; Start/End = Centre ∓ Span ÷ 2', r0.cells.map(c => `${c.z.name} ${fm(c.span, 0)}° @ ${fm(c.z.centre, 0)}°`).join(' · ')],
         ['R10', `Zone Arcs (${z0.name}, course 1)`, 'Hot Arc = 2π × Hot Radius × Span ÷ 360; Cold Arc = 2π × Cold Radius × Span ÷ 360', `hot ${fm(c0.hotArc, 0)} mm · cold ${fm(c0.coldArc, 0)} mm`],
@@ -2949,8 +3137,8 @@ function sessionCard() {
       { n: 1, t: 'Drawing extraction', s: 'Confirm dimensions' },
       { n: 2, t: 'Zone creation', s: 'Height bands, mouth, charge side' },
       { n: 3, t: 'Angles & grades', s: 'Span and grade per zone' },
-      { n: 4, t: 'Permanent lining', s: 'Safety lining by section' },
-      { n: 5, t: 'Lining concept', s: 'Thickness + vessel checks' },
+      { n: 4, t: 'Permanent lining', s: 'Per zone: material, shape, size' },
+      { n: 5, t: 'Lining concept', s: 'Working thickness + vessel checks' },
       { n: 6, t: 'Bottom', s: 'Concentric rings' },
       { n: 7, t: 'Lower cone', s: '360° wall' },
       { n: 8, t: 'Barrel', s: 'Charge pad · trunnion + tap pad' },
@@ -2960,6 +3148,7 @@ function sessionCard() {
       { n: 12, t: 'Junctions & assemblies', s: 'Transitions, taphole, stirring' },
       { n: 13, t: 'Summary & BOM', s: 'Checks and export' },
     ];
+    const SGROUPS = [['Set-up', [0, 1, 2, 3]], ['Lining concept · layers', [4, 5]], ['Working lining design', [6, 7, 8, 9, 10, 11, 12]], ['Output', [13]]];
     const canOpen = n => n === 0 || !!S.gates[n - 1];
 
     /* ============ FIELD RENDERING ============ */
@@ -3028,7 +3217,7 @@ function sessionCard() {
         const left = S.chargeSide === 'Left'; const yb = Y((XN('barH0') + XN('barH1')) / 2);
         parts.push(`<text x="${left ? 8 : W - 8}" y="${yb}" text-anchor="${left ? 'start' : 'end'}" class="svt b" fill="#e0675f">${left ? '◀ Charge side' : 'Charge side ▶'}</text>`);
         const tapRight = angDiff(XN('tapAng'), 0) < 90; const te = XN('tapElev'); const rt = rIn(te);
-        parts.push(`<line x1="${Xp(rt + 250, tapRight ? 1 : -1)}" y1="${Y(te + 80)}" x2="${Xp(rt - 300, tapRight ? 1 : -1)}" y2="${Y(te)}" stroke="#7a3cd0" stroke-width="3"/><text x="${Xp(rt + 260, tapRight ? 1 : -1)}" y="${Y(te + 120)}" text-anchor="middle" class="svt sm" fill="#7a3cd0">Taphole</text>`);
+        parts.push(`<line x1="${Xp(rt + 250, tapRight ? 1 : -1)}" y1="${Y(te + 80)}" x2="${Xp(rt - 300, tapRight ? 1 : -1)}" y2="${Y(te - 80)}" stroke="#7a3cd0" stroke-width="3"/><text x="${Xp(rt + 260, tapRight ? 1 : -1)}" y="${Y(te + 120)}" text-anchor="middle" class="svt sm" fill="#7a3cd0">Taphole</text>`);
       }
       return `<svg viewBox="0 0 ${W} ${Hh}" class="svgv" role="img" aria-label="Vessel side view with zones">${parts.join('')}</svg>`;
     }
@@ -3151,8 +3340,8 @@ function sessionCard() {
         P.push(vdim(chainX, h0, h1, fv(h1 - h0), kc('topH1', g)));
         P.push(hdim(Y(h1 - 110), rIn(h1 - 110), `Ø${fv(XN('topIDt'))} ID at top${ed('topIDt')}`, kc('topIDt', g)));
         const te = XN('tapElev'), ti = rad(XN('tapIncl')), rt = rIn(te), c = kc('tapElev', g); const sd = angDiff(XN('tapAng'), 0) < 90 ? 1 : -1;
-        P.push(`<line x1="${Xp(rt - 320, sd)}" y1="${Y(te + 320 * Math.tan(ti))}" x2="${Xp(rt + 380, sd)}" y2="${Y(te - 380 * Math.tan(ti))}" stroke="#7a3cd0" stroke-width="${Math.max(3, XN('tapDia') * s)}" opacity=".85"/>`);
-        right.push({ y: Y(te), lines: [`Taphole EL ${fv(te)}${ed('tapElev')}`, `${fv(XN('tapIncl'))}° incl. · Ø${fv(XN('tapDia'))}${ed('tapDia')}`], c, ax: Xp(rt + 380, sd), ay: Y(te - 380 * Math.tan(ti)) });
+        P.push(`<line x1="${Xp(rt - 320, sd)}" y1="${Y(te - 320 * Math.tan(ti))}" x2="${Xp(rt + 380, sd)}" y2="${Y(te + 380 * Math.tan(ti))}" stroke="#7a3cd0" stroke-width="${Math.max(3, XN('tapDia') * s)}" opacity=".85"/>`);
+        right.push({ y: Y(te), lines: [`Taphole EL ${fv(te)}${ed('tapElev')}`, `${fv(XN('tapIncl'))}° incl. · Ø${fv(XN('tapDia'))}${ed('tapDia')}`], c, ax: Xp(rt + 380, sd), ay: Y(te + 380 * Math.tan(ti)) });
         const hm = h0 + (h1 - h0) * 0.3; right.push({ y: Y(hm), lines: [`Half-angle ${fv(XN('halfAng'))}°${ed('halfAng')}`], c: kc('halfAng', g), ax: Xp(rIn(hm), 1), ay: Y(hm) });
       }
       if (shown(z.m)) {
@@ -3252,7 +3441,7 @@ function sessionCard() {
       [-1, 1].forEach(sd => P.push(`<path d="M${side(outer, sd).join(' L')} L${side(inner.slice().reverse(), sd).join(' L')}Z" fill="var(--ink)" opacity=".85"/>`));
       const te = XN('tapElev'); if (te > z.h0 && te < z.h1) {
         const ti = rad(XN('tapIncl')), rt = rIn(te), sd = angDiff(XN('tapAng'), 0) < 90 ? 1 : -1;
-        P.push(`<line x1="${Xp(rt - 300, sd)}" y1="${Y(te + 300 * Math.tan(ti))}" x2="${Xp(rt + 300, sd)}" y2="${Y(te - 300 * Math.tan(ti))}" stroke="#7a3cd0" stroke-width="${Math.max(3, XN('tapDia') * s)}"/>` + TX(Xp(rt - 320, sd), Y(te) - 8, `Taphole EL ${fv(te)} · ${fv(XN('tapIncl'))}°`, { a: sd > 0 ? 'end' : 'start', c: '#7a3cd0', b: 1 }));
+        P.push(`<line x1="${Xp(rt - 300, sd)}" y1="${Y(te - 300 * Math.tan(ti))}" x2="${Xp(rt + 300, sd)}" y2="${Y(te + 300 * Math.tan(ti))}" stroke="#7a3cd0" stroke-width="${Math.max(3, XN('tapDia') * s)}"/>` + TX(Xp(rt - 320, sd), Y(te) - 8, `Taphole EL ${fv(te)} · ${fv(XN('tapIncl'))}°`, { a: sd > 0 ? 'end' : 'start', c: '#7a3cd0', b: 1 }));
       }
       const hs = [z.h0, ...splits, z.h1];
       hs.forEach((h, i) => {
@@ -3387,7 +3576,7 @@ function sessionCard() {
       return `${guide('The bottom is laid as concentric rings around a central key brick. Drawing values are pre-filled; enter the Supplier and customer values. Results update when you change a value.')}
   <div class="grid2"><div>
   ${fgroup('A. From the drawing (confirm or edit)', 'D', [ex('dishR', 'Bottom Dish Radius', 'Spherical radius of the working-lining hot face; 0 = flat bottom'), ex('botDia'), ex('dishDepth'), ex('nStir'), ex('pcd'), ex('botGrade', null, 'Cross-check only', 0)])}
-  <div class="note">Working bottom thickness <b>${f(bottomThick().t)} mm</b> and permanent bottom ${botPerm().map(l => `${esc(l.grade)} ${f(l.t)}`).join(' + ')} mm come from the Permanent lining and Lining concept steps.</div>
+  <div class="note">Working bottom thickness <b>${f(bottomThick().t)} mm</b> and permanent bottom ${esc(botPerm().grade)} ${f(botPerm().t)} mm (${esc(permShapeShort(botPerm()))}) come from the Permanent lining and Lining concept steps.</div>
   ${fgroup('C. Customer', 'C', [[P + 'elDia', 'Stirring Element Diameter', 'mm', 'n', 'C', 1, 'Outer diameter of the element block'], [P + 'mand', 'Mandated Bottom Grade', '', 'grade', 'C', 0, 'Optional; overrides the Supplier grade']])}
   </div><div>
   ${fgroup('B. Supplier inputs', 'T', [[P + 'grade', 'Bottom Zone Grade', '', 'grade', 'T', 1, 'Set in step 4'], [P + 'keyR', 'Key Brick Radius', 'mm', 'n', 'T', 1, 'Radius covered by the central key brick'], [P + 'ringW', 'Ring Radial Width', 'mm', 'n', 'T', 1, 'Along the dish surface'], [P + 'tanW', 'Average Brick Tangential Width', 'mm', 'n', 'T', 1, 'For the approximate count'], [P + 'exact', 'Use exact closure with tapered pairs', '', 'yn', 'T', 0, 'If Yes, enter A/B widths per band'], [P + 'cutsPerEl', 'Cut Pieces per Element per Ring', 'no.', 'n', 'T', 1, ''], [P + 'minCut', 'Minimum Cut Brick Width', 'mm', 'n', 'T', 1, ''], [P + 'tol', 'Brick Count Tolerance', '%', 'n', 'T', 1, ''], [P + 'growMin', 'Ring Growth Band – minimum', 'bricks', 'n', 'T', 1, ''], [P + 'growMax', 'Ring Growth Band – maximum', 'bricks', 'n', 'T', 1, ''], [P + 'depthTol', 'Dish Depth Tolerance', 'mm', 'n', 'T', 1, ''], [P + 'dens', 'Bulk density of bottom grade', 't/m³', 'n', 'T', 1, 'For tonnage']])}
@@ -3407,7 +3596,7 @@ function sessionCard() {
       if (cone) r.splice(0, 0, [P + 'orient', 'Course Orientation', '', 'sel', 'T', 1, '', ['Horizontal (angled brick ends)', 'Perpendicular to shell']], [P + 'endRule', 'Cone Brick End Angle Rule', '', 'sel', 'T', 1, '', ['Cut to cone angle', 'Square ends, stepped hot face']], [P + 'taper', 'Thickness Taper Rule', '', 'sel', 'T', 1, '', ['Constant', 'Stepped']], [P + 'steps', 'Thickness Step Courses', 'course no.', 'w', 'T', 0, 'Only if taper = Stepped, e.g. 10,18'], [P + 'pairRule', 'Brick Pair Selection Rule', '', 'sel', 'T', 1, '', ['Least cut waste']]);
       return r;
     }
-    function layerNote(seg) { const P = S[seg]; return `<div class="note">Permanent lining: <b>${esc(P.perm)} ${f(P.tPerm)} mm</b>${+P.back ? ` + backfill ${f(P.back)} mm` : ''} (Permanent lining step) · standard lengths ${esc(P.lengths)}, residual ${f(P.resid)} mm and working thickness per zone (Lining concept step).</div>`; }
+    function layerNote(seg) { const P = S[seg]; return `<div class="note">Permanent lining (per zone, Permanent lining step): ${segsOf(seg).map(z => { const Q = permOf(z.id); return `<b>${esc(z.name)}</b> <span class="sw" style="background:${permCol(Q)}"></span> ${esc(Q.grade)} ${f(Q.t)} mm · ${esc(permShapeShort(Q))}${+Q.back ? ` + backfill ${f(Q.back)} mm` : ''} <button class="btn xs" data-act="permGo" data-id="${z.id}">✎</button>`; }).join(' · ')} · standard lengths ${esc(P.lengths)}, residual ${f(P.resid)} mm and working thickness per zone (Lining concept step).</div>`; }
     function zoneCard(seg, sid, key, extraRows = [], extraHTML = '') {
       const z = S.segz[sid].zones[key], sz = S.zones.find(q => q.id === sid), th = zoneThick(seg, z), P = `segz.${sid}.zones.${key}.`; const isBase = key === baseKey[seg];
       return `<div class="card zonecard" style="border-left-color:${gcol(z.grade)}"><h3>${esc(z.name)} <span class="small">${segsOf(seg).length > 1 ? esc(sz.name) + ' · ' : ''}${f(z.span)}° · centre ${f(z.centre)}°</span></h3>
@@ -3469,10 +3658,6 @@ function sessionCard() {
   ${wallResult('barrel', D, cs)}
   ${rulesCard(wallRules('barrel', D), 'Worked values use course 1 and its first zone (charge pad) as the example; the course schedule has every course and zone.')}
   ${gateBar(ST.barrel, !errCount(cs), 'Confirm barrel design', 'Fix the errors first.')}`;
-    }
-    function permCard(D) {
-      const P = S.barrel; const n = Math.round(2 * Math.PI * (XN('barID') / 2 - P.tPerm / 2) / P.permW); const tot = n * D.nC; const t = tot * P.tPerm * P.permW * P.course * P.permDens / 1e9;
-      return `<div class="card"><h3>Permanent lining (barrel) – R18</h3><p>${f(n)} bricks per course × ${D.nC} courses = <b>${f(tot)}</b> ${esc(P.perm)} bricks, ≈ ${f(t, 1)} t.</p></div>`;
     }
     function v7() {
       const D = wallDesignCached('cone'), cs = wallChecks('cone', D), P = 'cone.', T = 'cone.th.';
@@ -3541,11 +3726,19 @@ function sessionCard() {
 
     /* ============ RENDER & EVENTS ============ */
     let VIEW = 'step';
+    function permSubNav() {   // left menu: one entry per zone under Lining concept → Permanent lining
+      const zs = permZones(); if (!zs.length) return '';
+      const open = canOpen(ST.perm); let cs = []; if (open) { try { cs = permChecks(permDesign()); } catch (e) { cs = []; } }
+      const cur = VIEW === 'step' && S.step === ST.perm ? curPermZone() : null;
+      return `<div class="subnav">${zs.map(z => { const Q = permOf(z.id), e = cs.filter(c => c.zid === z.id && c.st === 'err').length;
+        return `<button class="st sub ${cur === z.id ? 'cur' : ''} ${open ? '' : 'locked'}" data-act="permGo" data-id="${z.id}" title="Permanent lining of ${esc(z.name)}: ${esc(Q.grade)}, ${esc(permShapeShort(Q))}"><span class="sw" style="background:${permCol(Q)}"></span><span>${esc(z.name)}<small>${esc(Q.grade)} · ${fv(+Q.t)} mm · ${esc(permShapeShort(Q))}${Q.reuse === 'Yes' ? ' · reused' : ''}</small></span>${e ? `<span class="errb" title="${e} failing check(s)">⚠ ${e}</span>` : ''}</button>`; }).join('')}${S.zones.some(z => z.type === 'Mouth') ? `<div class="st sub locked" style="cursor:default"><span class="sw" style="background:#8a8f98"></span><span>Mouth<small>no permanent lining (steel-clad)</small></span></div>` : ''}</div>`;
+    }
     function render() {
-      clearCache(); syncMouth(); ensureSegz(); syncSpans(); applyPermSource();
+      clearCache(); syncMouth(); ensureSegz(); ensurePermz(); syncSpans(); applyPermSource();
       $('#grades').innerHTML = GRADE_LIST.map(g => `<option value="${g}">`).join('');
       $('#projmeta').textContent = `${S.job.ref} · ${S.job.customer || 'New customer'} · ${S.job.heat} t ${S.job.vessel}`;
-      $('#steps').innerHTML = STEPS.map(s => { const done = !!S.gates[s.n], open = canOpen(s.n); return `<button class="st ${VIEW === 'step' && S.step === s.n ? 'cur' : ''} ${done ? 'done' : ''} ${open ? '' : 'locked'}" data-act="go" data-n="${s.n}"><span class="num">${done ? '✓' : s.n + 1}</span><span>${s.t}<small>${s.s}</small></span>${open ? (s.n > 1 && s.n !== LAST && S.zones.length ? (() => { const e = errCount(stepChecks(s.n)); return e ? `<span class="errb" title="${e} failing check(s)">⚠ ${e}</span>` : ''; })() : '') : '<span class="lock">🔒</span>'}</button>`; }).join('');
+      const stepBtn = s => { const done = !!S.gates[s.n], open = canOpen(s.n); return `<button class="st ${VIEW === 'step' && S.step === s.n ? 'cur' : ''} ${done ? 'done' : ''} ${open ? '' : 'locked'}" data-act="go" data-n="${s.n}"><span class="num">${done ? '✓' : s.n + 1}</span><span>${s.t}<small>${s.s}</small></span>${open ? (s.n > 1 && s.n !== LAST && S.zones.length ? (() => { const e = errCount(stepChecks(s.n)); return e ? `<span class="errb" title="${e} failing check(s)">⚠ ${e}</span>` : ''; })() : '') : '<span class="lock">🔒</span>'}</button>`; };
+      $('#steps').innerHTML = SGROUPS.map(([g, ns]) => `<div class="sgrp">${g}</div>` + ns.map(n => stepBtn(STEPS[n]) + (n === ST.perm ? permSubNav() : '')).join('')).join('');
       const sy = window.scrollY;
       $('#view').innerHTML = VIEW === 'audit' ? vAudit() : `<div class="phead"><div class="kicker">Step ${S.step + 1} of ${STEPS.length}</div><h2>${STEPS[S.step].t}</h2></div>` + alertBanner(S.step) + [v0, v1, v2, v3, vPerm, vConcept, v4, v5, v6, v7, vNoz, v8, vJunc, v9][S.step]();
       window.scrollTo(0, sy);
@@ -3615,8 +3808,8 @@ function sessionCard() {
       gate: el => { const n = +el.dataset.n; S.gates[n] = { t: nowT() }; log('Confirmed', STEPS[n].t); toast(STEPS[n].t + ' confirmed', 'ok'); if (n < LAST) { S.step = n + 1; window.scrollTo(0, 0); } render(); autoSave(); },
       extOk: el => { const g = el.dataset.g; S.extOk[g] = !S.extOk[g]; log(S.extOk[g] ? 'Extraction confirmed' : 'Extraction re-opened', g); if (!S.extOk[g]) reopenFrom(1); render(); const nx = activeGroup(); if (S.extOk[g] && nx) { const c = document.getElementById('g-' + slug(nx)); if (c) c.scrollIntoView({ behavior: 'smooth', block: 'start' }); } },
       jump: el => { const c = document.getElementById('g-' + slug(el.dataset.g)); if (c) c.scrollIntoView({ behavior: 'smooth', block: 'start' }); },
-      suggestZones: () => { S.sel = null; S.splitOpen = false; S.segz = {}; const mp = mouthPlan(); S.zones = [['Bottom', 0, XN('lcH0')], ['Lower cone', XN('lcH0'), XN('lcH1')], ['Barrel', XN('barH0'), XN('barH1')], ['Top cone', XN('topH0'), mp.start], ['Mouth', mp.start, mp.H]].map(([type, h0, h1]) => ({ id: newId(), type, name: type, h0, h1 })); INIT.zones = clone(S.zones); log('Suggested zones accepted'); reopenFrom(2); render(); },
-      clearZones: () => { S.sel = null; S.splitOpen = false; S.segz = {}; S.zones = []; S.draft = { type: 'Bottom', name: 'Bottom', height: '' }; log('Manual zone creation started'); reopenFrom(2); render(); },
+      suggestZones: () => { S.sel = null; S.splitOpen = false; S.segz = {}; const oldP = {}; S.zones.forEach(z => { if (S.permz && S.permz[z.id] && !oldP[z.type]) oldP[z.type] = S.permz[z.id]; }); const mp = mouthPlan(); S.zones = [['Bottom', 0, XN('lcH0')], ['Lower cone', XN('lcH0'), XN('lcH1')], ['Barrel', XN('barH0'), XN('barH1')], ['Top cone', XN('topH0'), mp.start], ['Mouth', mp.start, mp.H]].map(([type, h0, h1]) => ({ id: newId(), type, name: type, h0, h1 })); INIT.zones = clone(S.zones); S.permz = {}; S.zones.forEach(z => { if (oldP[z.type]) S.permz[z.id] = clone(oldP[z.type]); }); log('Suggested zones accepted'); reopenFrom(2); render(); },
+      clearZones: () => { S.sel = null; S.splitOpen = false; S.segz = {}; S.permz = {}; S.zones = []; S.draft = { type: 'Bottom', name: 'Bottom', height: '' }; log('Manual zone creation started'); reopenFrom(2); render(); },
       addZone: () => {
         const d = S.draft, H = mouthPlan().start, start = S.zones.length ? S.zones[S.zones.length - 1].h1 : 0, h = N(d.height);
         if (!(h > 0)) { toast('Enter the height of the zone', 'bad'); return; } const end = Math.min(H, +(start + h).toFixed(1));
@@ -3630,10 +3823,19 @@ function sessionCard() {
       applySplit: () => {
         const z = S.zones[S.sel], sp = pendingSplits(); if (!z || !sp.length) return; const b = [z.h0, ...sp, z.h1];
         const segs = b.slice(0, -1).map((h, i) => ({ id: newId(), type: z.type, name: z.name === z.type || new RegExp('^' + z.type + ' \\d+$').test(z.name) ? z.type : `${z.name} ${i + 1}`, h0: h, h1: b[i + 1] }));
-        if (S.segz && S.segz[z.id]) segs.forEach(q => { S.segz[q.id] = clone(S.segz[z.id]); INIT.segz[q.id] = clone(S.segz[z.id]); }); S.zones.splice(S.sel, 1, ...segs); renumber(z.type); S.splitOpen = false; log('Zone split', `${z.name} into ${segs.length} segments at ${sp.join(', ')}`); toast(`${z.name} split into ${segs.length} segments`, 'ok'); reopenFrom(2); render();
+        if (S.segz && S.segz[z.id]) segs.forEach(q => { S.segz[q.id] = clone(S.segz[z.id]); INIT.segz[q.id] = clone(S.segz[z.id]); });
+        if (S.permz && S.permz[z.id]) segs.forEach(q => { S.permz[q.id] = clone(S.permz[z.id]); INIT.permz[q.id] = clone(S.permz[z.id]); }); S.zones.splice(S.sel, 1, ...segs); renumber(z.type); S.splitOpen = false; log('Zone split', `${z.name} into ${segs.length} segments at ${sp.join(', ')}`); toast(`${z.name} split into ${segs.length} segments`, 'ok'); reopenFrom(2); render();
       },
-      mergeZone: el => { const i = +el.dataset.i, a = S.zones[i], b = S.zones[i + 1]; if (!b || a.type !== b.type) return; a.h1 = b.h1; if (S.segz) delete S.segz[b.id]; S.zones.splice(i + 1, 1); renumber(a.type); S.sel = i; log('Segments merged', `${a.name}`); reopenFrom(2); render(); },
+      mergeZone: el => { const i = +el.dataset.i, a = S.zones[i], b = S.zones[i + 1]; if (!b || a.type !== b.type) return; a.h1 = b.h1; if (S.segz) delete S.segz[b.id]; if (S.permz) delete S.permz[b.id]; S.zones.splice(i + 1, 1); renumber(a.type); S.sel = i; log('Segments merged', `${a.name}`); reopenFrom(2); render(); },
       segTab: el => { S.segTab = S.segTab || {}; S.segTab[el.dataset.seg] = el.dataset.id; render(); },
+      permTab: el => { S.permTab = el.dataset.id; render(); },
+      permGo: el => {
+        if (!canOpen(ST.perm)) { toast('Confirm the previous steps first', 'bad'); return; }
+        const ch = S.step !== ST.perm || VIEW !== 'step'; S.permTab = el.dataset.id; S.step = ST.perm; VIEW = 'step'; if (ch) window.scrollTo(0, 0); render();
+        if (ch) autoSave(); else { const c = document.getElementById('permZone'); if (c) c.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+      },
+      permCopy: el => { const to = el.dataset.to, from = el.dataset.from, zt = S.zones.find(q => q.id === to), zf = S.zones.find(q => q.id === from); if (!S.permz[from] || !zt) return; S.permz[to] = clone(S.permz[from]); if (zt.type === 'Bottom' && isTap(S.permz[to])) S.permz[to].shape = PSHAPE.brick; log('Permanent lining copied', `${zf ? zf.name : from} → ${zt.name}`); reopenFrom(ST.perm); toast(`Copied to ${zt.name}`, 'ok'); render(); },
+      permAll: el => { const from = el.dataset.from, zf = S.zones.find(q => q.id === from); if (!S.permz[from]) return; permZones().forEach(z => { if (z.id === from) return; S.permz[z.id] = clone(S.permz[from]); if (z.type === 'Bottom' && isTap(S.permz[z.id])) S.permz[z.id].shape = PSHAPE.brick; }); log('Permanent lining applied to all zones', zf ? zf.name : from); reopenFrom(ST.perm); toast('Applied to all zones', 'ok'); render(); },
       copySeg: el => { S.segz[el.dataset.to] = clone(S.segz[el.dataset.from]); log('Segment settings copied', `${el.dataset.from} → ${el.dataset.to}`); reopenFrom(Math.max(3, S.step)); toast('Settings copied', 'ok'); render(); },
       delZone: () => { S.sel = null; S.splitOpen = false; let z = S.zones.pop(); if (z.type === 'Mouth' && S.zones.length) z = S.zones.pop(); renumber(z.type); log('Zone removed', z.name); reopenFrom(2); render(); },
       addPair: el => { const arr = getP(S, el.dataset.p); arr.push(clone(arr[arr.length - 1] || pr('A', 'B', 900, 145, 160, 120, 185))); reopenFrom(S.step); render(); },
@@ -3643,7 +3845,7 @@ function sessionCard() {
         el.dataset.spec.split(';').forEach(pt => {
           if (pt.startsWith('act:')) { const a = pt.slice(4); if (ACT[a]) ACT[a](el); return; }
           if (pt.startsWith('go:')) { go = +pt.slice(3); return; }
-          if (pt.startsWith('del:')) { const i = +pt.slice(4), z = S.zones[i], p = S.zones[i - 1]; if (z && p) { p.h1 = z.h1; if (S.segz) delete S.segz[z.id]; S.zones.splice(i, 1); renumber(z.type); } return; }
+          if (pt.startsWith('del:')) { const i = +pt.slice(4), z = S.zones[i], p = S.zones[i - 1]; if (z && p) { p.h1 = z.h1; if (S.segz) delete S.segz[z.id]; if (S.permz) delete S.permz[z.id]; S.zones.splice(i, 1); renumber(z.type); } return; }
           const k = pt.indexOf('='), path = pt.slice(0, k), raw = pt.slice(k + 1); setP(S, path, raw === '' ? '' : (!isNaN(+raw) && !raw.includes(',') ? +raw : raw));
         });
         log('Suggested fix applied', label); toast('Fix applied: ' + label, 'ok'); reopenFrom(Math.max(1, S.step)); if (go != null) { S.step = go; VIEW = 'step'; window.scrollTo(0, 0); } render();
@@ -3653,10 +3855,8 @@ function sessionCard() {
       delAsm: el => { S.asm.custom.splice(+el.dataset.i, 1); reopenFrom(ST.junc); render(); },
       addBand: () => { const b = S.bottom.bands; const l = b[b.length - 1]; b.push({ mark: 'SH-0' + (b.length + 1), from: (+l.to || 0) + 1, to: 99, aHot: '', aCold: '', bHot: '', bCold: '' }); reopenFrom(ST.bottom); render(); },
       delBand: el => { S.bottom.bands.splice(+el.dataset.i, 1); reopenFrom(ST.bottom); render(); },
-      addPermLayer: () => { const B = S.bottom; if (!Array.isArray(B.permExtra)) B.permExtra = []; const l = B.permExtra[B.permExtra.length - 1] || { grade: B.permGrade, t: B.permT, dens: B.permDens }; B.permExtra.push({ grade: l.grade, t: +l.t, dens: +l.dens }); log('Value changed', `bottom permanent layer ${B.permExtra.length + 1} added`); reopenFrom(ST.perm); render(); autoSave(); },
-      delPermLayer: el => { S.bottom.permExtra.splice(+el.dataset.i, 1); log('Value changed', `bottom permanent layer ${+el.dataset.i + 2} removed`); reopenFrom(ST.perm); render(); autoSave(); },
       csv: () => { if (S.lin && S.lin.result && S.lin.result.files['bom.csv']) return linDownload('bom.csv'); const rows = [['Zone', 'Mark', 'Grade', 'Qty', 'Tonnes']].concat(allBOQ().map(i => [i.zone, i.mark, i.grade, isFinite(i.qty) ? i.qty : '', i.tonnes.toFixed(3)])); download('BOM_' + S.job.ref.replace(/\W+/g, '_') + '.csv', rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n'), 'text/csv'); },
-      json: () => download('Design_' + S.job.ref.replace(/\W+/g, '_') + '.json', JSON.stringify({ job: S.job, extraction: S.ext, zones: S.zones, segmentDesign: S.segz, permanentLining: { source: S.permSrc, reuse: S.permReuse, bottom: { grade: S.bottom.permGrade, t: S.bottom.permT, layers: botPerm().map(l => ({ grade: l.grade, t: l.t, density: l.dens })) } }, concept: conceptVessel(), junctions: S.junc, nozzles: nozzles(), assemblies: S.asm, chargeSide: S.chargeSide, bottom: S.bottom, lowerCone: S.lc, barrel: S.barrel, topCone: S.cone, mouth: S.mouth, boq: allBOQ(), bomFromDrawing: S.lin && S.lin.result ? S.lin.result.bom : null, checks: allChecks(), log: S.log }, null, 1), 'application/json'),
+      json: () => download('Design_' + S.job.ref.replace(/\W+/g, '_') + '.json', JSON.stringify({ job: S.job, extraction: S.ext, zones: S.zones, segmentDesign: S.segz, permanentLining: permZones().map(z => Object.assign({ zone: z.name, type: z.type, h0: z.h0, h1: z.h1 }, clone(permOf(z.id)))), concept: conceptVessel(), junctions: S.junc, nozzles: nozzles(), assemblies: S.asm, chargeSide: S.chargeSide, bottom: S.bottom, lowerCone: S.lc, barrel: S.barrel, topCone: S.cone, mouth: S.mouth, boq: allBOQ(), bomFromDrawing: S.lin && S.lin.result ? S.lin.result.bom : null, checks: allChecks(), log: S.log }, null, 1), 'application/json'),
       fast: () => { if (!S.job.drawing) ACT.sample(); if (!S.zones.length) ACT.suggestZones(); EXT_GROUPS.forEach(g => S.extOk[g] = true); for (let n = 0; n < LAST; n++) S.gates[n] = { t: nowT() }; S.step = LAST; VIEW = 'step'; log('Demo: all steps confirmed'); render(); autoSave(); },
       apiConfig: () => {
         const cur = getApiBase();
@@ -3807,8 +4007,11 @@ function sessionCard() {
       const segZ = []; let z = 0; prof.forEach(s => { segZ.push({ name: s.name, z0: z, z1: s.end_z, horiz: Math.abs(s.end_z - z) < 1e-6, s }); z = s.end_z; });
       const cosAt = name => { const i = prof.findIndex(s => s.name === name); if (i < 0) return 1; const s = prof[i], p = i ? prof[i - 1] : { end_r: 0, end_z: 0 }; if (s.shape === 'arc') return 1; const dr = s.end_r - p.end_r, dz = s.end_z - p.end_z, L = Math.hypot(dr, dz) || 1; return Math.abs(dz) / L; };
       // 2. layers
-      const backAny = [+S.bottom.permBack, +S.lc.back, +S.barrel.back, +S.cone.back].some(x => x > 0);
-      const bpx = (S.bottom.permExtra || []), nPx = bpx.length;
+      const backAny = permZones().some(z => +permOf(z.id).back > 0);
+      const permPay = Q => ({ grade: Q.grade, thickness: +Q.t, shape: isMono(Q) ? 'monolithic' : isTap(Q) ? 'tapered_pair' : 'straight', mark: isMono(Q) ? (Q.mark || '') : isTap(Q) ? '' : permMark(Q), width: +Q.w || null, height: +Q.h || null, cut_allowance: +Q.cut || 0, density: +Q.dens, conductivity: +Q.k > 0 ? +Q.k : null, in_bom: Q.reuse === 'Yes' ? 0 : 1, pairs: isTap(Q) ? linPairs(Q.pairs, 'permanent_tapered') : [],
+        layers: permLayers(Q) ? permLayers(Q).map((l, i) => ({ layer: i + 1, grade: l.grade, shape: isMono(l) ? 'monolithic' : 'straight', thickness: +l.t, mark: isMono(l) ? (l.mark || '') : permMark(l), width: +l.w || null, height: +l.h || null, density: +l.dens, conductivity: +l.k > 0 ? +l.k : null, cut_allowance: +l.cut || 0 })) : null });
+      const permMono = Q => (permLayers(Q) || [Q]).forEach(l => { if (isMono(l)) mono[l.grade] = { density: +l.dens, fill_factor: 1 + (+l.cut || 0) / 100 }; });
+      const bq0 = botPerm(), bLAll = permLayers(bq0) || [bq0], bpx = bLAll.slice(1), nPx = bpx.length;
       const layers = ['PERMANENT'].concat(bpx.map((_, i) => 'PERMANENT ' + (i + 2)), backAny ? ['BACKFILL', 'WORKING'] : ['WORKING']);
       if (backAny) mono['Backfill'] = { density: 2.8, fill_factor: 1 };
       const mkLayers = (pg, pt, back, wg, wt, ex) => [{ grade: pg, thickness: pt }].concat(bpx.map((_, i) => ex && ex[i] ? { grade: ex[i].grade, thickness: +ex[i].t } : { grade: pg, thickness: 0 }),
@@ -3843,10 +4046,12 @@ function sessionCard() {
             const B = S.bottom, t = bottomThick().t, g = (B.mand || '').trim() || B.grade;
             if (!isFinite(t)) errs.push('Bottom: no standard length ≥ required working thickness (step 6).');
             band.kind = sz.s.shape === 'arc' || /Bottom/.test(sz.name) ? 'bottom' : undefined;
-            band.sectors.push({ from: 0, to: 360, name: 'Bottom', layers: mkLayers(B.permGrade, +B.permT, +B.permBack, g, t, bpx) });
-            dens[`${name}|Bottom|${g}`] = +B.dens; dens[`${name}|PERMANENT|${B.permGrade}`] = +B.permDens;
-            dens[g] = dens[g] || +B.dens; dens[B.permGrade] = dens[B.permGrade] || +B.permDens;
-            bpx.forEach((e, i) => { if (!(+e.t > 0) || !String(e.grade || '').trim()) errs.push(`Bottom permanent layer ${i + 2}: enter grade and thickness > 0 (step 5).`);
+            const PQ = permOf(zn.id), pL = permLayers(PQ) || [PQ], p0 = pL[0], pEx = pL.slice(1);
+            band.permanent = permPay(PQ); permMono(PQ);
+            band.sectors.push({ from: 0, to: 360, name: 'Bottom', layers: mkLayers(p0.grade, +p0.t, +PQ.back || 0, g, t, pEx) });
+            dens[`${name}|Bottom|${g}`] = +B.dens; dens[`${name}|PERMANENT|${p0.grade}`] = +p0.dens;
+            dens[g] = dens[g] || +B.dens; dens[p0.grade] = dens[p0.grade] || +p0.dens;
+            pEx.forEach((e, i) => { if (!(+e.t > 0) || !String(e.grade || '').trim()) errs.push(`Bottom permanent layer ${i + 2}: enter grade and thickness > 0 (step 5).`);
               dens[`${name}|PERMANENT ${i + 2}|${e.grade}`] = +e.dens; dens[e.grade] = dens[e.grade] || +e.dens; });
           } else if (zn.type === 'Mouth') {
             const Mo = S.mouth, trans = mT != null && mid < mT; const L = trans ? +Mo.transL : +Mo.mL, g = trans ? Mo.transGrade : Mo.grade;
@@ -3863,6 +4068,7 @@ function sessionCard() {
           } else if (seg && S.segz[zn.id]) {
             const act = zs.filter(q => { const a0 = q.h0 === '' ? zn.h0 : +q.h0, b0 = q.h1 === '' ? zn.h1 : +q.h1; return mid >= a0 && mid <= b0; });
             const arcs = linArcs(act.length ? act : zs, baseKey[seg], `${zn.name} EL ${fv(a)}–${fv(b)}`, errs);
+            const PQ = permOf(zn.id); band.permanent = permPay(PQ); permMono(PQ);
             const horiz = !/Perpendicular/.test(P.orient || '');
             const kMid = Math.floor((mid - sect.h0) / ch) + 1;
             band.course_height = ch; band.brick_height = ch; band.joint = 0; band.min_cut = +P.minCut; band.course_origin = sect.h0;
@@ -3871,11 +4077,11 @@ function sessionCard() {
               let t = zoneThick(seg, q).t; if (!isFinite(t)) errs.push(`${zn.name} · ${q.name}: no standard length ≥ required thickness (step 6).`);
               if (steps.length) { const Ls = lengthsOf(P.lengths), drops = steps.filter(s => kMid >= s).length, idx = Ls.indexOf(t); if (idx >= 0) t = Ls[Math.max(0, idx - drops)]; }
               const tw = horiz ? t * cphi : t;
-              band.sectors.push({ from, to, name: q.name, layers: mkLayers(P.perm, +P.tPerm, +P.back, q.grade, +tw.toFixed(3)), brick_length: t, pairs: linPairs(q.pairs, 'standard_trapezoidal') });
+              band.sectors.push({ from, to, name: q.name, layers: mkLayers(PQ.grade, +PQ.t, +PQ.back || 0, q.grade, +tw.toFixed(3)), brick_length: t, pairs: linPairs(q.pairs, 'standard_trapezoidal') });
               dens[`${name}|${q.name}|${q.grade}`] = +q.dens; dens[q.grade] = dens[q.grade] || +q.dens;
               if (!q.grade) errs.push(`${zn.name} · ${q.name}: no grade (step 4).`);
             });
-            dens[`${name}|PERMANENT|${P.perm}`] = +P.permDens; dens[P.perm] = dens[P.perm] || +P.permDens;
+            dens[`${name}|PERMANENT|${PQ.grade}`] = +PQ.dens; dens[PQ.grade] = dens[PQ.grade] || +PQ.dens;
             if (!horiz && cphi < 0.999) warns.push(`${SEGTYPE[seg]}: bricks perpendicular to the wall – the course schedule still lays them horizontally (cone gap is reported).`);
           } else errs.push(`${zn.name}: zone type ${zn.type} has no settings.`);
           bands.push(band);
@@ -3915,7 +4121,7 @@ function sessionCard() {
       ...juncItems().map(i => ({ group: 'Junction pieces', zone: i.zone, mark: i.mark, grade: i.grade, qty: i.qty, tonnes: i.tonnes, note: 'as entered in Junctions & assemblies (step 12)' }))];
       if (M && /separator/i.test(S.mouth.jointType)) { const sep = M.boq.find(i => /separator/i.test(i.mark)); if (sep) extra.push({ group: 'Special assemblies', zone: 'Mouth', mark: sep.mark, grade: 'Accessory', qty: sep.qty, tonnes: 0, note: 'one per mouth brick (Mouth step)' }); }
       row('Assemblies (step 13)', 'Taphole, stirring, other assemblies, junction pieces', `${extra.length} BOM lines`, 'Entered in step 12', ST.junc);
-      row('Permanent lining (step 5)', 'Permanent brick · cutting allowance · reuse', `${fv(+S.permBrick.w)} × ${fv(+S.permBrick.h)} mm · ${fv(+S.permBrick.cut)} % · ${S.permReuse === 'Yes' ? 'reused (not in BOM)' : 'new'}`, 'Supplier input', ST.perm);
+      permZones().forEach(z => { const Q = permOf(z.id); row('Permanent lining (step 5)', `${z.name} · ${Q.grade}`, esc(`${fv(+Q.t)} mm · ${permShapeShort(Q)} · ${fv(+Q.cut || 0)} % allowance · ${Q.reuse === 'Yes' ? 'reused (not in BOM)' : 'new'}`), Q.src || 'Supplier input', ST.perm); });
       const grade_colors = {}; Object.keys(dens).filter(k => !k.includes('|')).forEach(g => { const h = linHex(gcol(g)); if (h) grade_colors[g] = h; });
       const cutsA = [norm(XN('tapAng') || 0)]; const tr = norm(XN('trunAng')); if (isFinite(tr) && angDiff(tr, cutsA[0]) > 1 && angDiff(tr, cutsA[0] + 180) > 1) cutsA.push(tr); else cutsA.push(norm(cutsA[0] + 90));
       const payload = {
@@ -3925,10 +4131,10 @@ function sessionCard() {
         nozzles: nz,
         settings: {
           course_height: (+S.barrel.course) + (+S.barrel.joint), mouth_course_height: (+S.mouth.course) + (+S.mouth.joint), joint: 0, bottom_joint: 0,
-          min_cut: +S.bottom.minCut, cut_allowance: 0, perm_cut_allowance: +S.permBrick.cut, perm_in_bom: S.permReuse === 'Yes' ? 0 : 1
+          min_cut: +S.bottom.minCut, cut_allowance: 0, perm_cut_allowance: +S.permBrick.cut, perm_in_bom: permZones().some(z => permOf(z.id).reuse !== 'Yes') ? 1 : 0
         },
         bottom: { key_r: +B.keyR, ring_width: +B.ringW, brick_length: bottomThick().t, grade: (B.mand || '').trim() || B.grade, ring_bands: exact ? B.bands : [] },
-        permanent_brick: { width: +S.permBrick.w, height: +S.permBrick.h },
+        permanent_brick: { width: +S.permBrick.w, height: +S.permBrick.h },   // default only – each band carries its own 'permanent' object
         grade_density: dens, monolithic: mono, extra_items: extra,
         junctions: junctions().map(j => ({ z: +j.h.toFixed(3), name: `${j.z.name} / ${j.n.name}`, pieces: !!(j.needsPieces && j.qty > 0), mark: j.J.mark })),
         reference: { dish_hot_R: linExtSrc('dishR').c !== 'miss' ? XN('dishR') : null, bot_dia: linExtSrc('botDia').c !== 'miss' ? XN('botDia') : null, mouth_opening: M ? M.opening : null, inside_volume: conceptVessel().V },
@@ -4148,16 +4354,18 @@ function sessionCard() {
         if (!ocr) warnings.push('no dimension text was read (OCR) – the shell values are in drawing units, not mm: enter the real values');
         let elev = 0, s;
         const vectorBarID = mainSegs[2].radius_bottom_mm * 2;
-        const plateThickness = Td ? Td.value : 0;
+        const isOcrPart = prof.extraction_method === 'ocr_dimensions';
+        const plateThickness = Td ? Td.value : (ODd ? (+S.ext.plate.value || 70) : 0);
+        if (!Td && ODd) upd('plate', plateThickness, '— (assumed)', 'Standard shell plate thickness used to convert OD to ID', dk, 0.8);
         let trueBarID = vectorBarID;
         let barText = undefined;
         if (ODd) { trueBarID = fxCalc('ext_id_from_od', { od: ODd.value, plate_thickness: plateThickness }, () => ODd.value - 2 * plateThickness); barText = 'Derived from OD ' + ODd.raw_text; }
         else if (IDd && IDd.value > vectorBarID * 0.9) { trueBarID = IDd.value; barText = IDd.raw_text; }
-        const scaleX = trueBarID / (vectorBarID || 1);
+        const scaleX = isOcrPart ? 1 : (trueBarID / (vectorBarID || 1));
         const vectorH = mainSegs.reduce((a, seg) => a + seg.height_mm, 0);
-        const scaleY = Hd ? Hd.value / (vectorH || 1) : scaleX;
+        const scaleY = isOcrPart ? 1 : (Hd ? Hd.value / (vectorH || 1) : scaleX);
         const Z = h => h * scaleY;
-        const R = r => r * scaleX * 2;
+        const R = r => isOcrPart ? Math.max(0, r * 2 - 2 * plateThickness) : (r * scaleX * 2);
         const getH = s => {
           if (s.height_raw_text) {
             const n = N(String(s.height_raw_text).replace(/[^0-9.\-]/g, ''));
@@ -4269,11 +4477,15 @@ function sessionCard() {
           if (n.position_mm ?? n.elevation_mm) upd('tapElev', n.position_mm ?? n.elevation_mm, null, 'Nozzle (extraction)', 'drawing', 0.95);
           if (n.orientation_deg ?? n.angle_deg) upd('tapAng', n.orientation_deg ?? n.angle_deg, null, 'Nozzle (extraction)', 'drawing', 0.95);
           if (n.diameter_mm) upd('tapDia', n.diameter_mm, null, 'Nozzle (extraction)', 'drawing', 0.95);
-          if (n.inclination_deg) upd('tapIncl', n.inclination_deg, null, 'Nozzle (extraction)', 'drawing', 0.95);
+          if (n.inclination_deg != null) upd('tapIncl', n.inclination_deg, `${n.inclination_deg}°`, 'Angle annotation', 'drawing', 0.95);
         }
         if (/tuyere|stir|plug|purg/.test(lab)) {
-          if (n.count ?? n.quantity) upd('nStir', n.count ?? n.quantity, null, 'Nozzle (extraction)', 'drawing', 0.95);
-          if (n.pcd_mm) upd('pcd', n.pcd_mm, null, 'Nozzle (extraction)', 'drawing', 0.95);
+          if (n.count ?? n.quantity) upd('nStir', n.count ?? n.quantity, `${n.count ?? n.quantity} NOS. TUYERE`, 'Nozzle (extraction)', 'drawing', 0.95);
+          if (n.pcd_mm) {
+            const rawTexts = (geom.raw_ocr_texts || []).join(' ');
+            const hasHalf = /\b1140\b/.test(rawTexts) && Math.abs(n.pcd_mm - 2280) < 10;
+            upd('pcd', n.pcd_mm, `${n.pcd_mm} P.C.D.`, hasHalf ? 'Calculated from extracted half-PCD (2 × 1140 mm)' : 'Nozzle (extraction)', 'drawing', 0.95);
+          }
         }
         if (/trun/.test(lab)) {
           if (n.orientation_deg ?? n.angle_deg) upd('trunAng', n.orientation_deg ?? n.angle_deg, null, 'Nozzle (extraction)', 'drawing', 0.95);
@@ -4284,8 +4496,8 @@ function sessionCard() {
       if (op.tapping_temperature_c) S.job.tapT = +op.tapping_temperature_c;
       S.extSrc = src;
       INIT.ext = clone(S.ext);
-      EXT_GROUPS.forEach(g => S.extOk[g] = true);
-      S.annAll = true;
+      S.extOk = {};
+      S.annAll = false;
       reopenFrom(1);
       const miss = LIN_EXT.filter(([k]) => !src[k]).map(([k]) => S.ext[k].label);
       log('Extraction applied', `${Object.keys(src).length} values from the drawing; not found: ${miss.join(', ') || 'none'}`);
@@ -4367,7 +4579,6 @@ function sessionCard() {
           return;
         }
         const p = el.dataset.p; if (!p) return;
-        if (p === 'bottomPermN') { setBotPermN(el.value); render(); autoSave(); return; }
         const old = el.dataset.orig !== undefined ? el.dataset.orig : getP(S, p); delete el.dataset.orig; let v = el.value; if (el.type === 'checkbox') v = el.checked; else if (el.type === 'number') v = v === '' ? '' : +v; else if (typeof old === 'number' && v !== '' && !isNaN(+v)) v = +v;
         if (p.startsWith('zones.') && p.endsWith('.h1')) { const i = +p.split('.')[1]; const H = S.zones[S.zones.length - 1].type === 'Mouth' ? mouthPlan().start : XN('H'); v = Math.max(S.zones[i].h0 + 1, Math.min(+v, H)); S.zones[i].h1 = v; if (S.zones[i + 1]) S.zones[i + 1].h0 = v; for (let j = i + 1; j < S.zones.length; j++) { if (S.zones[j].h1 <= S.zones[j].h0) S.zones[j].h1 = Math.min(H, S.zones[j].h0 + 1); if (S.zones[j + 1]) S.zones[j + 1].h0 = S.zones[j].h1; } }
         else setP(S, p, v);

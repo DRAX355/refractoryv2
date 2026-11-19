@@ -271,7 +271,8 @@ class LiningSheet(Sheet):
         return self._rad(outer, z) if outer else self._rad(paths[0], z)
 
     def _radial_axis(self, n, angle):
-        """Points along a radial nozzle axis from outside the shell to the hot face (r, z) at `angle`."""
+        """Points along a radial nozzle axis from outside the shell to the hot face (r, z) at `angle`.
+        Positive inclination = outer end higher (perpendicular to top cone wall, as shown on shell drawing)."""
         z0 = float(n["z"])
         inc = math.radians(float(n.get("inclination") or 0))
         paths, _ = self.boundary_paths(angle)

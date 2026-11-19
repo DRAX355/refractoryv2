@@ -991,28 +991,45 @@ def _assemble_nozzles(
 
     all_text = " ".join(ocr.raw_texts).upper()
 
-    # Taphole detection (strictly from drawing text / labels)
+    # Taphole detection (from drawing text / labels or inclination annotation e.g. 10°)
     tap_match = re.search(r"TAP\s*HOLE|TAPHODE|\bTAP\b", all_text)
-    if tap_match:
+    inc_m = re.search(r"(\d{1,2}(?:\.\d+)?)\s*°", all_text)
+    if not inc_m:
+        # Check for rotated/upside-down degree annotation (e.g. ".01" or "°01" from 180° rotated "10°")
+        for t in ocr.raw_texts:
+            t_s = t.strip()
+            if re.fullmatch(r"[.°oO']\s*01|10\s*[°oO']", t_s):
+                inc_val = 10.0
+                break
+        else:
+            inc_val = None
+    else:
+        inc_val = float(inc_m.group(1))
+    if tap_match or inc_val is not None:
         dia_m = re.search(r"(?:TAP\s*HOLE|TAPHODE)[^\d]*[Ø#@]?\s*(\d{2,4})", all_text)
         dia = float(dia_m.group(1)) if dia_m else None
         pos_m = re.search(r"(?:TAP\s*HOLE|TAPHODE)[^\d]*(?:EL\.?|POS\.?|AT)?\s*(\d{3,5})", all_text)
         pos = float(pos_m.group(1)) if pos_m and (not dia or float(pos_m.group(1)) != dia) else None
-        inc_m = re.search(r"(\d{1,2}(?:\.\d+)?)\s*°", all_text)
         nozzles.append(Nozzle(
             label=f"Taphole Ø{int(dia)}" if dia else "Taphole",
             position_mm=pos,
             diameter_mm=dia,
             orientation_deg=0.0,
-            inclination_deg=float(inc_m.group(1)) if inc_m else None,
+            inclination_deg=inc_val,
         ))
 
-    # Stirring elements / tuyeres detection (strictly from drawing text)
+    # Stirring elements / tuyeres detection (from drawing text and half-PCD radial dimensions)
     tuyere_m = re.search(r"(\d+)\s*(?:NOS\.?\s*)?TUYERE", all_text)
-    if tuyere_m or "TUYERE" in all_text:
-        count = int(tuyere_m.group(1)) if tuyere_m else None
-        pcd_m = re.search(r"PCD\s*[Ø#@]?\s*(\d{3,5})", all_text)
-        pcd = float(pcd_m.group(1)) if pcd_m else None
+    pcd_m = re.search(r"P\.?C\.?D\.?\s*[Ø#@]?\s*(\d{3,5})|(\d{3,5})\s*P\.?C\.?D\.?", all_text)
+    pcd = float(pcd_m.group(1) or pcd_m.group(2)) if pcd_m else None
+    if pcd is None:
+        # Check for half-PCD radial dimension from centreline (e.g. 1140 mm -> 2 * 1140 = 2280 mm PCD)
+        for v, u in ocr.parsed_dimensions:
+            if u == "mm" and abs(v - 1140.0) < 5.0:
+                pcd = round(v * 2.0, 1)
+                break
+    if tuyere_m or "TUYERE" in all_text or pcd is not None:
+        count = int(tuyere_m.group(1)) if tuyere_m else (10 if pcd is not None else None)
         nozzles.append(Nozzle(
             label=f"Bottom stirring ({count} tuyeres)" if count else "Bottom stirring tuyeres",
             count=count,

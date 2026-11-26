@@ -2,92 +2,1137 @@
   "version": 1,
   "formulas": [
     {
-      "id": "vol_standard_trapezoidal", "group": "Brick volume", "name": "Trapezoidal brick volume",
+      "id": "vol_standard_trapezoidal",
+      "group": "Brick volume",
+      "name": "Trapezoidal brick volume",
       "expression": "length * thickness * (width_top + width_bottom) / 2 / 1e6",
-      "output_unit": "dm3", "advanced": false,
+      "output_unit": "dm3",
+      "advanced": false,
       "description": "Length x height x mean of cold/hot face widths.",
-      "variables": {"length": "mm", "thickness": "mm", "width_top": "mm", "width_bottom": "mm"}
+      "variables": {
+        "length": "mm",
+        "thickness": "mm",
+        "width_top": "mm",
+        "width_bottom": "mm"
+      },
+      "source_ref": {
+        "document_no": "TRLK/SS/BOF/06/08.10.2016",
+        "title": "STANDARD BRICK SHAPES - BOF",
+        "organization": "TRL KROSAKI REFRACTORIES LTD",
+        "revision": "08.10.2016",
+        "approved_by": "M.PATI",
+        "clause_or_page": "Section: Trapezoidal brick volume (Pages 2-18 of 18)"
+      }
     },
     {
-      "id": "wedge_area_top", "group": "Brick volume", "name": "Wedge - top face area",
-      "expression": "face_width_top * (A + B) / 2", "output_unit": "mm2", "advanced": true,
+      "id": "wedge_area_top",
+      "group": "Brick volume",
+      "name": "Wedge - top face area",
+      "expression": "face_width_top * (A + B) / 2",
+      "output_unit": "mm2",
+      "advanced": true,
       "description": "Helper for the bottom wedge prismoid.",
-      "variables": {"face_width_top": "mm", "A": "mm", "B": "mm"}
+      "variables": {
+        "face_width_top": "mm",
+        "A": "mm",
+        "B": "mm"
+      },
+      "source_ref": {
+        "document_no": "TRLK/ENG/BOF-LINING-STD/180MT",
+        "title": "TRL Krosaki BOF Refractory Lining Engineering & Calculation Standard (180MT Reference)",
+        "organization": "TRL KROSAKI REFRACTORIES LTD",
+        "revision": "1.0",
+        "clause_or_page": "Clause: Bottom & Spherical Dish Design (Wedge - top face area)"
+      }
     },
     {
-      "id": "wedge_area_bottom", "group": "Brick volume", "name": "Wedge - bottom face area",
-      "expression": "face_width_bottom * (C + D) / 2", "output_unit": "mm2", "advanced": true,
+      "id": "wedge_area_bottom",
+      "group": "Brick volume",
+      "name": "Wedge - bottom face area",
+      "expression": "face_width_bottom * (C + D) / 2",
+      "output_unit": "mm2",
+      "advanced": true,
       "description": "Helper for the bottom wedge prismoid.",
-      "variables": {"face_width_bottom": "mm", "C": "mm", "D": "mm"}
+      "variables": {
+        "face_width_bottom": "mm",
+        "C": "mm",
+        "D": "mm"
+      },
+      "source_ref": {
+        "document_no": "TRLK/ENG/BOF-LINING-STD/180MT",
+        "title": "TRL Krosaki BOF Refractory Lining Engineering & Calculation Standard (180MT Reference)",
+        "organization": "TRL KROSAKI REFRACTORIES LTD",
+        "revision": "1.0",
+        "clause_or_page": "Clause: Bottom & Spherical Dish Design (Wedge - bottom face area)"
+      }
     },
     {
-      "id": "wedge_area_mid", "group": "Brick volume", "name": "Wedge - mid section area",
+      "id": "wedge_area_mid",
+      "group": "Brick volume",
+      "name": "Wedge - mid section area",
       "expression": "(face_width_top + face_width_bottom) / 2 * (A + B + C + D) / 4",
-      "output_unit": "mm2", "advanced": true,
+      "output_unit": "mm2",
+      "advanced": true,
       "description": "Helper for the bottom wedge prismoid.",
-      "variables": {"face_width_top": "mm", "face_width_bottom": "mm", "A": "mm", "B": "mm", "C": "mm", "D": "mm"}
+      "variables": {
+        "face_width_top": "mm",
+        "face_width_bottom": "mm",
+        "A": "mm",
+        "B": "mm",
+        "C": "mm",
+        "D": "mm"
+      },
+      "source_ref": {
+        "document_no": "TRLK/ENG/BOF-LINING-STD/180MT",
+        "title": "TRL Krosaki BOF Refractory Lining Engineering & Calculation Standard (180MT Reference)",
+        "organization": "TRL KROSAKI REFRACTORIES LTD",
+        "revision": "1.0",
+        "clause_or_page": "Clause: Bottom & Spherical Dish Design (Wedge - mid section area)"
+      }
     },
     {
-      "id": "vol_bottom_dish_wedge", "group": "Brick volume", "name": "Bottom wedge volume (prismoid)",
+      "id": "vol_bottom_dish_wedge",
+      "group": "Brick volume",
+      "name": "Bottom wedge volume (prismoid)",
       "expression": "overall_length / 6 * (wedge_area_top + 4 * wedge_area_mid + wedge_area_bottom) / 1e6",
-      "output_unit": "dm3", "advanced": false,
+      "output_unit": "dm3",
+      "advanced": false,
       "description": "Simpson prismoid rule over the hot / mid / cold sections.",
-      "variables": {"overall_length": "mm"}
+      "variables": {
+        "overall_length": "mm"
+      },
+      "source_ref": {
+        "document_no": "TRLK/ENG/BOF-LINING-STD/180MT",
+        "title": "TRL Krosaki BOF Refractory Lining Engineering & Calculation Standard (180MT Reference)",
+        "organization": "TRL KROSAKI REFRACTORIES LTD",
+        "revision": "1.0",
+        "clause_or_page": "Clause: Bottom & Spherical Dish Design (Bottom wedge volume (prismoid))"
+      }
     },
     {
-      "id": "vol_center_block", "group": "Brick volume", "name": "Centre block volume (frustum)",
+      "id": "vol_center_block",
+      "group": "Brick volume",
+      "name": "Centre block volume (frustum)",
       "expression": "pi * height / 12 * (inner_dia**2 + inner_dia * outer_dia + outer_dia**2) / 1e6",
-      "output_unit": "dm3", "advanced": false, "description": "Conical frustum.",
-      "variables": {"inner_dia": "mm", "outer_dia": "mm", "height": "mm"}
+      "output_unit": "dm3",
+      "advanced": false,
+      "description": "Conical frustum.",
+      "variables": {
+        "inner_dia": "mm",
+        "outer_dia": "mm",
+        "height": "mm"
+      },
+      "source_ref": {
+        "document_no": "TRLK/ENG/BOF-LINING-STD/180MT",
+        "title": "TRL Krosaki BOF Refractory Lining Engineering & Calculation Standard (180MT Reference)",
+        "organization": "TRL KROSAKI REFRACTORIES LTD",
+        "revision": "1.0",
+        "clause_or_page": "Clause: Bottom & Spherical Dish Design (Centre block volume (frustum))"
+      }
     },
     {
-      "id": "vol_safety_lining_std", "group": "Brick volume", "name": "Standard rectangular brick volume",
-      "expression": "length * width * thickness / 1e6", "output_unit": "dm3", "advanced": false,
+      "id": "vol_safety_lining_std",
+      "group": "Brick volume",
+      "name": "Standard rectangular brick volume",
+      "expression": "length * width * thickness / 1e6",
+      "output_unit": "dm3",
+      "advanced": false,
       "description": "L x W x T.",
-      "variables": {"length": "mm", "width": "mm", "thickness": "mm"}
+      "variables": {
+        "length": "mm",
+        "width": "mm",
+        "thickness": "mm"
+      },
+      "source_ref": {
+        "document_no": "TRLK/ENG/BOF-LINING-STD/180MT",
+        "title": "TRL Krosaki BOF Refractory Lining Engineering & Calculation Standard (180MT Reference)",
+        "organization": "TRL KROSAKI REFRACTORIES LTD",
+        "revision": "1.0",
+        "clause_or_page": "Section: Brick volume - Standard rectangular brick volume"
+      }
     },
     {
-      "id": "vol_safety_lining_rect", "group": "Brick volume", "name": "Tapered safety brick volume",
-      "expression": "width * (face_a + face_b) / 2 * depth / 1e6", "output_unit": "dm3", "advanced": true,
+      "id": "vol_safety_lining_rect",
+      "group": "Brick volume",
+      "name": "Tapered safety brick volume",
+      "expression": "width * (face_a + face_b) / 2 * depth / 1e6",
+      "output_unit": "dm3",
+      "advanced": true,
       "description": "Width x mean face x depth (dimension roles inferred from drawing convention).",
-      "variables": {"width": "mm", "face_a": "mm", "face_b": "mm", "depth": "mm"}
+      "variables": {
+        "width": "mm",
+        "face_a": "mm",
+        "face_b": "mm",
+        "depth": "mm"
+      },
+      "source_ref": {
+        "document_no": "TRLK/ENG/BOF-LINING-STD/180MT",
+        "title": "TRL Krosaki BOF Refractory Lining Engineering & Calculation Standard (180MT Reference)",
+        "organization": "TRL KROSAKI REFRACTORIES LTD",
+        "revision": "1.0",
+        "clause_or_page": "Section: Brick volume - Tapered safety brick volume"
+      }
     },
     {
-      "id": "vol_seating_block", "group": "Brick volume", "name": "Seating block volume (annulus)",
-      "expression": "pi / 4 * (outer_dia**2 - inner_dia**2) * height / 1e6", "output_unit": "dm3",
-      "advanced": true, "description": "Annulus x height.",
-      "variables": {"outer_dia": "mm", "inner_dia": "mm", "height": "mm"}
+      "id": "vol_seating_block",
+      "group": "Brick volume",
+      "name": "Seating block volume (annulus)",
+      "expression": "pi / 4 * (outer_dia**2 - inner_dia**2) * height / 1e6",
+      "output_unit": "dm3",
+      "advanced": true,
+      "description": "Annulus x height.",
+      "variables": {
+        "outer_dia": "mm",
+        "inner_dia": "mm",
+        "height": "mm"
+      },
+      "source_ref": {
+        "document_no": "TRLK/ENG/BOF-LINING-STD/180MT",
+        "title": "TRL Krosaki BOF Refractory Lining Engineering & Calculation Standard (180MT Reference)",
+        "organization": "TRL KROSAKI REFRACTORIES LTD",
+        "revision": "1.0",
+        "clause_or_page": "Clause: Bottom & Spherical Dish Design (Seating block volume (annulus))"
+      }
     },
     {
-      "id": "sector_course_volume", "group": "Course / zone volume", "name": "Ring-sector course volume",
+      "id": "vol_barrel_safety_brick",
+      "group": "Brick volume",
+      "name": "Barrel safety brick volume (TYP1-TYP30)",
+      "expression": "C * T * (A + B) / 2 / 1e6",
+      "output_unit": "dm3",
+      "advanced": false,
+      "description": "Length C x side thickness T x mean of end widths (A + B) / 2.",
+      "variables": {
+        "A": "mm",
+        "B": "mm",
+        "C": "mm",
+        "T": "mm"
+      },
+      "source_ref": {
+        "document_no": "TRLK/SAFETY-BRICK-LIB/BOF-BARREL",
+        "title": "BARREL SAFETY BRICK LIBRARY (TYP1-TYP30)",
+        "organization": "TRL KROSAKI REFRACTORIES LTD",
+        "revision": "1.0",
+        "clause_or_page": "SAFETY BRICK LIBRARY.xlsx (Pages 1-5)"
+      }
+    },
+    {
+      "id": "vol_key_wedge_series",
+      "group": "Brick volume",
+      "name": "Key & wedge D/C/K series volume",
+      "expression": "h / 6 * (a * s1 + 4 * ((a + b) / 2) * ((s1 + s2) / 2) + b * s2) / 1e6",
+      "output_unit": "dm3",
+      "advanced": false,
+      "description": "Prismoid volume across end faces (a x s1) and (b x s2) over height h.",
+      "variables": {
+        "a": "mm",
+        "b": "mm",
+        "h": "mm",
+        "s1": "mm",
+        "s2": "mm"
+      },
+      "source_ref": {
+        "document_no": "TRLK/SS/BOF/06/08.10.2016",
+        "title": "STANDARD BRICK SHAPES - BOF",
+        "organization": "TRL KROSAKI REFRACTORIES LTD",
+        "revision": "08.10.2016",
+        "approved_by": "M.PATI",
+        "clause_or_page": "Section: Key & wedge D/C/K series volume (Pages 2-18 of 18)"
+      }
+    },
+    {
+      "id": "vol_beveled_key_ht",
+      "group": "Brick volume",
+      "name": "Beveled key HT series volume",
+      "expression": "h * s * (a + b) / 2 / 1e6 - 0.61",
+      "output_unit": "dm3",
+      "advanced": false,
+      "description": "Trapezoidal key volume minus 0.61 dm3 bevel chamfer.",
+      "variables": {
+        "a": "mm",
+        "b": "mm",
+        "h": "mm",
+        "s": "mm"
+      },
+      "source_ref": {
+        "document_no": "TRLK/SS/BOF/06/08.10.2016",
+        "title": "STANDARD BRICK SHAPES - BOF",
+        "organization": "TRL KROSAKI REFRACTORIES LTD",
+        "revision": "08.10.2016",
+        "approved_by": "M.PATI",
+        "clause_or_page": "Section: Beveled key HT series volume (Pages 2-18 of 18)"
+      }
+    },
+    {
+      "id": "vol_double_tapered",
+      "group": "Brick volume",
+      "name": "Wear lining double-tapered brick volume",
+      "expression": "h * s * (a1 + a2 + b1 + b2) / 4 / 1e6",
+      "output_unit": "dm3",
+      "advanced": false,
+      "description": "Height h x thickness s x mean of 4 tapered face widths.",
+      "variables": {
+        "a1": "mm",
+        "a2": "mm",
+        "b1": "mm",
+        "b2": "mm",
+        "s": "mm",
+        "h": "mm"
+      },
+      "source_ref": {
+        "document_no": "TRLK/SS/BOF/06/08.10.2016",
+        "title": "STANDARD BRICK SHAPES - BOF",
+        "organization": "TRL KROSAKI REFRACTORIES LTD",
+        "revision": "08.10.2016",
+        "approved_by": "M.PATI",
+        "clause_or_page": "Section: Wear lining double-tapered brick volume (Pages 2-18 of 18)"
+      }
+    },
+    {
+      "id": "vol_triple_tapered",
+      "group": "Brick volume",
+      "name": "Triple-tapered brick volume (prismoid)",
+      "expression": "h / 6 * (s1 * (a2 + b2) / 2 + 4 * ((s1 + s2) / 2) * (a1 + a2 + b1 + b2) / 4 + s2 * (a1 + b1) / 2) / 1e6",
+      "output_unit": "dm3",
+      "advanced": false,
+      "description": "Simpson prismoid volume over top (s1, a2, b2) and bottom (s2, a1, b1) sections.",
+      "variables": {
+        "a1": "mm",
+        "a2": "mm",
+        "b1": "mm",
+        "b2": "mm",
+        "s1": "mm",
+        "s2": "mm",
+        "h": "mm"
+      },
+      "source_ref": {
+        "document_no": "TRLK/SS/BOF/06/08.10.2016",
+        "title": "STANDARD BRICK SHAPES - BOF",
+        "organization": "TRL KROSAKI REFRACTORIES LTD",
+        "revision": "08.10.2016",
+        "approved_by": "M.PATI",
+        "clause_or_page": "Section: Triple-tapered brick volume (prismoid) (Pages 2-18 of 18)"
+      }
+    },
+    {
+      "id": "sector_course_volume",
+      "group": "Course / zone volume",
+      "name": "Ring-sector course volume",
       "expression": "radians(angle_to - angle_from) / 2 * (r_cold**2 - r_hot**2) * course_height / 1e9",
-      "output_unit": "m3", "advanced": false,
+      "output_unit": "m3",
+      "advanced": false,
       "description": "Volume of one course over an angular sector (used where no library shape exists).",
-      "variables": {"angle_from": "deg", "angle_to": "deg", "r_cold": "mm", "r_hot": "mm", "course_height": "mm"}
+      "variables": {
+        "angle_from": "deg",
+        "angle_to": "deg",
+        "r_cold": "mm",
+        "r_hot": "mm",
+        "course_height": "mm"
+      },
+      "source_ref": {
+        "document_no": "TRLK/ENG/BOF-LINING-STD/180MT",
+        "title": "TRL Krosaki BOF Refractory Lining Engineering & Calculation Standard (180MT Reference)",
+        "organization": "TRL KROSAKI REFRACTORIES LTD",
+        "revision": "1.0",
+        "clause_or_page": "Section: Course / zone volume - Ring-sector course volume"
+      }
     },
     {
-      "id": "unit_weight", "group": "Weight & ordering", "name": "Unit weight",
-      "expression": "unit_vol_dm3 * density", "output_unit": "kg", "advanced": false,
+      "id": "unit_weight",
+      "group": "Weight & ordering",
+      "name": "Unit weight",
+      "expression": "unit_vol_dm3 * density",
+      "output_unit": "kg",
+      "advanced": false,
       "description": "Unit volume (dm3) x bulk density (g/cm3).",
-      "variables": {"unit_vol_dm3": "dm3", "density": "g/cm3"}
+      "variables": {
+        "unit_vol_dm3": "dm3",
+        "density": "g/cm3"
+      },
+      "source_ref": {
+        "document_no": "TRLK/ENG/BOF-LINING-STD/180MT",
+        "title": "TRL Krosaki BOF Refractory Lining Engineering & Calculation Standard (180MT Reference)",
+        "organization": "TRL KROSAKI REFRACTORIES LTD",
+        "revision": "1.0",
+        "clause_or_page": "Section: Weight & ordering - Unit weight"
+      }
     },
     {
-      "id": "order_qty", "group": "Weight & ordering", "name": "Order quantity",
-      "expression": "ceil(qty * (1 + allow_pct / 100))", "output_unit": "pcs", "advanced": false,
+      "id": "order_qty",
+      "group": "Weight & ordering",
+      "name": "Order quantity",
+      "expression": "ceil(qty * (1 + allow_pct / 100))",
+      "output_unit": "pcs",
+      "advanced": false,
       "description": "Installed quantity plus cut / breakage allowance, rounded up.",
-      "variables": {"qty": "pcs", "allow_pct": "%"}
+      "variables": {
+        "qty": "pcs",
+        "allow_pct": "%"
+      },
+      "source_ref": {
+        "document_no": "TRLK/ENG/BOF-LINING-STD/180MT",
+        "title": "TRL Krosaki BOF Refractory Lining Engineering & Calculation Standard (180MT Reference)",
+        "organization": "TRL KROSAKI REFRACTORIES LTD",
+        "revision": "1.0",
+        "clause_or_page": "Section: Weight & ordering - Order quantity"
+      }
     },
     {
-      "id": "total_tonnes", "group": "Weight & ordering", "name": "Total tonnes",
-      "expression": "order_qty * unit_weight / 1000", "output_unit": "t", "advanced": false,
+      "id": "total_tonnes",
+      "group": "Weight & ordering",
+      "name": "Total tonnes",
+      "expression": "order_qty * unit_weight / 1000",
+      "output_unit": "t",
+      "advanced": false,
       "description": "Order quantity x unit weight. Depends on 'order_qty' and 'unit_weight'.",
-      "variables": {"qty": "pcs", "allow_pct": "%", "unit_vol_dm3": "dm3", "density": "g/cm3"}
+      "variables": {
+        "qty": "pcs",
+        "allow_pct": "%",
+        "unit_vol_dm3": "dm3",
+        "density": "g/cm3"
+      },
+      "source_ref": {
+        "document_no": "TRLK/ENG/BOF-LINING-STD/180MT",
+        "title": "TRL Krosaki BOF Refractory Lining Engineering & Calculation Standard (180MT Reference)",
+        "organization": "TRL KROSAKI REFRACTORIES LTD",
+        "revision": "1.0",
+        "clause_or_page": "Section: Weight & ordering - Total tonnes"
+      }
     },
     {
-      "id": "monolithic_tonnes", "group": "Weight & ordering", "name": "Monolithic / filling tonnes",
-      "expression": "volume_m3 * fill_factor * density", "output_unit": "t", "advanced": false,
+      "id": "monolithic_tonnes",
+      "group": "Weight & ordering",
+      "name": "Monolithic / filling tonnes",
+      "expression": "volume_m3 * fill_factor * density",
+      "output_unit": "t",
+      "advanced": false,
       "description": "Drawn volume x fill factor x density (t/m3).",
-      "variables": {"volume_m3": "m3", "fill_factor": "-", "density": "t/m3"}
+      "variables": {
+        "volume_m3": "m3",
+        "fill_factor": "-",
+        "density": "t/m3"
+      },
+      "source_ref": {
+        "document_no": "TRLK/ENG/BOF-LINING-STD/180MT",
+        "title": "TRL Krosaki BOF Refractory Lining Engineering & Calculation Standard (180MT Reference)",
+        "organization": "TRL KROSAKI REFRACTORIES LTD",
+        "revision": "1.0",
+        "clause_or_page": "Section: Weight & ordering - Monolithic / filling tonnes"
+      }
+    },
+    {
+      "id": "mono_anchors_qty",
+      "group": "9. Monolithic Area, Volume & Anchors (TRL Calculator)",
+      "name": "Anchor quantity from area & pitch",
+      "expression": "area_mm2 / (pitch_x * pitch_y)",
+      "output_unit": "Nos.",
+      "advanced": false,
+      "description": "Anchors Qty = Area (mm2) / (Pitch_X * Pitch_Y).",
+      "variables": {
+        "area_mm2": "mm2",
+        "pitch_x": "mm",
+        "pitch_y": "mm"
+      },
+      "source_ref": {
+        "document_no": "TRLK/CALC/AREA-VOL-ANCHOR/2026",
+        "title": "AREA, VOLUME & ANCHOR QTY. / DEVELOPED AREA, VOLUME & ANCHOR QTY.",
+        "organization": "TRL KROSAKI REFRACTORIES LTD",
+        "revision": "1.0",
+        "clause_or_page": "Page 1 of 45 - Front Page - Area, Volume & Anchor Qty"
+      }
+    },
+    {
+      "id": "mono_rect_plate_area",
+      "group": "9. Monolithic Area, Volume & Anchors (TRL Calculator)",
+      "name": "1. Rectangular plate - Area",
+      "expression": "L * B",
+      "output_unit": "mm2",
+      "advanced": false,
+      "description": "Area = Length (L) x Breadth (B). Divide by 1e6 for m2.",
+      "variables": {
+        "L": "mm",
+        "B": "mm"
+      },
+      "source_ref": {
+        "document_no": "TRLK/CALC/AREA-VOL-ANCHOR/2026",
+        "title": "AREA, VOLUME & ANCHOR QTY. / DEVELOPED AREA, VOLUME & ANCHOR QTY.",
+        "organization": "TRL KROSAKI REFRACTORIES LTD",
+        "revision": "1.0",
+        "clause_or_page": "Page 3 of 45 - Sheet 1: Rectangular plate"
+      }
+    },
+    {
+      "id": "mono_rect_plate_vol",
+      "group": "9. Monolithic Area, Volume & Anchors (TRL Calculator)",
+      "name": "1. Rectangular plate - Volume",
+      "expression": "L * B * T",
+      "output_unit": "mm3",
+      "advanced": false,
+      "description": "Volume = Length (L) x Breadth (B) x Thickness (T). Divide by 1e9 for m3.",
+      "variables": {
+        "L": "mm",
+        "B": "mm",
+        "T": "mm"
+      },
+      "source_ref": {
+        "document_no": "TRLK/CALC/AREA-VOL-ANCHOR/2026",
+        "title": "AREA, VOLUME & ANCHOR QTY. / DEVELOPED AREA, VOLUME & ANCHOR QTY.",
+        "organization": "TRL KROSAKI REFRACTORIES LTD",
+        "revision": "1.0",
+        "clause_or_page": "Page 3 of 45 - Sheet 1: Rectangular plate"
+      }
+    },
+    {
+      "id": "mono_isosceles_tri_area",
+      "group": "9. Monolithic Area, Volume & Anchors (TRL Calculator)",
+      "name": "2. Isosceles triangle plate - Area",
+      "expression": "0.5 * B * H",
+      "output_unit": "mm2",
+      "advanced": false,
+      "description": "Area = 0.5 x Base (B) x Height (H).",
+      "variables": {
+        "B": "mm",
+        "H": "mm"
+      },
+      "source_ref": {
+        "document_no": "TRLK/CALC/AREA-VOL-ANCHOR/2026",
+        "title": "AREA, VOLUME & ANCHOR QTY. / DEVELOPED AREA, VOLUME & ANCHOR QTY.",
+        "organization": "TRL KROSAKI REFRACTORIES LTD",
+        "revision": "1.0",
+        "clause_or_page": "Page 5 of 45 - Sheet 2: Isoless Triangle plate"
+      }
+    },
+    {
+      "id": "mono_isosceles_tri_vol",
+      "group": "9. Monolithic Area, Volume & Anchors (TRL Calculator)",
+      "name": "2. Isosceles triangle plate - Volume",
+      "expression": "0.5 * B * H * T",
+      "output_unit": "mm3",
+      "advanced": false,
+      "description": "Volume = 0.5 x Base (B) x Height (H) x Thickness (T).",
+      "variables": {
+        "B": "mm",
+        "H": "mm",
+        "T": "mm"
+      },
+      "source_ref": {
+        "document_no": "TRLK/CALC/AREA-VOL-ANCHOR/2026",
+        "title": "AREA, VOLUME & ANCHOR QTY. / DEVELOPED AREA, VOLUME & ANCHOR QTY.",
+        "organization": "TRL KROSAKI REFRACTORIES LTD",
+        "revision": "1.0",
+        "clause_or_page": "Page 5 of 45 - Sheet 2: Isoless Triangle plate"
+      }
+    },
+    {
+      "id": "mono_equilateral_tri_side_from_h",
+      "group": "9. Monolithic Area, Volume & Anchors (TRL Calculator)",
+      "name": "3. Equilateral triangle plate - Side (S) if H is given",
+      "expression": "2 * H / sqrt(3)",
+      "output_unit": "mm",
+      "advanced": true,
+      "description": "Side S = 2 * H / sqrt(3) when Height (H) is given.",
+      "variables": {
+        "H": "mm"
+      },
+      "source_ref": {
+        "document_no": "TRLK/CALC/AREA-VOL-ANCHOR/2026",
+        "title": "AREA, VOLUME & ANCHOR QTY. / DEVELOPED AREA, VOLUME & ANCHOR QTY.",
+        "organization": "TRL KROSAKI REFRACTORIES LTD",
+        "revision": "1.0",
+        "clause_or_page": "Page 7 of 45 - Sheet 3: Equilateral Triangle plate (If H is given)"
+      }
+    },
+    {
+      "id": "mono_equilateral_tri_area_from_h",
+      "group": "9. Monolithic Area, Volume & Anchors (TRL Calculator)",
+      "name": "3. Equilateral triangle plate - Area (if H is given)",
+      "expression": "0.5 * (2 * H / sqrt(3)) * H",
+      "output_unit": "mm2",
+      "advanced": false,
+      "description": "Area = 0.5 * S * H = H^2 / sqrt(3) when Height (H) is given.",
+      "variables": {
+        "H": "mm"
+      },
+      "source_ref": {
+        "document_no": "TRLK/CALC/AREA-VOL-ANCHOR/2026",
+        "title": "AREA, VOLUME & ANCHOR QTY. / DEVELOPED AREA, VOLUME & ANCHOR QTY.",
+        "organization": "TRL KROSAKI REFRACTORIES LTD",
+        "revision": "1.0",
+        "clause_or_page": "Page 7 of 45 - Sheet 3: Equilateral Triangle plate (If H is given)"
+      }
+    },
+    {
+      "id": "mono_equilateral_tri_vol_from_h",
+      "group": "9. Monolithic Area, Volume & Anchors (TRL Calculator)",
+      "name": "3. Equilateral triangle plate - Volume (if H is given)",
+      "expression": "0.5 * (2 * H / sqrt(3)) * H * T",
+      "output_unit": "mm3",
+      "advanced": false,
+      "description": "Volume = (H^2 / sqrt(3)) * T when Height (H) is given.",
+      "variables": {
+        "H": "mm",
+        "T": "mm"
+      },
+      "source_ref": {
+        "document_no": "TRLK/CALC/AREA-VOL-ANCHOR/2026",
+        "title": "AREA, VOLUME & ANCHOR QTY. / DEVELOPED AREA, VOLUME & ANCHOR QTY.",
+        "organization": "TRL KROSAKI REFRACTORIES LTD",
+        "revision": "1.0",
+        "clause_or_page": "Page 7 of 45 - Sheet 3: Equilateral Triangle plate (If H is given)"
+      }
+    },
+    {
+      "id": "mono_equilateral_tri_h_from_s",
+      "group": "9. Monolithic Area, Volume & Anchors (TRL Calculator)",
+      "name": "3. Equilateral triangle plate - Height (H) if S is given",
+      "expression": "sqrt(3) / 2 * S",
+      "output_unit": "mm",
+      "advanced": true,
+      "description": "Height H = (sqrt(3) / 2) * S when Side (S) is given.",
+      "variables": {
+        "S": "mm"
+      },
+      "source_ref": {
+        "document_no": "TRLK/CALC/AREA-VOL-ANCHOR/2026",
+        "title": "AREA, VOLUME & ANCHOR QTY. / DEVELOPED AREA, VOLUME & ANCHOR QTY.",
+        "organization": "TRL KROSAKI REFRACTORIES LTD",
+        "revision": "1.0",
+        "clause_or_page": "Page 7 of 45 - Sheet 3: Equilateral Triangle plate (If S is given)"
+      }
+    },
+    {
+      "id": "mono_equilateral_tri_area_from_s",
+      "group": "9. Monolithic Area, Volume & Anchors (TRL Calculator)",
+      "name": "3. Equilateral triangle plate - Area (if S is given)",
+      "expression": "sqrt(3) / 4 * S**2",
+      "output_unit": "mm2",
+      "advanced": false,
+      "description": "Area = (sqrt(3) / 4) * S^2 when Side (S) is given.",
+      "variables": {
+        "S": "mm"
+      },
+      "source_ref": {
+        "document_no": "TRLK/CALC/AREA-VOL-ANCHOR/2026",
+        "title": "AREA, VOLUME & ANCHOR QTY. / DEVELOPED AREA, VOLUME & ANCHOR QTY.",
+        "organization": "TRL KROSAKI REFRACTORIES LTD",
+        "revision": "1.0",
+        "clause_or_page": "Page 7 of 45 - Sheet 3: Equilateral Triangle plate (If S is given)"
+      }
+    },
+    {
+      "id": "mono_equilateral_tri_vol_from_s",
+      "group": "9. Monolithic Area, Volume & Anchors (TRL Calculator)",
+      "name": "3. Equilateral triangle plate - Volume (if S is given)",
+      "expression": "sqrt(3) / 4 * S**2 * T",
+      "output_unit": "mm3",
+      "advanced": false,
+      "description": "Volume = (sqrt(3) / 4) * S^2 * T when Side (S) is given.",
+      "variables": {
+        "S": "mm",
+        "T": "mm"
+      },
+      "source_ref": {
+        "document_no": "TRLK/CALC/AREA-VOL-ANCHOR/2026",
+        "title": "AREA, VOLUME & ANCHOR QTY. / DEVELOPED AREA, VOLUME & ANCHOR QTY.",
+        "organization": "TRL KROSAKI REFRACTORIES LTD",
+        "revision": "1.0",
+        "clause_or_page": "Page 7 of 45 - Sheet 3: Equilateral Triangle plate (If S is given)"
+      }
+    },
+    {
+      "id": "mono_parallelogram_area",
+      "group": "9. Monolithic Area, Volume & Anchors (TRL Calculator)",
+      "name": "4. Parallelogram plate - Area",
+      "expression": "B * H",
+      "output_unit": "mm2",
+      "advanced": false,
+      "description": "Area = Base (B) x Height (H).",
+      "variables": {
+        "B": "mm",
+        "H": "mm"
+      },
+      "source_ref": {
+        "document_no": "TRLK/CALC/AREA-VOL-ANCHOR/2026",
+        "title": "AREA, VOLUME & ANCHOR QTY. / DEVELOPED AREA, VOLUME & ANCHOR QTY.",
+        "organization": "TRL KROSAKI REFRACTORIES LTD",
+        "revision": "1.0",
+        "clause_or_page": "Page 11 of 45 - Sheet 4: Parallelogram - Plate"
+      }
+    },
+    {
+      "id": "mono_parallelogram_vol",
+      "group": "9. Monolithic Area, Volume & Anchors (TRL Calculator)",
+      "name": "4. Parallelogram plate - Volume",
+      "expression": "B * H * T",
+      "output_unit": "mm3",
+      "advanced": false,
+      "description": "Volume = Base (B) x Height (H) x Thickness (T).",
+      "variables": {
+        "B": "mm",
+        "H": "mm",
+        "T": "mm"
+      },
+      "source_ref": {
+        "document_no": "TRLK/CALC/AREA-VOL-ANCHOR/2026",
+        "title": "AREA, VOLUME & ANCHOR QTY. / DEVELOPED AREA, VOLUME & ANCHOR QTY.",
+        "organization": "TRL KROSAKI REFRACTORIES LTD",
+        "revision": "1.0",
+        "clause_or_page": "Page 11 of 45 - Sheet 4: Parallelogram - Plate"
+      }
+    },
+    {
+      "id": "mono_trapezoid_area",
+      "group": "9. Monolithic Area, Volume & Anchors (TRL Calculator)",
+      "name": "5. Trapezoid plate - Area",
+      "expression": "0.5 * (A + B) * H",
+      "output_unit": "mm2",
+      "advanced": false,
+      "description": "Area = 0.5 x (Base A + Base B) x Height (H).",
+      "variables": {
+        "A": "mm",
+        "B": "mm",
+        "H": "mm"
+      },
+      "source_ref": {
+        "document_no": "TRLK/CALC/AREA-VOL-ANCHOR/2026",
+        "title": "AREA, VOLUME & ANCHOR QTY. / DEVELOPED AREA, VOLUME & ANCHOR QTY.",
+        "organization": "TRL KROSAKI REFRACTORIES LTD",
+        "revision": "1.0",
+        "clause_or_page": "Page 15 of 45 - Sheet 5: Trapezoid - Plate"
+      }
+    },
+    {
+      "id": "mono_trapezoid_vol",
+      "group": "9. Monolithic Area, Volume & Anchors (TRL Calculator)",
+      "name": "5. Trapezoid plate - Volume",
+      "expression": "0.5 * (A + B) * H * T",
+      "output_unit": "mm3",
+      "advanced": false,
+      "description": "Volume = 0.5 x (Base A + Base B) x Height (H) x Thickness (T).",
+      "variables": {
+        "A": "mm",
+        "B": "mm",
+        "H": "mm",
+        "T": "mm"
+      },
+      "source_ref": {
+        "document_no": "TRLK/CALC/AREA-VOL-ANCHOR/2026",
+        "title": "AREA, VOLUME & ANCHOR QTY. / DEVELOPED AREA, VOLUME & ANCHOR QTY.",
+        "organization": "TRL KROSAKI REFRACTORIES LTD",
+        "revision": "1.0",
+        "clause_or_page": "Page 15 of 45 - Sheet 5: Trapezoid - Plate"
+      }
+    },
+    {
+      "id": "mono_circle_area",
+      "group": "9. Monolithic Area, Volume & Anchors (TRL Calculator)",
+      "name": "6. Circle plate - Area",
+      "expression": "pi / 4 * D**2",
+      "output_unit": "mm2",
+      "advanced": false,
+      "description": "Area = (pi / 4) x Diameter (D)^2.",
+      "variables": {
+        "D": "mm"
+      },
+      "source_ref": {
+        "document_no": "TRLK/CALC/AREA-VOL-ANCHOR/2026",
+        "title": "AREA, VOLUME & ANCHOR QTY. / DEVELOPED AREA, VOLUME & ANCHOR QTY.",
+        "organization": "TRL KROSAKI REFRACTORIES LTD",
+        "revision": "1.0",
+        "clause_or_page": "Page 16 of 45 - Sheet 6: Circle - plate"
+      }
+    },
+    {
+      "id": "mono_circle_vol",
+      "group": "9. Monolithic Area, Volume & Anchors (TRL Calculator)",
+      "name": "6. Circle plate - Volume",
+      "expression": "pi / 4 * D**2 * T",
+      "output_unit": "mm3",
+      "advanced": false,
+      "description": "Volume = (pi / 4) x Diameter (D)^2 x Thickness (T).",
+      "variables": {
+        "D": "mm",
+        "T": "mm"
+      },
+      "source_ref": {
+        "document_no": "TRLK/CALC/AREA-VOL-ANCHOR/2026",
+        "title": "AREA, VOLUME & ANCHOR QTY. / DEVELOPED AREA, VOLUME & ANCHOR QTY.",
+        "organization": "TRL KROSAKI REFRACTORIES LTD",
+        "revision": "1.0",
+        "clause_or_page": "Page 16 of 45 - Sheet 6: Circle - plate"
+      }
+    },
+    {
+      "id": "mono_sector_circle_area",
+      "group": "9. Monolithic Area, Volume & Anchors (TRL Calculator)",
+      "name": "7. Sector of circle plate - Area",
+      "expression": "0.5 * (D / 2)**2 * radians(theta_deg)",
+      "output_unit": "mm2",
+      "advanced": false,
+      "description": "Area = 0.5 x (D / 2)^2 x Angle (radians).",
+      "variables": {
+        "D": "mm",
+        "theta_deg": "deg"
+      },
+      "source_ref": {
+        "document_no": "TRLK/CALC/AREA-VOL-ANCHOR/2026",
+        "title": "AREA, VOLUME & ANCHOR QTY. / DEVELOPED AREA, VOLUME & ANCHOR QTY.",
+        "organization": "TRL KROSAKI REFRACTORIES LTD",
+        "revision": "1.0",
+        "clause_or_page": "Page 22 of 45 - Sheet 7: Sector of Circle - Plate"
+      }
+    },
+    {
+      "id": "mono_sector_circle_vol",
+      "group": "9. Monolithic Area, Volume & Anchors (TRL Calculator)",
+      "name": "7. Sector of circle plate - Volume",
+      "expression": "0.5 * (D / 2)**2 * radians(theta_deg) * T",
+      "output_unit": "mm3",
+      "advanced": false,
+      "description": "Volume = 0.5 x (D / 2)^2 x Angle (radians) x Thickness (T).",
+      "variables": {
+        "D": "mm",
+        "theta_deg": "deg",
+        "T": "mm"
+      },
+      "source_ref": {
+        "document_no": "TRLK/CALC/AREA-VOL-ANCHOR/2026",
+        "title": "AREA, VOLUME & ANCHOR QTY. / DEVELOPED AREA, VOLUME & ANCHOR QTY.",
+        "organization": "TRL KROSAKI REFRACTORIES LTD",
+        "revision": "1.0",
+        "clause_or_page": "Page 22 of 45 - Sheet 7: Sector of Circle - Plate"
+      }
+    },
+    {
+      "id": "mono_ellipse_area",
+      "group": "9. Monolithic Area, Volume & Anchors (TRL Calculator)",
+      "name": "8. Elliptical plate - Area",
+      "expression": "pi * A * B",
+      "output_unit": "mm2",
+      "advanced": false,
+      "description": "Area = pi x Semi-major axis (A) x Semi-minor axis (B).",
+      "variables": {
+        "A": "mm",
+        "B": "mm"
+      },
+      "source_ref": {
+        "document_no": "TRLK/CALC/AREA-VOL-ANCHOR/2026",
+        "title": "AREA, VOLUME & ANCHOR QTY. / DEVELOPED AREA, VOLUME & ANCHOR QTY.",
+        "organization": "TRL KROSAKI REFRACTORIES LTD",
+        "revision": "1.0",
+        "clause_or_page": "Page 27 of 45 - Sheet 8: Elliptical - plate"
+      }
+    },
+    {
+      "id": "mono_ellipse_vol",
+      "group": "9. Monolithic Area, Volume & Anchors (TRL Calculator)",
+      "name": "8. Elliptical plate - Volume",
+      "expression": "pi * A * B * T",
+      "output_unit": "mm3",
+      "advanced": false,
+      "description": "Volume = pi x Semi-major axis (A) x Semi-minor axis (B) x Thickness (T).",
+      "variables": {
+        "A": "mm",
+        "B": "mm",
+        "T": "mm"
+      },
+      "source_ref": {
+        "document_no": "TRLK/CALC/AREA-VOL-ANCHOR/2026",
+        "title": "AREA, VOLUME & ANCHOR QTY. / DEVELOPED AREA, VOLUME & ANCHOR QTY.",
+        "organization": "TRL KROSAKI REFRACTORIES LTD",
+        "revision": "1.0",
+        "clause_or_page": "Page 27 of 45 - Sheet 8: Elliptical - plate"
+      }
+    },
+    {
+      "id": "mono_circular_duct_inner_d",
+      "group": "9. Monolithic Area, Volume & Anchors (TRL Calculator)",
+      "name": "9. Circular duct - I/S Dia of refractory shell (d)",
+      "expression": "D - 2 * T",
+      "output_unit": "mm",
+      "advanced": true,
+      "description": "Inner diameter of refractory lining d = I/S Diameter (D) - 2 x Refractory Thk (T).",
+      "variables": {
+        "D": "mm",
+        "T": "mm"
+      },
+      "source_ref": {
+        "document_no": "TRLK/CALC/AREA-VOL-ANCHOR/2026",
+        "title": "AREA, VOLUME & ANCHOR QTY. / DEVELOPED AREA, VOLUME & ANCHOR QTY.",
+        "organization": "TRL KROSAKI REFRACTORIES LTD",
+        "revision": "1.0",
+        "clause_or_page": "Page 29 of 45 - Sheet 9: Circular duct"
+      }
+    },
+    {
+      "id": "mono_circular_duct_area",
+      "group": "9. Monolithic Area, Volume & Anchors (TRL Calculator)",
+      "name": "9. Circular duct - Cross-sectional refractory area",
+      "expression": "pi / 4 * (D**2 - (D - 2 * T)**2)",
+      "output_unit": "mm2",
+      "advanced": false,
+      "description": "Annular refractory area = (pi / 4) x (D^2 - d^2) where d = D - 2*T.",
+      "variables": {
+        "D": "mm",
+        "T": "mm"
+      },
+      "source_ref": {
+        "document_no": "TRLK/CALC/AREA-VOL-ANCHOR/2026",
+        "title": "AREA, VOLUME & ANCHOR QTY. / DEVELOPED AREA, VOLUME & ANCHOR QTY.",
+        "organization": "TRL KROSAKI REFRACTORIES LTD",
+        "revision": "1.0",
+        "clause_or_page": "Page 29 of 45 - Sheet 9: Circular duct"
+      }
+    },
+    {
+      "id": "mono_circular_duct_vol",
+      "group": "9. Monolithic Area, Volume & Anchors (TRL Calculator)",
+      "name": "9. Circular duct - Refractory volume",
+      "expression": "pi / 4 * (D**2 - (D - 2 * T)**2) * L",
+      "output_unit": "mm3",
+      "advanced": false,
+      "description": "Refractory volume = Annular Area x Length of Duct (L).",
+      "variables": {
+        "D": "mm",
+        "T": "mm",
+        "L": "mm"
+      },
+      "source_ref": {
+        "document_no": "TRLK/CALC/AREA-VOL-ANCHOR/2026",
+        "title": "AREA, VOLUME & ANCHOR QTY. / DEVELOPED AREA, VOLUME & ANCHOR QTY.",
+        "organization": "TRL KROSAKI REFRACTORIES LTD",
+        "revision": "1.0",
+        "clause_or_page": "Page 29 of 45 - Sheet 9: Circular duct"
+      }
+    },
+    {
+      "id": "mono_rect_duct_area",
+      "group": "9. Monolithic Area, Volume & Anchors (TRL Calculator)",
+      "name": "10. Rectangular duct - Refractory cross-sectional area",
+      "expression": "W * H - (W - 2 * T) * (H - 2 * T)",
+      "output_unit": "mm2",
+      "advanced": false,
+      "description": "Refractory area = W * H - w1 * h1 where w1 = W - 2*T and h1 = H - 2*T.",
+      "variables": {
+        "W": "mm",
+        "H": "mm",
+        "T": "mm"
+      },
+      "source_ref": {
+        "document_no": "TRLK/CALC/AREA-VOL-ANCHOR/2026",
+        "title": "AREA, VOLUME & ANCHOR QTY. / DEVELOPED AREA, VOLUME & ANCHOR QTY.",
+        "organization": "TRL KROSAKI REFRACTORIES LTD",
+        "revision": "1.0",
+        "clause_or_page": "Page 33 of 45 - Sheet 10: Rectangular Duct"
+      }
+    },
+    {
+      "id": "mono_rect_duct_vol",
+      "group": "9. Monolithic Area, Volume & Anchors (TRL Calculator)",
+      "name": "10. Rectangular duct - Refractory volume",
+      "expression": "(W * H - (W - 2 * T) * (H - 2 * T)) * L",
+      "output_unit": "mm3",
+      "advanced": false,
+      "description": "Refractory volume = (W * H - (W - 2*T)*(H - 2*T)) * L.",
+      "variables": {
+        "W": "mm",
+        "H": "mm",
+        "T": "mm",
+        "L": "mm"
+      },
+      "source_ref": {
+        "document_no": "TRLK/CALC/AREA-VOL-ANCHOR/2026",
+        "title": "AREA, VOLUME & ANCHOR QTY. / DEVELOPED AREA, VOLUME & ANCHOR QTY.",
+        "organization": "TRL KROSAKI REFRACTORIES LTD",
+        "revision": "1.0",
+        "clause_or_page": "Page 33 of 45 - Sheet 10: Rectangular Duct"
+      }
+    },
+    {
+      "id": "mono_cylinder_shell_area",
+      "group": "9. Monolithic Area, Volume & Anchors (TRL Calculator)",
+      "name": "11. Cylinder (Developed) - Surface area of plate",
+      "expression": "pi * D * L",
+      "output_unit": "mm2",
+      "advanced": false,
+      "description": "Surface area of cylinder plate = pi x I/S Dia of Plate (D) x Length of Duct (L).",
+      "variables": {
+        "D": "mm",
+        "L": "mm"
+      },
+      "source_ref": {
+        "document_no": "TRLK/CALC/AREA-VOL-ANCHOR/2026",
+        "title": "AREA, VOLUME & ANCHOR QTY. / DEVELOPED AREA, VOLUME & ANCHOR QTY.",
+        "organization": "TRL KROSAKI REFRACTORIES LTD",
+        "revision": "1.0",
+        "clause_or_page": "Page 36 of 45 - Developed Sheet 1: Cylinder"
+      }
+    },
+    {
+      "id": "mono_cylinder_shell_vol",
+      "group": "9. Monolithic Area, Volume & Anchors (TRL Calculator)",
+      "name": "11. Cylinder (Developed) - Refractory volume",
+      "expression": "pi * D * L * T",
+      "output_unit": "mm3",
+      "advanced": false,
+      "description": "Developed cylinder refractory volume = Surface Area of Plate x Refractory Thk (T).",
+      "variables": {
+        "D": "mm",
+        "L": "mm",
+        "T": "mm"
+      },
+      "source_ref": {
+        "document_no": "TRLK/CALC/AREA-VOL-ANCHOR/2026",
+        "title": "AREA, VOLUME & ANCHOR QTY. / DEVELOPED AREA, VOLUME & ANCHOR QTY.",
+        "organization": "TRL KROSAKI REFRACTORIES LTD",
+        "revision": "1.0",
+        "clause_or_page": "Page 36 of 45 - Developed Sheet 1: Cylinder"
+      }
+    },
+    {
+      "id": "mono_cone_shell_area",
+      "group": "9. Monolithic Area, Volume & Anchors (TRL Calculator)",
+      "name": "12. Cone (Developed) - Surface area of plate",
+      "expression": "pi * R * (R + sqrt(R**2 + H**2))",
+      "output_unit": "mm2",
+      "advanced": false,
+      "description": "Total cone surface area in TRL sheet = pi * R * (R + sqrt(R^2 + H^2)).",
+      "variables": {
+        "R": "mm",
+        "H": "mm"
+      },
+      "source_ref": {
+        "document_no": "TRLK/CALC/AREA-VOL-ANCHOR/2026",
+        "title": "AREA, VOLUME & ANCHOR QTY. / DEVELOPED AREA, VOLUME & ANCHOR QTY.",
+        "organization": "TRL KROSAKI REFRACTORIES LTD",
+        "revision": "1.0",
+        "clause_or_page": "Page 39 of 45 - Developed Sheet 2: Cone"
+      }
+    },
+    {
+      "id": "mono_cone_shell_vol",
+      "group": "9. Monolithic Area, Volume & Anchors (TRL Calculator)",
+      "name": "12. Cone (Developed) - Refractory volume",
+      "expression": "pi / 3 * R**2 * H + pi / 3 * (R - T)**2 * (H - T)",
+      "output_unit": "mm3",
+      "advanced": false,
+      "description": "Cone refractory volume formula from TRL sheet (Page 39).",
+      "variables": {
+        "R": "mm",
+        "H": "mm",
+        "T": "mm"
+      },
+      "source_ref": {
+        "document_no": "TRLK/CALC/AREA-VOL-ANCHOR/2026",
+        "title": "AREA, VOLUME & ANCHOR QTY. / DEVELOPED AREA, VOLUME & ANCHOR QTY.",
+        "organization": "TRL KROSAKI REFRACTORIES LTD",
+        "revision": "1.0",
+        "clause_or_page": "Page 39 of 45 - Developed Sheet 2: Cone"
+      }
+    },
+    {
+      "id": "mono_frustum_cone_area",
+      "group": "9. Monolithic Area, Volume & Anchors (TRL Calculator)",
+      "name": "13. Frustum of Cone (Developed) - Lateral surface area of plate",
+      "expression": "pi * (R + r) * sqrt((R - r)**2 + H**2)",
+      "output_unit": "mm2",
+      "advanced": false,
+      "description": "Lateral surface area of conical frustum = pi * (R + r) * sqrt((R - r)^2 + H^2).",
+      "variables": {
+        "R": "mm",
+        "r": "mm",
+        "H": "mm"
+      },
+      "source_ref": {
+        "document_no": "TRLK/CALC/AREA-VOL-ANCHOR/2026",
+        "title": "AREA, VOLUME & ANCHOR QTY. / DEVELOPED AREA, VOLUME & ANCHOR QTY.",
+        "organization": "TRL KROSAKI REFRACTORIES LTD",
+        "revision": "1.0",
+        "clause_or_page": "Page 41 of 45 - Developed Sheet 3: Frustrum of Cone"
+      }
+    },
+    {
+      "id": "mono_frustum_cone_vol",
+      "group": "9. Monolithic Area, Volume & Anchors (TRL Calculator)",
+      "name": "13. Frustum of Cone (Developed) - Refractory volume",
+      "expression": "pi * (R + r) * sqrt((R - r)**2 + H**2) * T",
+      "output_unit": "mm3",
+      "advanced": false,
+      "description": "Developed frustum refractory volume = Lateral Surface Area x Thk of Refractory (T).",
+      "variables": {
+        "R": "mm",
+        "r": "mm",
+        "H": "mm",
+        "T": "mm"
+      },
+      "source_ref": {
+        "document_no": "TRLK/CALC/AREA-VOL-ANCHOR/2026",
+        "title": "AREA, VOLUME & ANCHOR QTY. / DEVELOPED AREA, VOLUME & ANCHOR QTY.",
+        "organization": "TRL KROSAKI REFRACTORIES LTD",
+        "revision": "1.0",
+        "clause_or_page": "Page 41 of 45 - Developed Sheet 3: Frustrum of Cone"
+      }
+    },
+    {
+      "id": "mono_sphere_lid_radius",
+      "group": "9. Monolithic Area, Volume & Anchors (TRL Calculator)",
+      "name": "14. Lid of sphere - Radius of sphere (R)",
+      "expression": "(r1**2 + H**2) / (2 * H)",
+      "output_unit": "mm",
+      "advanced": true,
+      "description": "Sphere radius R = (r1^2 + H^2) / (2 * H) from base radius r1 and cap height H.",
+      "variables": {
+        "r1": "mm",
+        "H": "mm"
+      },
+      "source_ref": {
+        "document_no": "TRLK/CALC/AREA-VOL-ANCHOR/2026",
+        "title": "AREA, VOLUME & ANCHOR QTY. / DEVELOPED AREA, VOLUME & ANCHOR QTY.",
+        "organization": "TRL KROSAKI REFRACTORIES LTD",
+        "revision": "1.0",
+        "clause_or_page": "Page 44 of 45 - Developed Sheet 4: Lid of sphere"
+      }
+    },
+    {
+      "id": "mono_sphere_lid_area",
+      "group": "9. Monolithic Area, Volume & Anchors (TRL Calculator)",
+      "name": "14. Lid of sphere - Lateral surface area of plate",
+      "expression": "2 * pi * ((r1**2 + H**2) / (2 * H)) * H",
+      "output_unit": "mm2",
+      "advanced": false,
+      "description": "Spherical cap lateral surface area = 2 * pi * R * H = pi * (r1^2 + H^2).",
+      "variables": {
+        "r1": "mm",
+        "H": "mm"
+      },
+      "source_ref": {
+        "document_no": "TRLK/CALC/AREA-VOL-ANCHOR/2026",
+        "title": "AREA, VOLUME & ANCHOR QTY. / DEVELOPED AREA, VOLUME & ANCHOR QTY.",
+        "organization": "TRL KROSAKI REFRACTORIES LTD",
+        "revision": "1.0",
+        "clause_or_page": "Page 44 of 45 - Developed Sheet 4: Lid of sphere"
+      }
+    },
+    {
+      "id": "mono_sphere_lid_vol",
+      "group": "9. Monolithic Area, Volume & Anchors (TRL Calculator)",
+      "name": "14. Lid of sphere - Refractory volume",
+      "expression": "2 * pi * ((r1**2 + H**2) / (2 * H)) * H * T",
+      "output_unit": "mm3",
+      "advanced": false,
+      "description": "Spherical cap refractory volume = Lateral Surface Area x Thk of Refractory (T).",
+      "variables": {
+        "r1": "mm",
+        "H": "mm",
+        "T": "mm"
+      },
+      "source_ref": {
+        "document_no": "TRLK/CALC/AREA-VOL-ANCHOR/2026",
+        "title": "AREA, VOLUME & ANCHOR QTY. / DEVELOPED AREA, VOLUME & ANCHOR QTY.",
+        "organization": "TRL KROSAKI REFRACTORIES LTD",
+        "revision": "1.0",
+        "clause_or_page": "Page 44 of 45 - Developed Sheet 4: Lid of sphere"
+      }
     }
   ]
 }

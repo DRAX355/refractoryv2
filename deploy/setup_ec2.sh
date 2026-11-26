@@ -5,23 +5,25 @@
 # ==============================================================================
 set -euo pipefail
 
-APP_DIR="/home/ubuntu/refractory-server"
+APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+CURRENT_USER="$(whoami)"
 echo "=================================================================="
-echo " Starting RefractoryAI EC2 Server Setup in ${APP_DIR}"
+echo " Starting RefractoryAI EC2 Server Setup in ${APP_DIR} (user: ${CURRENT_USER})"
 echo "=================================================================="
 
-# 1. Install Ubuntu 24.04 system packages (OCR, PDF rendering, OpenCV libs, Nginx)
+# 1. Install Ubuntu 24.04 system packages (OCR, PDF rendering, OpenCV libs, DWG->DXF, Nginx)
 echo "[1/6] Installing Ubuntu system dependencies..."
 sudo apt-get update -y
 sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
     python3 python3-venv python3-pip python3-dev build-essential \
     tesseract-ocr libtesseract-dev poppler-utils \
     libgl1 libglib2.0-0 libsm6 libxext6 libxrender-dev \
-    nginx unzip curl jq
+    libredwg-tools xvfb \
+    nginx unzip curl jq || true
 
 # 2. Ensure directory structure exists
 echo "[2/6] Preparing application directories..."
-mkdir -p "${APP_DIR}/uploads" "${APP_DIR}/outputs" "${APP_DIR}/data/sessions"
+mkdir -p "${APP_DIR}/uploads" "${APP_DIR}/outputs" "${APP_DIR}/data/sessions" "${APP_DIR}/data/core/user_sessions" "${APP_DIR}/data/core/kb_versions" "${APP_DIR}/data/core/shape_drawings"
 cd "${APP_DIR}"
 
 # Fix CRLF line endings if uploaded from Windows via WinSCP
@@ -51,10 +53,13 @@ if [ ! -f "${APP_DIR}/.env" ] && [ -f "${APP_DIR}/.env.example" ]; then
     sed -i 's|^POPPLER_PATH=.*|POPPLER_PATH=|' "${APP_DIR}/.env"
 fi
 
-# 5. Configure systemd service (auto-start on boot & auto-restart)
+# 5. Configure systemd service (auto-start on boot & auto-restart, dynamically pointing to APP_DIR)
 echo "[5/6] Configuring systemd service (refractory.service)..."
 sed -i 's/\r$//' "${APP_DIR}/deploy/refractory.service" 2>/dev/null || true
-sudo cp "${APP_DIR}/deploy/refractory.service" /etc/systemd/system/refractory.service
+sed -e "s|/home/ubuntu/refractory-server|${APP_DIR}|g" \
+    -e "s|User=ubuntu|User=${CURRENT_USER}|g" \
+    -e "s|Group=ubuntu|Group=${CURRENT_USER}|g" \
+    "${APP_DIR}/deploy/refractory.service" | sudo tee /etc/systemd/system/refractory.service >/dev/null
 sudo systemctl daemon-reload
 sudo systemctl enable refractory.service
 sudo systemctl restart refractory.service

@@ -106,7 +106,9 @@ app.include_router(ingestion_router, prefix="/api/v1")
 app.include_router(extraction_router, prefix="/api/v1")
 app.include_router(lining_router, prefix="/api/v1")
 from app.api.v1.routes_core import router as core_router
+from app.api.v1.routes_auth import router as auth_router
 app.include_router(core_router, prefix="/api/v1")
+app.include_router(auth_router, prefix="/api/v1")
 from pathlib import Path as _Path
 from fastapi.responses import RedirectResponse as _RedirectResponse
 _PROJECT_ROOT = _Path(__file__).resolve().parent.parent

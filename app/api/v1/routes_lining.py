@@ -16,6 +16,9 @@ Part 3 - Lining Designer (lining GA, brick shapes, layers / brick layout, nozzle
 
   GET /api/v1/lining/library
     The brick library used when the request does not carry one.
+
+  GET /api/v1/lining/client-library
+    Client (TRL) data: standard assemblies (MHP, taphole set) and safety bricks, from data/client_*.json.
 """
 from __future__ import annotations
 
@@ -27,9 +30,10 @@ import uuid
 from typing import Any
 
 import ezdxf
-from fastapi import APIRouter, Body, Header, HTTPException, status
+from fastapi import APIRouter, Body, Depends, Header, HTTPException, status
 from loguru import logger
 
+from app.core.auth import resolve_current_user
 from app.core.config import settings
 from app.services.part3_lining.lining.adapter import build_engine_inputs
 from app.services.part3_lining.service import LiningInputError, generate, load_library, safe_name
@@ -79,6 +83,7 @@ def _run(job_id: str, payload: dict, out_dir, url_prefix: str) -> None:
             _save_job(job_id, j)
 
     try:
+        payload["_job_run_id"] = job_id
         result = generate(payload, out_dir, url_prefix, progress)
         with _LOCK:
             _JOBS[job_id].setdefault("log", []).append({"stage": "Done", "percent": 100, "t": round(time.time() - t0, 1)})
@@ -96,7 +101,7 @@ def _run(job_id: str, payload: dict, out_dir, url_prefix: str) -> None:
 
 
 @router.post("/generate", summary="Start lining, brick and layer drawing generation (background job)")
-async def generate_lining(payload: dict[str, Any] = Body(...), x_user: str = Header("anonymous")) -> dict:
+async def generate_lining(payload: dict[str, Any] = Body(...), user: dict = Depends(resolve_current_user)) -> dict:
     if not isinstance(payload.get("vessel"), dict) or not isinstance(payload.get("design"), dict):
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                             detail={"errors": ["Request needs 'vessel' and 'design' objects."]})
@@ -105,27 +110,32 @@ async def generate_lining(payload: dict[str, Any] = Body(...), x_user: str = Hea
     except (KeyError, ValueError) as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail={"errors": [str(exc)]})
 
+    actor = user.get("username") or "anonymous"
+    user_folder = safe_name(actor) or "anonymous"
     job = safe_name(str(payload.get("job_id") or payload.get("job") or "lining"))
     run = "lining_" + datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
-    out_dir = settings.outputs_dir / job / run
-    url_prefix = f"/outputs/{job}/{run}"
+    out_dir = settings.outputs_dir / user_folder / job / run
+    url_prefix = f"/outputs/{user_folder}/{job}/{run}"
     job_id = uuid.uuid4().hex[:12]
+    payload["_actor"] = actor
+    if not payload.get("prepared_by"):
+        payload["prepared_by"] = user.get("full_name") or actor
     from refractory_core import get_core                       # audit: who generated what, with which formulas
     core = get_core()
-    core.audit.record("lining.generate", f"job:{job}", actor=x_user,
-                      meta={"job_id": job_id, "output": str(out_dir),
+    core.audit.record("lining.generate", f"job:{actor}:{job}", actor=actor,
+                      meta={"job_id": job_id, "owner": actor, "output": str(out_dir),
                             "modified_formulas": {k: v["expression"] for k, v in core.formulas.overrides.items()}})
     with _LOCK:
-        _JOBS[job_id] = {"job_id": job_id, "status": "running", "stage": "Queued", "percent": 0, "elapsed_s": 0,
+        _JOBS[job_id] = {"job_id": job_id, "owner": actor, "status": "running", "stage": "Queued", "percent": 0, "elapsed_s": 0,
                          "out_dir": str(out_dir), "started": datetime.datetime.now().isoformat(timespec="seconds")}
         _save_job(job_id, _JOBS[job_id])
-    logger.info(f"[Part 3] Lining generation started — job={job}, id={job_id}, out={out_dir} (ezdxf {ezdxf.__version__})")
+    logger.info(f"[Part 3] Lining generation started — owner={actor}, job={job}, id={job_id}, out={out_dir} (ezdxf {ezdxf.__version__})")
     threading.Thread(target=_run, args=(job_id, payload, out_dir, url_prefix), daemon=True).start()
-    return {"job_id": job_id, "status": "running"}
+    return {"job_id": job_id, "owner": actor, "status": "running"}
 
 
 @router.get("/jobs/{job_id}", summary="Progress / result of a lining generation")
-async def get_job(job_id: str) -> dict:
+async def get_job(job_id: str, user: dict = Depends(resolve_current_user)) -> dict:
     with _LOCK:
         j = _JOBS.get(job_id)
         if not j:
@@ -137,6 +147,10 @@ async def get_job(job_id: str) -> dict:
         if not j:
             raise HTTPException(status_code=404, detail={"errors": [
                 "Generation job not found (the backend was restarted). Click Generate again."]})
+        job_owner = j.get("owner")
+        cur_user = user.get("username") or "anonymous"
+        if job_owner and job_owner != "anonymous" and cur_user != "anonymous" and job_owner != cur_user and user.get("role") != "admin":
+            raise HTTPException(status_code=403, detail={"errors": ["This generation job belongs to another user session."]})
         out = dict(j)
         out["log"], out["previews"] = list(j.get("log", [])), list(j.get("previews", []))
         return out
@@ -145,3 +159,17 @@ async def get_job(job_id: str) -> dict:
 @router.get("/library", summary="Brick library used by the lining designer")
 async def get_library() -> dict:
     return load_library()
+
+
+@router.get("/client-library", summary="Client (TRL) data files: standard assemblies (MHP, taphole set) and safety bricks")
+async def get_client_library() -> dict:
+    """Serves app/services/part3_lining/data/client_*.json as they are. Step 12 fills the MHP card and the
+    taphole set from 'assemblies'; nothing is filled when a file is missing."""
+    import json
+    from pathlib import Path
+    folder = Path(__file__).resolve().parents[2] / "services" / "part3_lining" / "data"
+    out = {}
+    for key, name in (("assemblies", "client_assemblies.json"), ("safety_bricks", "client_safety_bricks.json")):
+        f = folder / name
+        out[key] = json.loads(f.read_text(encoding="utf-8")) if f.exists() else None
+    return out

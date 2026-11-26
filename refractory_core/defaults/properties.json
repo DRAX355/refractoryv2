@@ -2,17 +2,185 @@
   "version": 1,
   "_note": "Reference compound constants (public handbook values, approximate). 'locked' properties are physical/chemical facts: they cannot be edited through the API or library; only a code-level change to this shipped file (reviewed in version control) can alter them. Editable properties are project/plant settings. Company-specific product grades are NOT shipped - register them via PropertyStore.register_grade().",
   "properties": [
-    {"id": "compound.MgO.density",    "label": "MgO (periclase) theoretical density", "value": 3.58, "unit": "g/cm3", "category": "chemical", "locked": true},
-    {"id": "compound.MgO.melting",    "label": "MgO melting point",                  "value": 2852, "unit": "degC",  "category": "chemical", "locked": true},
-    {"id": "compound.Al2O3.density",  "label": "Al2O3 (corundum) theoretical density","value": 3.95, "unit": "g/cm3", "category": "chemical", "locked": true},
-    {"id": "compound.Al2O3.melting",  "label": "Al2O3 melting point",                "value": 2072, "unit": "degC",  "category": "chemical", "locked": true},
-    {"id": "compound.Cr2O3.density",  "label": "Cr2O3 theoretical density",          "value": 5.22, "unit": "g/cm3", "category": "chemical", "locked": true},
-    {"id": "compound.Cr2O3.melting",  "label": "Cr2O3 melting point",                "value": 2435, "unit": "degC",  "category": "chemical", "locked": true},
-    {"id": "compound.SiO2.density",   "label": "SiO2 (quartz) theoretical density",  "value": 2.65, "unit": "g/cm3", "category": "chemical", "locked": true},
-    {"id": "compound.C.density",      "label": "Graphite theoretical density",       "value": 2.26, "unit": "g/cm3", "category": "chemical", "locked": true},
-    {"id": "compound.MgO.molar_mass", "label": "MgO molar mass",                     "value": 40.304, "unit": "g/mol", "category": "chemical", "locked": true},
-    {"id": "compound.Al2O3.molar_mass","label": "Al2O3 molar mass",                  "value": 101.961, "unit": "g/mol", "category": "chemical", "locked": true},
-    {"id": "default.bulk_density",    "label": "Fallback bulk density when a grade has none", "value": 3.0, "unit": "g/cm3", "category": "setting", "locked": false},
-    {"id": "default.cut_allowance",   "label": "Default cut / breakage allowance",   "value": 3.0, "unit": "%",     "category": "setting", "locked": false}
+    {
+      "id": "compound.MgO.density",
+      "label": "MgO (periclase) theoretical density",
+      "value": 3.58,
+      "unit": "g/cm3",
+      "category": "chemical",
+      "locked": true,
+      "source_ref": {
+        "document_no": "TRLK/MAT-REF/CRC-OXIDE-CONSTANTS",
+        "title": "Refractory Oxide & Compound Physical Constants (Locked Reference)",
+        "organization": "TRL KROSAKI REFRACTORIES LTD",
+        "revision": "2026.1",
+        "clause_or_page": "Table 1 - MgO (periclase) theoretical density"
+      }
+    },
+    {
+      "id": "compound.MgO.melting",
+      "label": "MgO melting point",
+      "value": 2852,
+      "unit": "degC",
+      "category": "chemical",
+      "locked": true,
+      "source_ref": {
+        "document_no": "TRLK/MAT-REF/CRC-OXIDE-CONSTANTS",
+        "title": "Refractory Oxide & Compound Physical Constants (Locked Reference)",
+        "organization": "TRL KROSAKI REFRACTORIES LTD",
+        "revision": "2026.1",
+        "clause_or_page": "Table 1 - MgO melting point"
+      }
+    },
+    {
+      "id": "compound.Al2O3.density",
+      "label": "Al2O3 (corundum) theoretical density",
+      "value": 3.95,
+      "unit": "g/cm3",
+      "category": "chemical",
+      "locked": true,
+      "source_ref": {
+        "document_no": "TRLK/MAT-REF/CRC-OXIDE-CONSTANTS",
+        "title": "Refractory Oxide & Compound Physical Constants (Locked Reference)",
+        "organization": "TRL KROSAKI REFRACTORIES LTD",
+        "revision": "2026.1",
+        "clause_or_page": "Table 1 - Al2O3 (corundum) theoretical density"
+      }
+    },
+    {
+      "id": "compound.Al2O3.melting",
+      "label": "Al2O3 melting point",
+      "value": 2072,
+      "unit": "degC",
+      "category": "chemical",
+      "locked": true,
+      "source_ref": {
+        "document_no": "TRLK/MAT-REF/CRC-OXIDE-CONSTANTS",
+        "title": "Refractory Oxide & Compound Physical Constants (Locked Reference)",
+        "organization": "TRL KROSAKI REFRACTORIES LTD",
+        "revision": "2026.1",
+        "clause_or_page": "Table 1 - Al2O3 melting point"
+      }
+    },
+    {
+      "id": "compound.Cr2O3.density",
+      "label": "Cr2O3 theoretical density",
+      "value": 5.22,
+      "unit": "g/cm3",
+      "category": "chemical",
+      "locked": true,
+      "source_ref": {
+        "document_no": "TRLK/MAT-REF/CRC-OXIDE-CONSTANTS",
+        "title": "Refractory Oxide & Compound Physical Constants (Locked Reference)",
+        "organization": "TRL KROSAKI REFRACTORIES LTD",
+        "revision": "2026.1",
+        "clause_or_page": "Table 1 - Cr2O3 theoretical density"
+      }
+    },
+    {
+      "id": "compound.Cr2O3.melting",
+      "label": "Cr2O3 melting point",
+      "value": 2435,
+      "unit": "degC",
+      "category": "chemical",
+      "locked": true,
+      "source_ref": {
+        "document_no": "TRLK/MAT-REF/CRC-OXIDE-CONSTANTS",
+        "title": "Refractory Oxide & Compound Physical Constants (Locked Reference)",
+        "organization": "TRL KROSAKI REFRACTORIES LTD",
+        "revision": "2026.1",
+        "clause_or_page": "Table 1 - Cr2O3 melting point"
+      }
+    },
+    {
+      "id": "compound.SiO2.density",
+      "label": "SiO2 (quartz) theoretical density",
+      "value": 2.65,
+      "unit": "g/cm3",
+      "category": "chemical",
+      "locked": true,
+      "source_ref": {
+        "document_no": "TRLK/MAT-REF/CRC-OXIDE-CONSTANTS",
+        "title": "Refractory Oxide & Compound Physical Constants (Locked Reference)",
+        "organization": "TRL KROSAKI REFRACTORIES LTD",
+        "revision": "2026.1",
+        "clause_or_page": "Table 1 - SiO2 (quartz) theoretical density"
+      }
+    },
+    {
+      "id": "compound.C.density",
+      "label": "Graphite theoretical density",
+      "value": 2.26,
+      "unit": "g/cm3",
+      "category": "chemical",
+      "locked": true,
+      "source_ref": {
+        "document_no": "TRLK/MAT-REF/CRC-OXIDE-CONSTANTS",
+        "title": "Refractory Oxide & Compound Physical Constants (Locked Reference)",
+        "organization": "TRL KROSAKI REFRACTORIES LTD",
+        "revision": "2026.1",
+        "clause_or_page": "Table 1 - Graphite theoretical density"
+      }
+    },
+    {
+      "id": "compound.MgO.molar_mass",
+      "label": "MgO molar mass",
+      "value": 40.304,
+      "unit": "g/mol",
+      "category": "chemical",
+      "locked": true,
+      "source_ref": {
+        "document_no": "TRLK/MAT-REF/CRC-OXIDE-CONSTANTS",
+        "title": "Refractory Oxide & Compound Physical Constants (Locked Reference)",
+        "organization": "TRL KROSAKI REFRACTORIES LTD",
+        "revision": "2026.1",
+        "clause_or_page": "Table 1 - MgO molar mass"
+      }
+    },
+    {
+      "id": "compound.Al2O3.molar_mass",
+      "label": "Al2O3 molar mass",
+      "value": 101.961,
+      "unit": "g/mol",
+      "category": "chemical",
+      "locked": true,
+      "source_ref": {
+        "document_no": "TRLK/MAT-REF/CRC-OXIDE-CONSTANTS",
+        "title": "Refractory Oxide & Compound Physical Constants (Locked Reference)",
+        "organization": "TRL KROSAKI REFRACTORIES LTD",
+        "revision": "2026.1",
+        "clause_or_page": "Table 1 - Al2O3 molar mass"
+      }
+    },
+    {
+      "id": "default.bulk_density",
+      "label": "Fallback bulk density when a grade has none",
+      "value": 3.0,
+      "unit": "g/cm3",
+      "category": "setting",
+      "locked": false,
+      "source_ref": {
+        "document_no": "TRLK/ENG/BOF-LINING-STD/180MT",
+        "title": "TRL Krosaki BOF Refractory Lining Engineering & Calculation Standard (180MT Reference)",
+        "organization": "TRL KROSAKI REFRACTORIES LTD",
+        "revision": "1.0",
+        "clause_or_page": "Plant & Project Settings - Fallback bulk density when a grade has none"
+      }
+    },
+    {
+      "id": "default.cut_allowance",
+      "label": "Default cut / breakage allowance",
+      "value": 3.0,
+      "unit": "%",
+      "category": "setting",
+      "locked": false,
+      "source_ref": {
+        "document_no": "TRLK/ENG/BOF-LINING-STD/180MT",
+        "title": "TRL Krosaki BOF Refractory Lining Engineering & Calculation Standard (180MT Reference)",
+        "organization": "TRL KROSAKI REFRACTORIES LTD",
+        "revision": "1.0",
+        "clause_or_page": "Plant & Project Settings - Default cut / breakage allowance"
+      }
+    }
   ]
 }

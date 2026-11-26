@@ -228,23 +228,30 @@ def run_checks(payload, vessel, sheet, courses, rings, vols, bom, st, nozzles):
         c["cross"] = True
         out.append(c)
     try:
+        tols_in = payload.get("tolerances") or {}
+        tol_dish_r = float(tols_in.get("dish_radius_tol") or f.evaluate("p_cross_dish_radius_tol", {}))
+        tol_dia = float(tols_in.get("diameter_tol") or f.evaluate("p_cross_diameter_tol", {}))
+        tol_invol = float(tols_in.get("inside_volume_tol") or f.evaluate("p_cross_inside_volume_tol", {}))
         bb = next((i for i, b in enumerate(sheet.bands) if b.get("kind") == "bottom"), None)
         if bb is not None:
             i0, i1 = sheet.band_idx[bb]
             hot = sheet.boundary_paths(0.0)[0][sheet.L].run(i0, i1)
             from .geometry import arc_from_bulge
             if abs(hot[0][2]) > 1e-12:
-                cross("bottom dish hot-face radius", arc_from_bulge(hot[0][:2], hot[1][:2], hot[0][2])[1], ref.get("dish_hot_R"), 0.01, "mm")
-            cross("bottom working-lining diameter at the edge", 2 * max(p[0] for p in hot), ref.get("bot_dia"), 0.005, "mm")
+                cross("bottom dish hot-face radius", arc_from_bulge(hot[0][:2], hot[1][:2], hot[0][2])[1], ref.get("dish_hot_R"), tol_dish_r, "mm")
+            cross("bottom working-lining diameter at the edge", 2 * max(p[0] for p in hot), ref.get("bot_dia"), tol_dia, "mm")
         mb = [i for i, b in enumerate(sheet.bands) if b.get("kind") == "mouth"]
         if mb:
             top = max(mb, key=lambda i: sheet.band_z(i)[1])
             i0, i1 = sheet.band_idx[top]
             pts = sample(sheet.boundary_paths(0.0)[0][sheet.L].run(i0, i1), 1.0)
-            cross("mouth opening diameter", 2 * min(p[0] for p in pts), ref.get("mouth_opening"), 0.005, "mm")
-        cross("inside volume (step 6 estimate)", vols["inside_volume_m3"], ref.get("inside_volume"), 0.03, "m3")
+            cross("mouth opening diameter", 2 * min(p[0] for p in pts), ref.get("mouth_opening"), tol_dia, "mm")
+        cross("inside volume (step 6 estimate)", vols["inside_volume_m3"], ref.get("inside_volume"), tol_invol, "m3")
     except Exception as e:                                    # cross-checks are information only
         out.append({"check": "Cross-checks", "ok": True, "value": "skipped", "expected": "", "detail": str(e), "cross": True})
+
+    # 9. Belpahar manufacturing capability checks (size, taper, weight, press thickness limits)
+    out.extend(check_belpahar_manufacturing_limits(lib, bom, f))
 
     # 7. nozzles
     for n in nozzles:
@@ -253,3 +260,84 @@ def run_checks(payload, vessel, sheet, courses, rings, vols, bom, st, nozzles):
             out.append(_ok(f"Stirring elements placed in the bottom layout ({n.get('label')})", placed == int(n["count"]),
                            f"{placed}", f"{int(n['count'])}"))
     return out
+
+
+def check_belpahar_manufacturing_limits(lib_by_mark, bom, f=None):
+    """Validate all active/generated brick shapes against Belpahar's manufacturing capabilities
+    (press length, minimum tip width, maximum cold-hot taper difference, press thickness, and max unit weight)."""
+    if f is None:
+        from refractory_core import get_core
+        f = get_core().formulas
+    max_len = f.evaluate("p_mfg_max_brick_length_mm", {})
+    min_len = f.evaluate("p_mfg_min_brick_length_mm", {})
+    min_tip = f.evaluate("p_mfg_min_tip_width_mm", {})
+    max_taper = f.evaluate("p_mfg_max_taper_diff_mm", {})
+    max_wt = f.evaluate("p_mfg_max_pressed_weight_kg", {})
+    min_thk = f.evaluate("p_mfg_min_thickness_mm", {})
+    max_thk = f.evaluate("p_mfg_max_thickness_mm", {})
+
+    used_marks = []
+    for o in (bom or {}).get("lines", []):
+        m = str(o.get("mark", "")).replace(" (cut)", "").strip()
+        if m and m in lib_by_mark and m not in used_marks:
+            used_marks.append(m)
+    if not used_marks:
+        used_marks = list(lib_by_mark.keys())
+
+    wt_by_mark = {
+        str(o.get("mark", "")).replace(" (cut)", "").strip(): float(o["unit_wt_kg"])
+        for o in (bom or {}).get("lines", [])
+        if o.get("unit_wt_kg") is not None
+    }
+
+    violations = []
+    checked = 0
+    for m in used_marks:
+        b = lib_by_mark.get(m) or {}
+        fam = b.get("shape_family", "")
+        if fam in ("center_block", "purging_plug", "seating_block", "tap_hole_block", "tap_hole_sleeve"):
+            continue
+        d = b.get("dimensions_mm") or {}
+        checked += 1
+
+        # 1. Brick length check
+        L = d.get("length") or d.get("overall_length") or d.get("h") or d.get("C")
+        if isinstance(L, (int, float)):
+            if L > max_len + 1e-6:
+                violations.append(f"{m}: length {L:g} mm > Belpahar max {max_len:g} mm")
+            elif L < min_len - 1e-6:
+                violations.append(f"{m}: length {L:g} mm < Belpahar min {min_len:g} mm")
+
+        # 2. Hot-face tip width & taper difference check
+        widths = [float(d[k]) for k in ("width_top", "width_bottom", "A", "B", "C", "D", "a1", "a2", "b1", "b2") if isinstance(d.get(k), (int, float))]
+        if widths:
+            smallest_tip = min(widths)
+            if smallest_tip < min_tip - 1e-6:
+                violations.append(f"{m}: min tip width {smallest_tip:g} mm < Belpahar min {min_tip:g} mm")
+        if isinstance(d.get("width_top"), (int, float)) and isinstance(d.get("width_bottom"), (int, float)):
+            taper_diff = abs(float(d["width_top"]) - float(d["width_bottom"]))
+            if taper_diff > max_taper + 1e-6:
+                violations.append(f"{m}: taper diff (a-b)={taper_diff:g} mm > Belpahar max {max_taper:g} mm")
+
+        # 3. Press thickness check
+        thk = d.get("thickness") or d.get("T") or d.get("s")
+        if isinstance(thk, (int, float)):
+            if thk < min_thk - 1e-6 or thk > max_thk + 1e-6:
+                violations.append(f"{m}: thickness {thk:g} mm outside Belpahar press range [{min_thk:g}, {max_thk:g}] mm")
+
+        # 4. Pressed unit weight check
+        uwt = wt_by_mark.get(m)
+        if uwt is None and b.get("catalog_volume_dm3"):
+            uwt = float(b["catalog_volume_dm3"]) * 3.05
+        if uwt is not None and uwt > max_wt + 1e-6:
+            violations.append(f"{m}: unit weight {uwt:.1f} kg > Belpahar max pressed brick limit {max_wt:g} kg")
+
+    return [
+        _ok(
+            f"Belpahar manufacturing limits: size [{min_len:g}-{max_len:g} mm], tip >= {min_tip:g} mm, taper <= {max_taper:g} mm, wt <= {max_wt:g} kg ({checked} shapes)",
+            len(violations) == 0,
+            "All shapes within Belpahar limits" if not violations else f"{len(violations)} violation(s)",
+            "0 violations",
+            "; ".join(violations[:6]),
+        )
+    ]

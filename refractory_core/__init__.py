@@ -15,11 +15,14 @@ from pathlib import Path
 
 from .audit import AuditLog
 from .formulas import FormulaError, FormulaRegistry, safe_eval
+from .kb_version import KnowledgeBaseVersionStore
 from .presets import PresetStore
 from .properties import ImmutablePropertyError, PropertyStore
+from .shape_library import ShapeLibraryStore, ShapeLibraryValidationError
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 __all__ = ["RefractoryCore", "AuditLog", "FormulaRegistry", "PropertyStore", "PresetStore",
+           "ShapeLibraryStore", "ShapeLibraryValidationError", "KnowledgeBaseVersionStore",
            "FormulaError", "ImmutablePropertyError", "safe_eval", "get_core"]
 
 
@@ -30,6 +33,8 @@ class RefractoryCore:
         self.formulas = FormulaRegistry(self.dir, self.audit)
         self.properties = PropertyStore(self.dir, self.audit)
         self.presets = PresetStore(self.dir, self.audit)
+        self.shapes = ShapeLibraryStore(self.dir, self.audit)
+        self.kb_versions = KnowledgeBaseVersionStore(self.dir, self.audit, self.formulas, self.properties, self.shapes)
 
 
 _default: RefractoryCore | None = None

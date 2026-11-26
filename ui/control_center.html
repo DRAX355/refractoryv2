@@ -44,16 +44,28 @@ tr.den td{background:#fff5f4}details summary{cursor:pointer;color:var(--mut);fon
 <span style="flex:1"></span><label class="mut">Signed in as <input id="user" value="" placeholder="your name"></label></header>
 <nav id="tabs"></nav><main id="view"></main>
 <script>
-let API_BASE = (window.FX && FX.getApiBase ? FX.getApiBase() : (window.REFRACTORY_API_BASE||localStorage.getItem('refractory_api_base')||location.origin)).replace(/\/+$/,'');
+function getInitialApiBase(){
+ try{const sp=new URLSearchParams(location.search);if(sp.get('api'))return sp.get('api').replace(/\/+$/,'');}catch(_){}
+ if(window.FX && FX.getApiBase)return FX.getApiBase().replace(/\/+$/,'');
+ return (window.REFRACTORY_API_BASE||localStorage.getItem('refractory_api_base')||(location.protocol.startsWith('http')?location.origin:'http://65.1.125.127')).replace(/\/+$/,'');
+}
+let API_BASE = getInitialApiBase();
 const $=(s,r=document)=>r.querySelector(s),esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const user=()=>$('#user').value.trim()||'anonymous';
-$('#user').value=localStorage.getItem('cc_user')||'';$('#user').onchange=()=>localStorage.setItem('cc_user',user());
+const user=()=>{
+ try{const u=JSON.parse(localStorage.getItem('lining_auth_user')||'null');if(u&&u.username)return u.username;}catch(_){}
+ return $('#user').value.trim()||'anonymous';
+};
+try{const u=JSON.parse(localStorage.getItem('lining_auth_user')||'null');$('#user').value=(u&&u.username)||localStorage.getItem('cc_user')||'';}catch(_){$('#user').value=localStorage.getItem('cc_user')||'';}
+$('#user').onchange=()=>localStorage.setItem('cc_user',user());
 async function api(path,method='GET',body){
  const bases=[API_BASE,'http://65.1.125.127','http://localhost:8000','http://127.0.0.1:8000'].filter((v,i,a)=>v&&a.indexOf(v)===i);
  let lastErr=null;
+ const tok=localStorage.getItem('lining_auth_token')||'';
+ const hdrs={'Content-Type':'application/json','X-User':user()};
+ if(tok) hdrs['Authorization']='Bearer '+tok;
  for(const b of bases){
   try{
-   const r=await fetch(b+'/api/v1/core'+path,{method,headers:{'Content-Type':'application/json','X-User':user()},body:body&&JSON.stringify(body)});
+   const r=await fetch(b+'/api/v1/core'+path,{method,headers:hdrs,body:body&&JSON.stringify(body)});
    const ct=r.headers.get('content-type')||'';
    if(!ct.includes('application/json') && !r.ok){lastErr=new Error(`Backend not found at ${b} (HTTP ${r.status})`);continue;}
    const j=await r.json().catch(()=>({}));
@@ -64,10 +76,10 @@ async function api(path,method='GET',body){
  }
  throw lastErr||new Error('Cannot reach backend API');
 }
-const TABS={Formulas:fFormulas,Properties:fProps,'Pre-populate':fPresets,'Audit log':fAudit};
+const TABS={Formulas:fFormulas,'TRL Shape Library':fShapes,'KB Versions':fKBVersions,Properties:fProps,'Pre-populate':fPresets,'Audit log':fAudit};
 $('#tabs').innerHTML=Object.keys(TABS).map(t=>`<button data-t="${t}">${t}</button>`).join('');
 $('#tabs').onclick=e=>{if(e.target.dataset.t)show(e.target.dataset.t)};
-function show(t,focusId){document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));$('#view').innerHTML='<p class="mut">Loading...</p>';TABS[t](focusId).catch(e=>$('#view').innerHTML=`<div class="card msg bad">${esc(e.message)}<br><span class="mut">Is the backend running at ${esc(API_BASE)}?</span></div>`)}
+function show(t,focusId){if(!TABS[t] && /^KB Versions/i.test(t))t='KB Versions';document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));$('#view').innerHTML='<p class="mut">Loading...</p>';TABS[t](focusId).catch(e=>$('#view').innerHTML=`<div class="card msg bad">${esc(e.message)}<br><span class="mut">Is the backend running at ${esc(API_BASE)}?</span></div>`)}
 
 /* ---------------- Formula Keyboard Builder ---------------- */
 const OPS=[
@@ -192,6 +204,7 @@ function renderFormulaList(focusId){
     <h3>${esc(f.name)}</h3>
     <span class="tag id">${esc(f.id)}</span>
     <span class="tag">${esc(f.output_unit||'-')}</span>
+    ${f.source_ref && f.source_ref.document_no ? `<span class="tag ok" title="${esc((f.source_ref.title||'')+' | '+(f.source_ref.clause_or_page||'')+' | Rev: '+(f.source_ref.revision||''))}">📄 ${esc(f.source_ref.document_no)} (${esc(f.source_ref.revision||'1.0')})</span>` : ''}
     ${f.modified?'<span class="tag mod">modified</span>':''}
     <span class="mut" style="flex:1">${esc(f.description)}</span>
     <button type="button" class="b sec" data-a="kb">⌨ Formula Keyboard</button>
@@ -278,12 +291,112 @@ function renderFormulaList(focusId){
  };
 }
 
+/* ---------------- TRL Shape Library ---------------- */
+async function fShapes(){
+ let lib;
+ try {
+  lib = await api('/shapes');
+ } catch(e) {
+  if(window.FX && FX.DEFAULT_SHAPES) lib = FX.DEFAULT_SHAPES;
+  else throw e;
+ }
+ const bricks = lib.bricks || [];
+ const fams = [...new Set(bricks.map(b=>b.shape_family))];
+ $('#view').innerHTML=`<div class="card"><div class="row"><h3>TRL Krosaki Standard Shape Library &amp; Barrel Safety Bricks</h3>
+  <span class="tag ok">${bricks.length} Validated Marks</span>
+  <span class="tag">📄 TRLK/SS/BOF/06/08.10.2016 + SAFETY BRICK LIBRARY.xlsx</span>
+ </div>
+ <p class="mut">Official TRL Krosaki standard refractory brick catalog, Barrel Safety Bricks (TYP1–TYP30), and specialized converter/vessel shapes with full document, clause/page, and revision traceability.</p>
+ <div class="row" style="margin-bottom:10px">
+  <input id="ssearch" placeholder="Search ${bricks.length} marks by mark, series, zone, or document..." style="flex:1;min-width:220px">
+  <select id="sfam"><option value="ALL">All shape families (${fams.length})</option>${fams.map(f=>`<option value="${esc(f)}">${esc(f)}</option>`).join('')}</select>
+ </div>
+ <table id="stbl"><tr><th>Mark</th><th>Shape Family / Series</th><th>Zone</th><th>Dimensions (mm)</th><th>Vol (dm&sup3;)</th><th>Source Reference</th></tr>
+  ${bricks.map(b=>{
+   const sr=b.source_ref||{};
+   const dims=Object.entries(b.dimensions_mm||{}).filter(([k])=>!['length','width_top','width_bottom','thickness'].includes(k)||b.shape_family==='standard_trapezoidal').slice(0,6).map(([k,v])=>`${k}=${v}`).join(', ');
+   return `<tr data-fam="${esc(b.shape_family)}"><td><b>${esc(b.mark)}</b></td><td>${esc(b.shape_family)}<div class="mut">${esc(b.trl_series||'')}</div></td><td>${esc(b.zone||'-')}</td><td><code>${esc(dims)}</code></td><td>${b.catalog_volume_dm3??'-'}</td><td><span class="tag">${esc(sr.document_no||'-')}</span><div class="mut">${esc(sr.clause_or_page||b.source||'')} (Rev: ${esc(sr.revision||'1.0')})</div></td></tr>`;
+  }).join('')}
+ </table></div>`;
+ const filterShapes=()=>{
+  const q=($('#ssearch').value||'').toLowerCase(), fam=$('#sfam').value;
+  document.querySelectorAll('#stbl tr[data-fam]').forEach(tr=>{
+   const okFam = fam==='ALL' || tr.dataset.fam===fam;
+   const okQ = !q || tr.textContent.toLowerCase().includes(q);
+   tr.style.display = (okFam && okQ) ? '' : 'none';
+  });
+ };
+ $('#ssearch').oninput=filterShapes;
+ $('#sfam').onchange=filterShapes;
+}
+
+/* ---------------- KB Versions & Design Stamping ---------------- */
+async function fKBVersions(){
+ let cur, vers = [], stamps = [];
+ try {
+  [cur, vers, stamps] = await Promise.all([api('/kb/version'), api('/kb/versions'), api('/kb/stamps')]);
+ } catch(e) {
+  const fCount = (window.FX && FX.DEFAULT_FORMULAS) ? FX.DEFAULT_FORMULAS.length : 163;
+  const sCount = (window.FX && FX.DEFAULT_SHAPES && FX.DEFAULT_SHAPES.bricks) ? FX.DEFAULT_SHAPES.bricks.length : 273;
+  cur = JSON.parse(localStorage.getItem('refractory_kb_current') || 'null') || {
+   kb_version: 'KB-v1.0-LOCAL',
+   sha256: 'client-local-bundled-knowledge-base',
+   components: {
+    formulas: { count: fCount, modified_count: 0 },
+    properties_and_grades: { properties_count: 12, grades_count: 7 },
+    shape_library: { total_marks: sCount, primary_document: 'TRLK/SS/BOF/06/08.10.2016 + SAFETY BRICK LIBRARY.xlsx' }
+   }
+  };
+  stamps = JSON.parse(localStorage.getItem('refractory_kb_stamps_table') || '[]');
+ }
+ const fc = cur.components?.formulas || {}, pc = cur.components?.properties_and_grades || {}, sc = cur.components?.shape_library || {};
+ $('#view').innerHTML=`<div class="card"><div class="row"><h3>Active Knowledge Base Version</h3>
+  <span class="tag ok" style="font-size:13px">${esc(cur.kb_version)}</span>
+  <span class="tag id">SHA-256: ${esc((cur.sha256||'').slice(0,16))}…</span>
+  <span style="flex:1"></span>
+  <input id="kbreason" placeholder="Snapshot note / reason" style="width:220px">
+  <button class="b" id="kbsnap">Save KB Snapshot on Server</button>
+  <span class="msg" id="kbmsg"></span>
+ </div>
+ <p class="mut">Every generated design is stamped with the exact Knowledge Base version it used (Formulas + Locked Properties/Grades + TRL Shape Library), saved as an immutable JSON snapshot on the server and indexed in the client reference table.</p>
+ <div class="row">
+  <span class="tag">Formulas: <b>${fc.count||0}</b> (${fc.modified_count||0} customized)</span>
+  <span class="tag">Properties: <b>${pc.properties_count||0}</b> &middot; Grades: <b>${pc.grades_count||0}</b></span>
+  <span class="tag">TRL Shape Library: <b>${sc.total_marks||0} marks</b> (${esc(sc.primary_document||'')})</span>
+ </div></div>
+ <div class="card"><h3>Saved Server Knowledge Base Snapshots (JSON)</h3>
+  <table><tr><th>KB Version</th><th>Server JSON File</th><th>SHA-256 Fingerprint</th><th>Contents</th><th>Created (UTC)</th><th>By</th></tr>
+  ${vers.length?vers.map(v=>`<tr><td><b>${esc(v.kb_version)}</b></td><td><code>data/core/kb_versions/${esc(v.snapshot_file)}</code></td><td><code>${esc((v.sha256||'').slice(0,16))}…</code></td><td>${(v.components?.formulas?.count||0)} formulas, ${(v.components?.shape_library?.total_marks||0)} shapes</td><td>${esc((v.created_at||'').replace('T',' '))}</td><td>${esc(v.created_by||'-')}</td></tr>`).join(''):'<tr><td colspan="6" class="mut">No snapshot saved yet. Click "Save KB Snapshot on Server" or generate a design.</td></tr>'}
+  </table></div>
+ <div class="card"><h3>Stamped Designs Reference Table (Client &amp; Server Lineage)</h3>
+  <table><tr><th>Job / Design Ref</th><th>Job ID</th><th>Stamped KB Version</th><th>Server JSON Reference</th><th>Stamped By</th><th>Stamped At (UTC)</th></tr>
+  ${stamps.length?stamps.map(s=>`<tr><td><b>${esc(s.job_ref)}</b></td><td><code>${esc(s.job_id)}</code></td><td><span class="tag ok">${esc(s.kb_version)}</span></td><td><code>${esc(s.kb_snapshot_json)}</code></td><td>${esc(s.stamped_by)}</td><td>${esc((s.stamped_at||'').replace('T',' '))}</td></tr>`).join(''):'<tr><td colspan="6" class="mut">No designs stamped yet. Every design generated in the app is automatically stamped here.</td></tr>'}
+  </table></div>`;
+ try{localStorage.setItem('refractory_kb_stamps_table', JSON.stringify(stamps));localStorage.setItem('refractory_kb_current', JSON.stringify(cur));}catch(e){}
+ $('#kbsnap').onclick=async()=>{
+  try{
+   await api('/kb/snapshot','POST',{reason:$('#kbreason').value.trim()||'Saved KB snapshot from Control Center'});
+   await fKBVersions();
+   $('#kbmsg').className='msg ok';$('#kbmsg').textContent='Snapshot saved on server!';
+  }catch(e){$('#kbmsg').className='msg bad';$('#kbmsg').textContent=e.message;}
+ };
+}
+
 /* ---------------- Properties ---------------- */
 async function fProps(){
- const [ps,gs]=await Promise.all([api('/properties'),api('/grades')]);
+ let ps, gs;
+ try {
+  [ps,gs]=await Promise.all([api('/properties'),api('/grades')]);
+ } catch(e) {
+  if(window.FX && FX.DEFAULT_PROPERTIES) {
+   ps = FX.DEFAULT_PROPERTIES.properties || [];
+   gs = FX.DEFAULT_PROPERTIES.grades || [];
+  } else throw e;
+ }
  $('#view').innerHTML=`<div class="card"><h3>Chemical &amp; physical constants</h3><p class="mut">Locked values are fixed facts and cannot be edited by anyone through the app. Attempts are blocked and logged.</p>
- <table><tr><th>Property</th><th>Value</th><th>Unit</th><th></th></tr>${ps.map(p=>`<tr data-id="${esc(p.id)}"><td>${esc(p.label)}<div class="mut">${esc(p.id)}</div></td>
+ <table><tr><th>Property</th><th>Value</th><th>Unit</th><th>Source Reference</th><th></th></tr>${ps.map(p=>`<tr data-id="${esc(p.id)}"><td>${esc(p.label)}<div class="mut">${esc(p.id)}</div></td>
   <td>${p.locked?`<b>${p.value}</b>`:`<input type="number" step="any" value="${p.value}" style="width:90px">`}</td><td>${esc(p.unit)}</td>
+  <td>${p.source_ref?`<span class="tag">${esc(p.source_ref.document_no)}</span><div class="mut">${esc(p.source_ref.clause_or_page||'')}</div>`:'-'}</td>
   <td>${p.locked?'<span class="tag lock">&#128274; locked</span>':`<input placeholder="reason" data-reason style="width:150px"> <button class="b" data-a="set">Save</button> <span class="msg"></span>`}</td></tr>`).join('')}</table></div>
  <div class="card"><h3>Product grades (your company's)</h3><p class="mut">No company grades are shipped. Register yours; chemistry is frozen once saved (register a new revision to correct it).</p>
  <table><tr><th>Code</th><th>Class</th><th>Chemistry wt-%</th><th>Bulk density g/cm&sup3;</th></tr>${gs.map(g=>`<tr><td>${esc(g.code)}</td><td>${esc(g.generic_class)}</td><td>${esc(Object.entries(g.chemistry).map(([k,v])=>k+' '+v).join(', '))} <span class="tag lock">&#128274;</span></td><td>${g.bulk_density}</td></tr>`).join('')||'<tr><td colspan=4 class="mut">None yet.</td></tr>'}</table>

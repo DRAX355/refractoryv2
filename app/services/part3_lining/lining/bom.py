@@ -30,7 +30,12 @@ def _F(fid, variables):
 _VOL_FORMULA = {"standard_trapezoidal": "vol_standard_trapezoidal", "steel_cladded": "vol_standard_trapezoidal",
                 "bottom_dish_wedge": "vol_bottom_dish_wedge", "center_block": "vol_center_block",
                 "safety_lining_std": "vol_safety_lining_std", "safety_lining_rect": "vol_safety_lining_rect",
-                "seating_block": "vol_seating_block"}
+                "seating_block": "vol_seating_block",
+                "barrel_safety_brick": "vol_barrel_safety_brick",
+                "key_wedge_series": "vol_key_wedge_series",
+                "beveled_key_ht": "vol_beveled_key_ht",
+                "double_tapered": "vol_double_tapered",
+                "triple_tapered": "vol_triple_tapered"}
 
 
 def unit_volume(b):
@@ -43,8 +48,17 @@ def unit_volume(b):
             from refractory_core import get_core
             v = _F(fid, {k: float(x) for k, x in d.items() if isinstance(x, (int, float))})
             return v, "formula " + fid + ": " + get_core().formulas.get(fid)["expression"]
-        except Exception:                 # missing dimensions / invalid formula -> fall back to quoted volume
+        except Exception:                 # missing dimensions / invalid formula -> try wall trapezoidal or quoted volume
             pass
+    if all(k in d for k in ("length", "width_top", "width_bottom", "thickness")):
+        try:
+            from refractory_core import get_core
+            v = _F("vol_standard_trapezoidal", {k: float(x) for k, x in d.items() if isinstance(x, (int, float))})
+            return v, "formula vol_standard_trapezoidal: " + get_core().formulas.get("vol_standard_trapezoidal")["expression"]
+        except Exception:
+            pass
+    if b.get("catalog_volume_dm3") is not None:
+        return float(b["catalog_volume_dm3"]), "catalog_volume_dm3 (TRL Standard Shape Library)"
     m = VOL_NOTE.search(_note(b))
     if m:
         return float(m.group(1)), "volume quoted in library (BOM sheet)"
@@ -54,17 +68,28 @@ def unit_volume(b):
 def size_text(b):
     d = b.get("dimensions_mm") or {}
     fam = b.get("shape_family")
-    if fam in ("standard_trapezoidal", "steel_cladded"):
+    if fam in ("standard_trapezoidal", "steel_cladded", "key_wedge_series", "beveled_key_ht") \
+            and all(k in d for k in ("length", "width_top", "width_bottom", "thickness")):
         return f"{d['length']:g} x {d['width_top']:g}/{d['width_bottom']:g} x {d['thickness']:g}"
-    if fam == "bottom_dish_wedge":
+    if fam == "barrel_safety_brick" and all(k in d for k in ("C", "A", "B", "T")):
+        return f"C{d['C']:g} x A{d['A']:g}/B{d['B']:g} x T{d['T']:g}"
+    if fam == "key_wedge_series" and all(k in d for k in ("h", "a", "b", "s1", "s2")):
+        return f"h{d['h']:g} x {d['a']:g}/{d['b']:g} x S{d['s1']:g}/{d['s2']:g}"
+    if fam == "beveled_key_ht" and all(k in d for k in ("h", "a", "b", "s")):
+        return f"h{d['h']:g} x {d['a']:g}/{d['b']:g} x s{d['s']:g}"
+    if fam == "double_tapered" and all(k in d for k in ("h", "a1", "a2", "b1", "b2", "s")):
+        return f"h{d['h']:g} x {d['a1']:g}/{d['a2']:g} x {d['b1']:g}/{d['b2']:g} x s{d['s']:g}"
+    if fam == "triple_tapered" and all(k in d for k in ("h", "a1", "a2", "b1", "b2", "s1", "s2")):
+        return f"h{d['h']:g} x {d['a1']:g}/{d['a2']:g} x {d['b1']:g}/{d['b2']:g} x S{d['s1']:g}/{d['s2']:g}"
+    if fam == "bottom_dish_wedge" and all(k in d for k in ("overall_length", "face_width_top", "face_width_bottom")):
         return f"L{d['overall_length']:g}, faces {d['face_width_top']:g}/{d['face_width_bottom']:g}"
-    if fam == "center_block":
+    if fam == "center_block" and all(k in d for k in ("inner_dia", "outer_dia", "height")):
         return f"D{d['inner_dia']:g}/{d['outer_dia']:g} x {d['height']:g}"
     if fam == "safety_lining_std":
         return f"{d.get('length')} x {d.get('width')} x {d.get('thickness', d.get('thickness_range'))}"
     if fam == "purging_plug":
         return f"{d.get('top_section')} x {d.get('overall_height')}"
-    if fam == "seating_block":
+    if fam == "seating_block" and all(k in d for k in ("outer_dia", "inner_dia", "height")):
         return f"D{d['outer_dia']:g}/{d['inner_dia']:g} x {d['height']:g}"
     return ""
 
@@ -87,8 +112,8 @@ def build_bom(sheet, lib, courses, rings, vols, nozzles, st, densities, cone_gap
             return float(densities[k]), "zone density (UI)"
         if grade in densities and densities[grade]:
             return float(densities[grade]), "UI grade table"
-        flags.append(f"No bulk density for grade '{grade}' - 3.0 g/cm3 used")
-        return 3.0, "assumed 3.0"
+        flags.append(f"No bulk density entered for grade '{grade}' - its tonnes are not calculated (enter the density)")
+        return None, "not entered"
 
     def add(group, zone, grade, mark, qty, allow_pct, note="", where=(None, None)):
         if not qty:
@@ -205,30 +230,19 @@ def build_bom(sheet, lib, courses, rings, vols, nozzles, st, densities, cone_gap
         missing_lines["vol"] += g["volume_m3"]
         missing_lines["gap"] = g["max_gap_mm"]
 
-    # 5. nozzle items (from the brick library) - replaced by the assemblies entered in the UI when given
-    for n in (nozzles if not extra_items else []):
-        if n.get("type") == "stirring" and n.get("count"):
-            mhp = next((b for b in lib.get("bricks", []) if b.get("shape_family") == "purging_plug"), None)
-            if mhp:
-                g = str(mhp.get("quality_grade_internal", "")).split("/")[0].strip()
-                add("Special - stirring", "Bottom", g, mhp["mark"], int(n["count"]), 0, "one per stirring element")
-                sb = next((b for b in lib.get("bricks", []) if b.get("shape_family") == "seating_block"), None)
-                if sb:
-                    add("Special - stirring", "Bottom", sb.get("quality_grade_internal", ""), sb["mark"], int(n["count"]), 0,
-                        "one per stirring element (qty per element ASSUMED 1)")
-        if n.get("type") == "taphole":
-            for b in lib.get("bricks", []):
-                if b.get("shape_family") in ("tap_hole_block", "tap_hole_sleeve") or str(b.get("zone", "")).startswith("Tap Hole"):
-                    if "NOT present in original BOM" in _note(b):
-                        continue
-                    add("Special - taphole", n.get("label") or "Taphole", b.get("quality_grade_internal", ""), b["mark"], 1, 0,
-                        "1 per taphole set (set composition from library; confirm qty)")
+    # 5. assemblies (MHP, taphole) come only from what is entered in step 12 (extra_items) - nothing assumed
+    if not extra_items:
+        for n in nozzles:
+            if n.get("type") == "stirring" and n.get("count"):
+                flags.append("MHP / stirring elements: no assembly entered in step 12 - not in the BOM")
+            if n.get("type") == "taphole":
+                flags.append("Taphole: no taphole set entered in step 12 - not in the BOM")
     out = []
     for l in lines.values():
         if l["group"] == "Permanent lining":
             l["qty"] = math.ceil(l["qty"] - 1e-9)
         q_order = int(_F("order_qty", {"qty": l["qty"], "allow_pct": l["allow_pct"]}))
-        uw = None if l["unit_vol_dm3"] is None else _F("unit_weight", {"unit_vol_dm3": l["unit_vol_dm3"], "density": l["density"]})
+        uw = None if l["unit_vol_dm3"] is None or l["density"] is None else _F("unit_weight", {"unit_vol_dm3": l["unit_vol_dm3"], "density": l["density"]})
         out.append({**l, "order_qty": q_order, "unit_wt_kg": None if uw is None else round(uw, 2),
                     "total_t": None if uw is None else round(q_order * uw / 1000, 3)})
     for name, cs in covered.items():
@@ -238,12 +252,14 @@ def build_bom(sheet, lib, courses, rings, vols, nozzles, st, densities, cone_gap
     for (band, layer, grade), v in mono.items():
         cfg = monolithic.get(grade) or {}
         rho = float(cfg.get("density") or 0) or dens(grade)[0]
+        _tt = (lambda x: None) if rho is None else (lambda x: round(x * rho, 3))
         ff = float(cfg.get("fill_factor") or 1)
         out.append({"group": "Monolithic / filling", "zone": f"{band} - {layer.lower()}", "grade": grade,
                     "mark": grade, "family": "monolithic", "size": "", "qty": None, "allow_pct": 0, "order_qty": None,
                     "unit_vol_dm3": None, "vol_method": "drawn layer volume", "density": rho, "density_src": "UI",
-                    "unit_wt_kg": None, "total_t": round(v * ff * rho, 3), "volume_m3": round(v * ff, 3),
-                    "note": f"drawn volume {v:.3f} m3 x fill factor {ff:g} x density {rho:g} t/m3"})
+                    "unit_wt_kg": None, "total_t": _tt(v * ff), "volume_m3": round(v * ff, 3),
+                    "note": f"drawn volume {v:.3f} m3 x fill factor {ff:g} x density "
+                            f"{'NOT ENTERED' if rho is None else f'{rho:g} t/m3'}"})
     for it in extra_items or []:
         if it.get("group") == "Junction pieces" and any(n and n in str(it.get("zone", "")) for n in covered):
             continue                                        # replaced by the drawn junction courses
@@ -257,12 +273,13 @@ def build_bom(sheet, lib, courses, rings, vols, nozzles, st, densities, cone_gap
                     "note": it.get("note") or "as entered in the UI"})
     for (band, zone, grade, what), m in missing.items():
         rho, _ = dens(grade, band, zone)
+        _tt = (lambda x: None) if rho is None else (lambda x: round(x * rho, 3))
         cs = m["courses"]
         if what.startswith("junction:"):
             out.append({"group": "Junction pieces", "zone": f"{band} - {zone}", "grade": grade,
                         "mark": f"{what[9:]} (junction pieces, step 12)", "family": "", "size": "", "qty": None,
                         "allow_pct": 0, "order_qty": None, "unit_vol_dm3": None, "vol_method": "drawn volume",
-                        "density": rho, "density_src": "", "unit_wt_kg": None, "total_t": round(m["vol"] * rho, 3),
+                        "density": rho, "density_src": "", "unit_wt_kg": None, "total_t": _tt(m["vol"]),
                         "volume_m3": round(m["vol"], 3),
                         "note": f"junction {m.get('junction', '')}: courses {min(cs)}-{max(cs)} ({len(cs)}), "
                                 f"tonnes from the drawn volume - piece count needs the special shape dimensions"})
@@ -272,14 +289,14 @@ def build_bom(sheet, lib, courses, rings, vols, nozzles, st, densities, cone_gap
                         "mark": f"cone gap at hot face (up to {m.get('gap', 0):.0f} mm)", "family": "", "size": "",
                         "qty": None, "allow_pct": 0, "order_qty": None, "unit_vol_dm3": None,
                         "vol_method": "geometric", "density": rho, "density_src": "", "unit_wt_kg": None,
-                        "total_t": round(m["vol"] * rho, 3), "volume_m3": round(m["vol"], 3),
+                        "total_t": _tt(m["vol"]), "volume_m3": round(m["vol"], 3),
                         "note": "horizontal bricks are shorter than the drawn lining on the cone: longer / cut-end bricks or fill"})
             continue
         out.append({"group": "NOT IN BRICK LIBRARY", "zone": f"{band} - {zone}", "grade": grade,
                     "mark": "transition shapes (TSC/TPZ type)" if what == "transition" else f"no {what[1:]} mm shape",
                     "family": "", "size": "", "qty": None, "allow_pct": 0, "order_qty": None, "unit_vol_dm3": None,
                     "vol_method": "geometric volume of the courses", "density": rho, "density_src": "",
-                    "unit_wt_kg": None, "total_t": round(m["vol"] * rho, 3), "volume_m3": round(m["vol"], 3),
+                    "unit_wt_kg": None, "total_t": _tt(m["vol"]), "volume_m3": round(m["vol"], 3),
                     "note": f"courses {min(cs)}-{max(cs)} ({len(cs)}); shape must be added to the library"})
         flags.append(f"{band} {zone}: {round(m['vol'], 2)} m3 needs shapes not in the brick library")
     # (junction lines were added above)

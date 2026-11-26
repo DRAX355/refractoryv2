@@ -70,6 +70,7 @@ NOZZLE_KEYWORDS = {
     "oxygen lance", "o2 lance",
     "running pad", "rest area",
     "trunnion",
+    "mhp", "multi hole plug", "purging plug", "seating block", "tuyere", "bottom stirring",
 }
 
 
@@ -93,50 +94,109 @@ class OCRResult:
         self.text_polygons: list[Polygon] = []
 
 
-_RE_DIA_MISREAD = re.compile(r"^[0689OQGq@#]([1-9]\d{3})$")
+_RE_DIA_SYMBOL_MISREAD = re.compile(r"^[-=~<>\"'“”]*[$@®©€#%OQGq]\s*([1-9]\d{2,4})[-=~<>.,]*$")
+_RE_DIA_DIGIT_MISREAD  = re.compile(r"^[-=~<>\"'“”]*[024689]\s*([1-9]\d{2,3})[-=~<>.,]*$")
 
 
 def _normalise_ocr_line(line: str) -> str | None:
     """
-    Clean one Tesseract line.
-      - 'Ø' is often read as a leading 9/0/6/8/O/Q/G/@/# → '97570' becomes 'Ø7570'.
-      - Tokens with leading zeros ('00001' = mirrored '10000' from a wrong rotation)
-        are not valid dimensions and are dropped (returns None).
+    Clean one Tesseract line using generic typographical and CAD symbol rules
+    (zero drawing-specific hardcoded numbers):
+      - 'Ø' is often read as a leading symbol ($, @, ®, ©, €, #, %, O, Q, G) or separated digit.
+      - 'R<num>}' or 'R <num>' is normalized to 'R<num>'.
+      - '<num> Shell 1/0' or '<num> Shell 1/D' is normalized to '<num> Shell I/D'.
+      - Tokens with leading zeros ('00001' = mirrored '10000' from a wrong rotation) are dropped.
     """
     line = line.strip()
     if not line:
         return None
-    m = _RE_DIA_MISREAD.match(line)
-    if m:
-        return f"Ø{m.group(1)}"
+    # Normalise '<num> Shell 1/0-' / '<num> Shell 1/D' -> '<num> Shell I/D'
+    m_sh = re.search(r"\b(\d{3,5})\s*Shell\s*[I1O0l|]\s*/\s*[D0O]", line, re.IGNORECASE)
+    if m_sh:
+        return f"{m_sh.group(1)} Shell I/D"
+    # Normalise spherical radius callout where trailing '1' is misread as '}' or ']' or 'l' (e.g. 'R780}' -> 'R7801')
+    m_rad = re.search(r"\bR\s*(\d{3,5}[}\])l|]?)\b", line)
+    if m_rad:
+        val = re.sub(r"[}\])l|]$", "1", m_rad.group(1))
+        return f"R{val}"
+    # Normalise 'Ø' misread as a leading symbol (%, $, @, #, O, Q, G, etc.) on any 3- or 4-digit diameter
+    # where a trailing comma/brace is a misread of '1' (e.g. '%119,' -> 'Ø1191')
+    m_sym_comma = re.fullmatch(r"[-=~<>\"'“”]*[$@®©€#%OQGq]\s*([1-9]\d{2,3})[,}\])]", line)
+    if m_sym_comma:
+        return f"Ø{m_sym_comma.group(1)}1"
+    m_sym = _RE_DIA_SYMBOL_MISREAD.match(line)
+    if m_sym:
+        return f"Ø{m_sym.group(1)}"
+    # Normalise 'Ø' misread as a leading digit separated by space or on a 4-digit diameter (e.g. '97570' -> 'Ø7570', '2800' when preceded by Ø glyph)
+    m_dig_4 = re.fullmatch(r"[-=~<>\"'“”]*[04689]\s*([1-9]\d{3})[-=~<>.,]*", line)
+    if m_dig_4:
+        return f"Ø{m_dig_4.group(1)}"
     if re.fullmatch(r"0\d{3,}", line):
         return None
+    # Strip leading/trailing dimension line dashes/equals around pure numbers ('=598><=' -> '598')
+    m_num = re.fullmatch(r"[-=~<>|]+\s*(\d{2,5}(?:\.\d+)?)\s*[-=~<>|)]*", line)
+    if m_num:
+        return m_num.group(1)
+    m_num2 = re.fullmatch(r"(\d{2,5}(?:\.\d+)?)\s*[-=~<>|)]+", line)
+    if m_num2:
+        return m_num2.group(1)
     return line
 
 
+def _strip_colored_annotation_lines(image_bgr: np.ndarray) -> np.ndarray:
+    """
+    Remove colored dimension / extension / centerline strokes (e.g. red and blue CAD layers)
+    so they do not merge with black dimension digits when converted to grayscale.
+    """
+    if image_bgr.ndim != 3 or image_bgr.shape[2] < 3:
+        return image_bgr
+    b = image_bgr[:, :, 0].astype(np.int16)
+    g = image_bgr[:, :, 1].astype(np.int16)
+    r = image_bgr[:, :, 2].astype(np.int16)
+    sat = np.maximum(np.maximum(r, g), b) - np.minimum(np.minimum(r, g), b)
+    colored_mask = sat > 35
+    if not np.any(colored_mask):
+        return image_bgr
+    cleaned = image_bgr.copy()
+    cleaned[colored_mask] = 255
+    return cleaned
+
+
 def run_tesseract_ocr(image_bgr: np.ndarray) -> OCRResult:
-    """Run lightweight multi-angle Tesseract OCR on a drawing image."""
+    """
+    Run multi-angle Tesseract OCR on a drawing image.
+    Includes a color-stripped pass so red/blue CAD dimension lines touching black text
+    are removed before grayscale conversion, and avoids 180° upside-down rotations
+    that produce mirrored false numbers (e.g. '2186' read upside-down as '9912').
+    """
     _configure_tesseract()
     import cv2
     result = OCRResult()
-    
-    rotations = [
-        (0, image_bgr),
-        (90, cv2.rotate(image_bgr, cv2.ROTATE_90_CLOCKWISE)),
-        (180, cv2.rotate(image_bgr, cv2.ROTATE_180)),
-        (270, cv2.rotate(image_bgr, cv2.ROTATE_90_COUNTERCLOCKWISE)),
+
+    clean_bgr = _strip_colored_annotation_lines(image_bgr)
+    h, w = clean_bgr.shape[:2]
+    M_tilt = cv2.getRotationMatrix2D((w / 2.0, h / 2.0), 15.0, 1.0)
+    tilted_15 = cv2.warpAffine(clean_bgr, M_tilt, (w, h), borderValue=(255, 255, 255))
+
+    # Color-stripped passes (0 deg horizontal, 270 deg vertical CAD text, +15 deg tilted nozzle/radius text)
+    passes = [
+        (0, clean_bgr, TESSERACT_CONFIG_SPARSE),
+        (270, cv2.rotate(clean_bgr, cv2.ROTATE_90_COUNTERCLOCKWISE), TESSERACT_CONFIG_SPARSE),
+        (0, clean_bgr, TESSERACT_CONFIG_BLOCK),
+        (270, cv2.rotate(clean_bgr, cv2.ROTATE_90_COUNTERCLOCKWISE), TESSERACT_CONFIG_BLOCK),
+        (15, tilted_15, TESSERACT_CONFIG_SPARSE),
     ]
-    
+
     seen = set()
-    for angle, rimg in rotations:
+    for _angle, rimg, cfg in passes:
         gray = cv2.cvtColor(rimg, cv2.COLOR_BGR2GRAY)
-        txt = pytesseract.image_to_string(gray, config=TESSERACT_CONFIG_SPARSE)
+        txt = pytesseract.image_to_string(gray, config=cfg)
         for line in txt.splitlines():
             cleaned = _normalise_ocr_line(line)
             if cleaned and cleaned not in seen:
                 seen.add(cleaned)
                 result.raw_texts.append(cleaned)
-                
+
     _parse_all_texts(result)
     logger.info(
         f"[OCR] Tesseract complete — raw_lines={len(result.raw_texts)}, "
@@ -271,9 +331,10 @@ def _parse_all_texts(result: OCRResult) -> None:
             parts = [p for p in line.split() if p]
             if len(parts) > 1:
                 for part in parts:
-                    parsed_part = parse_dimension(part)
+                    norm_part = _normalise_ocr_line(part) or part
+                    parsed_part = parse_dimension(norm_part)
                     if parsed_part:
-                        result.dimension_strings.append(part)
+                        result.dimension_strings.append(norm_part)
                         result.parsed_dimensions.append(parsed_part)
 
         # Nozzle labels

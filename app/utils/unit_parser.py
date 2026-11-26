@@ -18,10 +18,12 @@ from loguru import logger
 
 # ── Regex patterns ─────────────────────────────────────────────────────────────
 
-_RE_DIAMETER = re.compile(r"[ØøΦ]\s*([\d.,]+)\s*(mm|cm|m|\")?", re.IGNORECASE)
+_RE_DIAMETER = re.compile(r"[ØøΦ$@®©€#]\s*([\d.,]+)\s*(mm|cm|m|\")?", re.IGNORECASE)
+_RE_SHELL_ID = re.compile(r"\b(\d{3,5}(?:\.\d+)?)\s*Shell\s*[I1O0l|]\s*/\s*[D0O]\b", re.IGNORECASE)
+_RE_RADIUS   = re.compile(r"\bR\s*(\d{3,5}(?:\.\d+)?)\b", re.IGNORECASE)
 _RE_LENGTH   = re.compile(r'([\d.,]+)\s*("(?=\s|$)|mm\b|cm\b|m\b|inch\b|in\b)', re.IGNORECASE)
 _RE_CAPACITY = re.compile(r"(\d+(?:\.\d+)?)\s*[Tt](?:\b|$)")
-_RE_PLAIN_NUMBER = re.compile(r"^\s*([\d.,]+)\s*$")
+_RE_PLAIN_NUMBER = re.compile(r"^\s*[-=~<>]*\s*(\d+(?:\.\d+)?)\s*[-=~<>)]*\s*$")
 
 
 def parse_dimension(text: str) -> tuple[float, str] | None:
@@ -37,10 +39,30 @@ def parse_dimension(text: str) -> tuple[float, str] | None:
         text = "10000"
     elif text.endswith("./"):
         text = text[:-2] + ".7"
-    elif text.endswith("/"):
+    elif text.endswith("/") and not re.search(r"Shell\s*[I1O0l|]\s*/", text, re.IGNORECASE):
         text = text[:-1] + "7"
-    elif "O" in text and any(c.isdigit() for c in text):
+    elif "O" in text and any(c.isdigit() for c in text) and "SHELL" not in text.upper():
         text = text.replace("O", "0")
+
+    # Explicit "7310 Shell I/D" annotation
+    m = _RE_SHELL_ID.search(text)
+    if m:
+        try:
+            value = float(m.group(1).replace(",", ""))
+            logger.debug(f"Parsed shell ID: '{text}' → ({value}, 'mm')")
+            return value, "mm"
+        except ValueError:
+            pass
+
+    # Explicit spherical/arc radius "R7801" or "R8350"
+    m = _RE_RADIUS.search(text)
+    if m:
+        try:
+            value = float(m.group(1).replace(",", ""))
+            logger.debug(f"Parsed radius: '{text}' → ({value}, 'mm')")
+            return value, "mm"
+        except ValueError:
+            pass
 
     # Diameter symbol prefix
     m = _RE_DIAMETER.search(text)

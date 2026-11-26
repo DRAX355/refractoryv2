@@ -12,6 +12,7 @@ All values come from the data (vessel / design / nozzles / brick library / compu
 """
 import datetime
 import math
+import re
 
 import ezdxf
 from ezdxf.enums import TextEntityAlignment as TA
@@ -28,6 +29,9 @@ MARK_COLORS = [3, 5, 30, 4, 2, 40, 150, 94, 52, 190, 34, 70, 110, 172, 132, 62, 
 FAMILY_TEXT = {"standard_trapezoidal": "wall brick", "steel_cladded": "steel-clad mouth brick",
                "bottom_dish_wedge": "bottom wedge brick", "center_block": "centre key block",
                "safety_lining_std": "permanent lining brick", "safety_lining_rect": "safety lining brick",
+               "barrel_safety_brick": "barrel safety brick", "key_wedge_series": "key & wedge brick",
+               "beveled_key_ht": "beveled key brick (HT)", "double_tapered": "wear lining double-tapered brick",
+               "triple_tapered": "triple-tapered surround/bottom brick",
                "purging_plug": "stirring element", "seating_block": "seating block"}
 
 
@@ -259,6 +263,110 @@ def save_previews(msp, folder, name, size=(36, 24), dpi=150, skip_prefix=("TABLE
     return outs
 
 
+# ============================================================================ SHARED TRL DETAIL (GA + zone drawings)
+def mhp_in_section(dw, m, side, axis_x, Y, hot, rp, in_plane, dim_h=None):
+    """MHP in the vertical section as TRL draws it: tapered plug (hot face width at the hot face, cold face
+    width at depth L) along the dish normal, metal case, seating block and the gas pipe out through the
+    shell; in-plane plugs hatched in their quality, P.C.D./2 dimensioned from the vessel axis."""
+    th = dw.th
+    z0 = z_at_x(hot, rp)
+    za, zb = z_at_x(hot, rp - 25), z_at_x(hot, rp + 25)
+    if z0 is None or za is None or zb is None:
+        return False
+    slope = (zb - za) / 50.0
+    k = math.hypot(1.0, slope)
+    t, nrm = (1 / k, slope / k), (slope / k, -1 / k)          # along the hot face / into the lining
+    P = lambda r, z: (axis_x + side * r, Y(z), 0)
+
+    def at(d, w):                                             # point at depth d along the normal, offset w along t
+        return P(rp + d * nrm[0] + w * t[0], z0 + d * nrm[1] + w * t[1])
+
+    def box(d0, d1, w0, w1):
+        return [at(d0, -w0 / 2), at(d0, w0 / 2), at(d1, w1 / 2), at(d1, -w1 / 2)]
+    lay = dw.layer("MHP", 1)
+    L, hw, cw = m["L"], m["hotW"], m["coldW"]
+    plug = box(0, L, hw, cw)
+    if in_plane:
+        dw.fill(plug, 255, "MHP_MASK")
+        h = dw.msp.add_hatch(color=1, dxfattribs={"layer": lay})
+        h.set_pattern_fill("ANSI31", color=1, scale=max(0.5, th / 25))
+        h.paths.add_polyline_path([(p[0], p[1]) for p in plug], is_closed=True)
+    dw.poly(plug, lay, close=True)
+    d = L
+    if in_plane and (m.get("caseH") or 0) > 0:
+        case = box(d, d + m["caseH"], cw, cw)
+        dw.fill(case, 8, "MHP_CASE")
+        dw.poly(case, lay, close=True)
+        d += m["caseH"]
+    if in_plane and (m.get("seatOD") or 0) > 0 and (m.get("seatH") or 0) > 0:
+        so, si = m["seatOD"], m.get("seatID") or 0
+        for sgn in (-1, 1):
+            wall = [at(d, sgn * si / 2), at(d, sgn * so / 2), at(d + m["seatH"], sgn * so / 2), at(d + m["seatH"], sgn * si / 2)]
+            dw.fill(wall, 5, "MHP_SEAT")
+            dw.poly(wall, lay, close=True)
+    if in_plane and (m.get("connL") or 0) > 0 and (m.get("connOD") or 0) > 0:
+        po = m["connOD"]
+        dw.poly(box(d, d + m["connL"], po, po), lay, close=True)
+        tip = at(d + m["connL"], 0)
+    else:
+        tip = at(d, 0)
+    if in_plane:
+        dw.layer("CENTER", 1)
+        dw.msp.add_line(at(-0.4 * th, 0), tip, dxfattribs={"layer": "CENTER", "linetype": "CENTER"})
+        # P.C.D./2 from the vessel axis, above the hot face (TRL: 1140 each side)
+        yb = Y(z0) + (6.0 if side == 1 else 6.0) * th
+        x_axis, x_c = axis_x, axis_x + side * rp
+        if dim_h:
+            dim_h(min(x_axis, x_c), max(x_axis, x_c), Y(z0), yb, rp)
+        c = at(L + (m.get("caseH") or 0) + 0.5 * (m.get("connL") or 0), 0)
+        q = (c[0] + side * 2.5 * th, c[1] - 1.5 * th)
+        dw.line(c[:2], q, lay)
+        dw.text(q[0] + side * 0.3 * th, q[1], f"{m['mark']} ({m.get('grade') or ''})".replace(" ()", ""),
+                  0.55 * th, "mleft" if side == 1 else "mright", "MHP")
+    return True
+
+# ------------------------------------------------------------ TRL detail (after the course schedule)
+
+
+def taphole_in_section(dw, t, side, axis_x, Y, p_s, p_o, p_e, shell_t):
+    """The assembled taphole set (blocks + sleeves + steel pipe) along the extracted taphole axis, hot end
+    of the first piece at the hot face, as on TRL's GA."""
+    from .assemblies import piece_polys, TB_ACI, TS_ACI
+    th = dw.th
+    if True:
+        ux, uz = p_s[0] - p_e[0], p_s[1] - p_e[1]
+        k = math.hypot(ux, uz) or 1.0
+        ux, uz = ux / k, uz / k
+        vx, vz = -uz, ux
+        M = lambda x, y: (axis_x + side * (p_e[0] + x * ux + y * vx), Y(p_e[1] + x * uz + y * vz))
+        lay = dw.layer("TAPHOLE_SET", TB_ACI)
+        for kind, aci in (("block", TB_ACI), ("sleeve", TS_ACI)):
+            x = 0.0
+            for q in (q for q in t["pieces"] if q["kind"] == kind):
+                for poly in piece_polys(q, x, 1):
+                    for sg in (1, -1):
+                        pts = [M(px, sg * py) for px, py in poly]
+                        dw.fill(pts, aci, lay)
+                        dw.poly(pts, lay)
+                c = M(x + q["L"] / 2, (q["diHot"] + q["doHot"]) / 4)
+                if q["L"] > 2.2 * th:
+                    dw.text(c[0], c[1], q["mark"], 0.32 * th, "center", "TAPHOLE_SET")
+                x += q["L"]
+        sl = sum(q["L"] for q in t["pieces"] if q["kind"] == "sleeve")
+        if t.get("pipeOD"):
+            po, pi_ = t["pipeOD"], t.get("pipeID") or 0
+            x1 = sl + (t.get("pipeOut") or 0)
+            for sg in (1, -1):
+                dw.poly([M(0, sg * pi_ / 2), M(x1, sg * pi_ / 2), M(x1, sg * po / 2), M(0, sg * po / 2)], lay)
+        if t.get("opening"):                     # shell opening
+            d = t["opening"] / 2
+            ln = math.dist(p_e, p_o)
+            for sg in (1, -1):
+                dw.line(M(ln - shell_t - 0.5 * th, sg * d), M(ln + th, sg * d), lay)
+        dw.layer("CENTER", 1)
+        dw.msp.add_line(M(-1.5 * th, 0), M(math.dist(p_e, p_s) + 2 * th, 0), dxfattribs={"layer": "CENTER", "linetype": "CENTER"})
+
+
 # ============================================================================ GA + NOZZLES
 class LiningSheet(Sheet):
     def __init__(self, vessel, design, nozzles=()):
@@ -343,7 +451,9 @@ class LiningSheet(Sheet):
                 if dmin > pitch / 2 + 1e-6:
                     continue
                 in_plane = dmin <= 1.0
-                w = float(n.get("size_a") or 150)
+                if not n.get("size_a"):
+                    continue                                # element size not entered - not drawn (nothing assumed)
+                w = float(n["size_a"])
                 paths, _ = self.boundary_paths(a)
                 i0, i1 = self.band_idx[bi]
                 cold, hot = paths[self.L - 1].run(i0, i1), paths[self.L].run(i0, i1)
@@ -354,13 +464,222 @@ class LiningSheet(Sheet):
                         pts = []
                         break
                     pts.append((axis_x + side * x, Y(z), 0))
+                if pts and n.get("mhp") and self._draw_mhp(n["mhp"], side, axis_x, Y, hot, rp, in_plane):
+                    continue                                    # the MHP itself is drawn (plug, case, pipe, PCD dim)
                 if pts:
                     if in_plane:
                         self.fill(pts, NOZZLE_ACI, lay)
                     self.poly(pts, lay, close=True)
                     tx = axis_x + side * rp
-                    self.text(tx, pts[2][1] + 0.8 * th, "STIR" + ("" if in_plane else " (proj.)"),
+                    self.text(tx, pts[2][1] + 0.8 * th, _stir_label(n) + ("" if in_plane else " (proj.)"),
                               0.6 * th, "bcenter", "NOZZLES")
+
+    def _plan_detail(self, ox, oy, z, rows, perm_layers, perm_specs, tag, joint):
+        """Plan section (TRL Section B-B / D-D style): working thickness tag in every zone and the permanent
+        ring drawn brick by brick (brick width from the band's permanent input)."""
+        th, L, eps = self.th, self.L, 1e-6
+        cx, cy = self._plan_frame(ox, oy)
+        sg = next((s_ for s_ in self.segs if s_.p0[1] - eps <= z <= s_.p1[1] + eps), None)
+        if sg is None:
+            return
+        bi = self.seg_band[sg.name]
+        band = self.bands[bi]
+        if band_kind(self, bi) == "bottom":
+            return
+        perm = perm_specs.get(band["name"]) or band.get("permanent") or {}
+        for sec in band["sectors"]:
+            a0, a1 = float(sec["from"]), float(sec["to"])
+            am = (a0 + a1) / 2
+            paths, _ = self.boundary_paths(am)
+            rc, rh = self._rad(paths[L - 1], z), self._rad(paths[L], z)
+            row = next((r for r in rows if r.get("band") == band["name"] and str(r.get("sector")) == f"{a0:g}-{a1:g}"
+                        and float(r["z0"]) - eps <= z < float(r["z1"]) - eps), None)
+            t_w = float(row["L"]) if row and row.get("pair") else rc - rh
+            if rc - rh > 2 * th:
+                p = self.polar(cx, cy, (rc + rh) / 2, am)
+                tag(p[0], p[1], f"{t_w:g}", 0.9 * th)
+            w = float(perm.get("width") or 0)
+            for k in perm_layers:
+                if w <= 0 or float(sec["layers"][k]["thickness"] or 0) <= 0:
+                    continue
+                r1, r2 = self._rad(paths[k], z), self._rad(paths[k + 1], z)
+                rm = (r1 + r2) / 2
+                span = (a1 - a0) % 360 or 360
+                n = max(1, int(round(math.radians(span) * rm / w)))
+                for j in range(1, n + (1 if span < 360 else 0)):
+                    a = a0 + span * j / n
+                    self.msp.add_line(self.polar(cx, cy, r1, a), self.polar(cx, cy, r2, a), dxfattribs=joint)
+
+    def _draw_mhp(self, m, side, axis_x, Y, hot, rp, in_plane):
+        return mhp_in_section(self, m, side, axis_x, Y, hot, rp, in_plane, self.dim_h)
+
+    def draw_trl_detail(self, courses, rings=None, mhp=None, perm_specs=None, th_set=None, only_bands=None,
+                        ring_numbers=True):
+        """Adds the detail TRL shows on its lining GA, all from this job's design (nothing assumed):
+        - permanent lining drawn brick by brick (brick height along the wall from the band's permanent input,
+          staggered between permanent layers),
+        - working courses: brick length tag (white box) on every course, course number every 5th course,
+          one mark call-out per run of courses with the same brick pair (e.g. "LC-10A & LC-10B"),
+        - bottom: ring numbers 1..n and "KEY" on the section, the ring brick length, the MHP's neighbouring
+          rings hatched in the surround quality.
+        Adds entities only; the views already drawn are not changed."""
+        th, L, eps = self.th, self.L, 1e-6
+        rows = [r for r in (courses or []) if r.get("z1") is not None and r.get("sector")]
+        if only_bands is not None:                     # zone drawings: only the bands of the zone
+            names = {self.bands[b]["name"] for b in only_bands}
+            rows = [r for r in rows if r.get("band") in names]
+        perm_layers = [k for k in range(L) if str(self.layers[k]).upper().startswith("PERMANENT")]
+        bandix = {b["name"]: i for i, b in enumerate(self.bands)}
+        joint = {"layer": self.layer("PERM_BRICK_JOINTS", 7), "color": 7, "lineweight": 13}
+
+        def sec_ok(r, ang):
+            try:
+                a0, a1 = [float(x) for x in str(r["sector"]).split("-")]
+            except ValueError:
+                return False
+            a = ang % 360.0
+            return a0 - eps <= a < a1 - eps or (a1 >= 360 - eps and abs(a) < eps)
+
+        def along(pts):                               # cumulative length of a polyline
+            acc = [0.0]
+            for p, q in zip(pts, pts[1:]):
+                acc.append(acc[-1] + math.dist(p, q))
+            return acc
+
+        def at(pts, acc, d):
+            d = max(0.0, min(d, acc[-1]))
+            for i in range(1, len(acc)):
+                if acc[i] >= d - 1e-9:
+                    f = (d - acc[i - 1]) / max(acc[i] - acc[i - 1], 1e-12)
+                    return (pts[i - 1][0] + f * (pts[i][0] - pts[i - 1][0]), pts[i - 1][1] + f * (pts[i][1] - pts[i - 1][1]))
+            return pts[-1]
+
+        def tag(x, y, txt, h, rot=0.0):
+            w = 0.62 * h * len(txt) + 0.5 * h
+            c, s_ = math.cos(math.radians(rot)), math.sin(math.radians(rot))
+            box = [(x + c * dx - s_ * dy, y + s_ * dx + c * dy) for dx, dy in
+                   ((-w / 2, -0.7 * h), (w / 2, -0.7 * h), (w / 2, 0.7 * h), (-w / 2, 0.7 * h))]
+            hb = self.msp.add_hatch(dxfattribs={"layer": self.layer("TRL_TAGS", 7)})
+            hb.set_solid_fill(rgb=(255, 255, 255))
+            hb.paths.add_polyline_path(box, is_closed=True)
+            self.msp.add_lwpolyline(box, close=True, dxfattribs={"layer": "TRL_TAGS", "lineweight": 0})
+            self.msp.add_text(txt, height=h, rotation=rot, dxfattribs={"layer": "TRL_TAGS"}).set_placement(
+                (x, y), align=ALIGN["center"])
+
+        rr = (rings or {}).get("rings") or []
+        rb = bandix.get((rings or {}).get("band"))
+        stir = next((n for n in self.nozzles if n.get("type") == "stirring" and n.get("count") and n.get("pcd")), None)
+        mhp_ring = None
+        if stir and rr:
+            mhp_ring = next((x["ring"] for x in rr if float(x["r_in"]) <= float(stir["pcd"]) / 2 < float(x["r_out"])), None)
+        for view, ox, oy, cut, vix in self._frames:
+            if view == "plan" and only_bands is None:
+                n0 = len(self.msp)
+                try:
+                    self._plan_detail(ox, oy, cut, rows, perm_layers, perm_specs or {}, tag, joint)
+                except Exception:
+                    pass
+                if vix is not None and vix < len(self.views):
+                    self.views[vix]["handles"].update(e.dxf.handle for e in list(self.msp)[n0:])
+                continue
+            if view != "vertical":
+                continue
+            n0 = len(self.msp)
+            axis_x = ox + 44 * th + self.rout
+            Y = lambda z: oy + 6 * th + (z - self.zmin)
+            for side, ang in ((1, cut), (-1, cut + 180)):
+                paths, _ = self.boundary_paths(ang)
+                P = lambda p: (axis_x + side * p[0], Y(p[1]))
+                # ---- permanent lining, brick by brick
+                for bi, band in enumerate(self.bands):
+                    if only_bands is not None and bi not in only_bands:
+                        continue
+                    perm = (perm_specs or {}).get(band["name"]) or band.get("permanent") or {}
+                    i0, i1 = self.band_idx[bi]
+                    for n_l, k in enumerate(perm_layers):
+                        lay_in = (perm.get("layers") or [None] * (n_l + 1))
+                        spec = lay_in[n_l] if n_l < len(lay_in) and lay_in[n_l] else perm
+                        step_len = float(spec.get("height") or perm.get("height") or 0)
+                        if step_len <= 0 or float(sector_at(band, ang % 360)["layers"][k]["thickness"] or 0) <= 0:
+                            continue
+                        a_pts, b_pts = sample(paths[k].run(i0, i1)), sample(paths[k + 1].run(i0, i1))
+                        aa, ab = along(a_pts), along(b_pts)
+                        if aa[-1] < step_len:
+                            continue
+                        n = max(1, int(round(aa[-1] / step_len)))
+                        off = 0.5 if n_l % 2 else 0.0             # staggered joints between layers
+                        for j in range(1, n + (1 if off else 0)):
+                            f = (j - off) / n
+                            if not 0.0 < f < 1.0:
+                                continue
+                            self.msp.add_line(P(at(a_pts, aa, f * aa[-1])), P(at(b_pts, ab, f * ab[-1])), dxfattribs=joint)
+                # ---- working courses: length tags, course numbers, mark call-outs
+                cold, hot = paths[L - 1].all(), paths[L].all()
+                mine = sorted((r for r in rows if sec_ok(r, ang) and r.get("pair")), key=lambda r: float(r["z0"]))
+                groups = []
+                for r in mine:
+                    zm = (float(r["z0"]) + float(r["z1"])) / 2
+                    rc, rh = radius_at_z(cold, zm), radius_at_z(hot, zm)
+                    if rc is None or rh is None or rc - rh < 2.5 * th:
+                        continue
+                    h = min(0.34 * th, 0.5 * float(r["h"]))
+                    xm = rh + min(float(r.get("L") or 0), rc - rh) * 0.5
+                    tag(*P((xm, zm)), f"{float(r['L']):g}", h)
+                    if int(r["course"]) % 5 == 0:
+                        self.text(*P((rh - 0.35 * th, zm)), str(r["course"]), 0.45 * th,
+                                  "mright" if side == 1 else "mleft", "COURSE_NO")
+                    if groups and groups[-1]["pair"] == r["pair"] and groups[-1]["band"] == r["band"]:
+                        groups[-1]["rows"].append((zm, rh))
+                    else:
+                        groups.append({"pair": r["pair"], "band": r["band"], "rows": [(zm, rh)]})
+                for g in groups:
+                    zm, rh = g["rows"][len(g["rows"]) // 2]
+                    a, b = (g["pair"].split("+") + [""])[:2]
+                    txt = f"{a} & {b}" if b else a
+                    p0 = P((rh, zm))
+                    p1 = (p0[0] - side * 3.0 * th, p0[1] + 0.8 * th)
+                    self.line(p0, p1, self.layer("MARK_CALLOUT", 1))
+                    self.text(p1[0] - side * 0.2 * th, p1[1], txt, 0.5 * th, "mright" if side == 1 else "mleft",
+                              "MARK_CALLOUT")
+                # ---- bottom: ring numbers, KEY, ring brick length, MHP surround rings
+                if rb is not None and rr and (only_bands is None or rb in only_bands):
+                    i0, i1 = self.band_idx[rb]
+                    crun, hrun = paths[L - 1].run(i0, i1), paths[L].run(i0, i1)
+                    t_w = float(sector_at(self.bands[rb], ang % 360)["layers"][L - 1]["thickness"] or 0)
+                    for x in rr:
+                        rm = (float(x["r_in"]) + float(x["r_out"])) / 2
+                        zh, zc = z_at_x(hrun, rm), z_at_x(crun, rm)
+                        if zh is None:
+                            continue
+                        if ring_numbers:
+                            self.text(*P((rm, zh - 0.9 * th)), str(x["ring"]), 0.55 * th, "center", "RING_NO")
+                        if mhp and mhp_ring is not None and abs(int(x["ring"]) - int(mhp_ring)) == 1 and zc is not None:
+                            ri, ro = float(x["r_in"]), float(x["r_out"])
+                            q = [(ri, z_at_x(crun, ri)), (ro, z_at_x(crun, ro)), (ro, z_at_x(hrun, ro)), (ri, z_at_x(hrun, ri))]
+                            if all(v[1] is not None for v in q):
+                                hh = self.msp.add_hatch(color=3, dxfattribs={"layer": self.layer("MHP_SURROUND", 3)})
+                                hh.set_pattern_fill("ANSI31", color=3, scale=max(1.0, th / 8))
+                                hh.paths.add_polyline_path([P(v) for v in q], is_closed=True)
+                    if (rings or {}).get("key"):
+                        zh = z_at_x(hrun, 0.0) or z_at_x(hrun, 1.0)
+                        if zh is not None:
+                            tag(*P((0.0 + 1e-3, zh - 2.2 * th)), "KEY", 0.5 * th, 90)
+                    x = rr[len(rr) // 2]
+                    rm = (float(x["r_in"]) + float(x["r_out"])) / 2
+                    zh, zc = z_at_x(hrun, rm), z_at_x(crun, rm)
+                    if zh is not None and zc is not None and t_w:
+                        tag(*P((rm, (zh + zc) / 2)), f"{t_w:g}", 0.42 * th, 90)
+                if th_set:
+                    self._draw_taphole_set(th_set, side, ang, axis_x, Y)
+            if vix is not None and vix < len(self.views):
+                self.views[vix]["handles"].update(e.dxf.handle for e in list(self.msp)[n0:])
+
+    def _draw_taphole_set(self, t, side, ang, axis_x, Y):
+        for n in self._radial_nozzles():
+            if n.get("type") != "taphole" or abs(((float(n["angle"]) - ang + 180) % 360) - 180) > 1.0:
+                continue
+            p_s, p_o, p_e = self._radial_axis(n, ang % 360)
+            taphole_in_section(self, t, side, axis_x, Y, p_s, p_o, p_e, self.shell_t)
 
     # ------------------------------------------------------------ plan section
     def draw_plan(self, ox, oy, z):
@@ -392,8 +711,11 @@ class LiningSheet(Sheet):
         lay = self.layer("NOZZLES", NOZZLE_ACI)
         for n in self._stirring():
             cnt, rp = int(n["count"]), float(n["pcd"]) / 2
-            a_s = float(n.get("size_a") or 150) / 2
-            b_s = float(n.get("size_b") or n.get("size_a") or 150) / 2
+            if not n.get("size_a"):
+                self.arc_line(cx, cy, rp, 0, 360, self.layer("CENTER", 1))
+                continue                                    # element size not entered - only the PCD is drawn
+            a_s = float(n["size_a"]) / 2
+            b_s = float(n.get("size_b") or n["size_a"]) / 2
             for k in range(cnt):
                 ang = float(n.get("start_angle") or 0) + k * 360.0 / cnt
                 c = self.polar(cx, cy, rp, ang)
@@ -519,7 +841,8 @@ class Doc:
 
 # ============================================================================ BRICK SHEET
 class BrickSheet(Doc):
-    """All shapes of the brick library, dimensioned (mm)."""
+    """The brick shapes used in this job (from the client brick library), dimensioned (mm). The full catalogue is
+    drawn only when nothing of the library is used (e.g. a library check run)."""
     CELL_W, CELL_H, COLS = 1700.0, 1450.0, 6
 
     def __init__(self, lib, qty=None, job="", mcol=None, info=None):
@@ -530,6 +853,9 @@ class BrickSheet(Doc):
         allb = self.lib.get("bricks", [])
         used = list(self.mcol) + [m for m, q in self.qty.items() if q and m not in self.mcol]   # used shapes first
         bricks = sorted(allb, key=lambda b: (used.index(b["mark"]) if b["mark"] in used else len(used)))
+        in_job = [b for b in bricks if b["mark"] in used]
+        if in_job:                                  # only the shapes of this job (TRL sheets show the job's shapes)
+            bricks = in_job
         th = self.th
         row_n0, row_marks = [], []                  # one page per row of shapes
         for k, b in enumerate(bricks):
@@ -574,7 +900,7 @@ class BrickSheet(Doc):
         n_rows = (len(bricks) + self.COLS - 1) // self.COLS
         y = -(n_rows + 1) * self.CELL_H + 300
         self.title(0, y, [f"BRICK SHAPES - {self.job}",
-                          "Source: brick library (mock until the client's real library is delivered). All dimensions mm.",
+                          "Source: client brick library (TRL Krosaki BOF standard shapes). All dimensions mm.",
                           "Wall shapes: width_top = cold face, width_bottom = hot face, length = radial, thickness = course height.",
                           "Bottom wedges: A/B hot face outer/inner, C/D cold face outer/inner. Roles marked 'inferred' need checking.",
                           f"Generated {datetime.date.today().isoformat()}"], 3 * self.CELL_W)
@@ -588,7 +914,15 @@ class BrickSheet(Doc):
 
     def _draw(self, b, x, y):
         fam, d = b.get("shape_family"), b.get("dimensions_mm", {})
+        if fam in ("key_wedge_series", "beveled_key_ht", "barrel_safety_brick") \
+                and not all(k in d for k in ("length", "width_top", "width_bottom", "thickness")):
+            fam = None                              # TRL family without the wall-brick dimensions -> not drawn
+        if fam in ("double_tapered", "triple_tapered") \
+                and not all(k in d for k in ("overall_length", "face_width_top", "face_width_bottom", "A", "B", "C", "D")):
+            fam = None
         f = {"standard_trapezoidal": self._wall, "steel_cladded": self._wall, "bottom_dish_wedge": self._sh,
+             "barrel_safety_brick": self._wall, "key_wedge_series": self._wall, "beveled_key_ht": self._wall,
+             "double_tapered": self._sh, "triple_tapered": self._sh,
              "center_block": self._key, "safety_lining_rect": self._safety_rect, "safety_lining_wedge": self._wedge,
              "safety_lining_std": self._std, "purging_plug": self._plug, "seating_block": self._seat}.get(fam)
         if f is None or not any(isinstance(v, (int, float)) for v in d.values()):
@@ -655,7 +989,6 @@ class BrickSheet(Doc):
         self.msp.add_circle((cx, cy), do / 2 * s, dxfattribs={"layer": self.layer("OUTLINE", 7)})
         self.msp.add_circle((cx, cy), di / 2 * s, dxfattribs={"layer": self.layer("HIDDEN", 8)})
         bolt = str(d.get("bolt_holes", ""))
-        import re
         m = re.search(r"(\d+)\s*x\s*dia\.?\s*([\d.]+).*?([\d.]+)\s*mm\s*PCD", bolt)
         if m:
             n, hd, pcd = int(m.group(1)), float(m.group(2)), float(m.group(3))
@@ -876,9 +1209,11 @@ class LayerSheet(Doc):
                 seq.insert(round(len(seq) * (k + 1) / (ring["nCut"] + 1)), "CUT")
             elems = []
             for n in stir:
+                if not (n.get("size_b") or n.get("size_a")):
+                    continue
                 if r1 <= float(n["pcd"]) / 2 < r2:
                     cnt = int(n["count"])
-                    elems += [("ELEM", float(n.get("start_angle") or 0) + k * 360 / cnt, float(n.get("size_b") or 134))
+                    elems += [("ELEM", float(n.get("start_angle") or 0) + k * 360 / cnt, float(n.get("size_b") or n["size_a"]))
                               for k in range(cnt)]
             n_all = len(seq)
             if not n_all:
@@ -926,6 +1261,15 @@ class LayerSheet(Doc):
             self._balls_then_text(cx - rr - 3 * th, ly, list(ring["marks"]), 0.7 * th,
                                   f"Ring {ring['ring']}: " + " + ".join(f"{m} x {q}" for m, q in ring["marks"].items())
                                   + (f" + {ring['nCut']} cut" if ring["nCut"] else ""))
+        for n in stir:                                 # name each element (MHP-1 ... when the MHP is entered)
+            lab = _stir_label(n)
+            if lab == "STIR":
+                continue
+            cnt, rp = int(n["count"]), float(n["pcd"]) / 2
+            for k in range(cnt):
+                am = math.radians(self.zero + float(n.get("start_angle") or 0) + k * 360 / cnt)
+                rl = rp + float(n.get("size_a") or 150) / 2 + 1.2 * th
+                self.text(cx + rl * math.cos(am), cy + rl * math.sin(am), f"{lab}-{k + 1}", 0.7 * th, "center", "NOZZLES")
         rmax = R["rings"][-1]["r_out"]
         self.text(cx, cy - rmax - 2.5 * th, f"BOTTOM WORKING LINING - RING LAYOUT ({R['band']}, {R['grade']})",
                   1.2 * th, "center")
@@ -1250,6 +1594,573 @@ class LayerSheet(Doc):
             "Flagged rows need a shape not in the brick library or a design decision.",
             f"Generated {datetime.date.today().isoformat()}"], 2 * rmax_all + 40 * th)
         return self.doc
+
+
+# ============================================================================ ZONE DRAWINGS
+class _DetailInto:
+    """Lets the GA detail routines (LiningSheet.draw_trl_detail, MHP, taphole set) draw into another drawing
+    (a zone drawing): geometry comes from the GA sheet, output goes to the target doc at its own origin."""
+
+    def __init__(self, sheet, doc, axis_x, y_of_zmin):
+        self._s, self._d = sheet, doc
+        self.th, self.msp, self.views = doc.th, doc.msp, []
+        self._frames = [("vertical", axis_x - 44 * doc.th - sheet.rout, y_of_zmin - 6 * doc.th, 0.0, None)]
+
+    def __getattr__(self, k):
+        return getattr(self._s, k)
+
+    def layer(self, *a, **k):
+        return self._d.layer(*a, **k)
+
+    def text(self, *a, **k):
+        return self._d.text(*a, **k)
+
+    def line(self, *a, **k):
+        return self._d.line(*a, **k)
+
+    def fill(self, *a, **k):
+        return self._d.fill(*a, **k)
+
+    def poly(self, pts, layer, close=False):
+        return self._d.poly(pts, layer, close)
+
+    def dim_h(self, x1, x2, y, y_base, v):
+        self._d.dim((x1, y), (x2, y), (x1, y_base), 0, v=v)
+
+    def _draw_taphole_set(self, t, side, ang, axis_x, Y):
+        z0, z1 = self.zone_z
+        for n in self._s._radial_nozzles():
+            if n.get("type") != "taphole" or not z0 <= float(n["z"]) <= z1 \
+                    or abs(((float(n["angle"]) - ang + 180) % 360) - 180) > 1.0:
+                continue
+            p_s, p_o, p_e = self._s._radial_axis(n, ang % 360)
+            taphole_in_section(self, t, side, axis_x, Y, p_s, p_o, p_e, self._s.shell_t)
+
+
+class ZoneSheet(LayerSheet):
+    """One drawing (page) per zone - Bottom, Lower cone, Barrel, Top cone, Mouth: the zone's vertical section
+    (both sides, layers in their quality colours, every course / bottom ring), its dimensions, the brick layout
+    of one course (bottom: the ring layout), a course summary and the zone's lines of the BOM."""
+
+    def __init__(self, sheet, courses, rings, nozzles=(), job="", mcol=None, info=None, bom=None):
+        super().__init__(sheet, courses, rings, nozzles, job, mcol, info)
+        self.bom = bom or {}
+
+    # ------------------------------------------------------------ zones = consecutive bands of one section
+    def zones(self):
+        out = []
+        for bi, b in enumerate(self.s.bands):
+            name = str(b.get("section") or b["name"])
+            if out and out[-1][0] == name:
+                out[-1][1].append(bi)
+            else:
+                out.append((name, [bi]))
+        return out
+
+    def bom_lines(self, name, bis):
+        keys = {name} | {str(self.s.bands[b]["name"]) for b in bis}
+        return [o for o in self.bom.get("lines", []) if any(k and k in str(o.get("zone", "")) for k in keys)]
+
+    # ------------------------------------------------------------ vertical section of the zone
+    def draw_zone_section(self, ox, oy, name, bis):
+        s, th, L = self.s, self.th, self.s.L
+        I0, I1 = s.band_idx[bis[0]][0], s.band_idx[bis[-1]][1]
+        z0, z1 = min(s.band_z(b)[0] for b in bis), max(s.band_z(b)[1] for b in bis)
+        bnames = {s.bands[b]["name"] for b in bis}
+        rz = 1.0
+        for ang in (0.0, 180.0):
+            paths, outer = s.boundary_paths(ang)
+            rz = max(rz, max(p[0] for p in (outer or paths[0]).run(I0, I1)))
+        axis_x = ox + rz + 16 * th
+        Y = lambda z: oy + (z - z0)
+        rows_by_course = {}
+        for r in self.courses:
+            if r["band"] in bnames:
+                rows_by_course.setdefault(r["course"], []).append(r)
+        ends = {}
+        zlo, zhi = z0, z1                         # drawn extent (the lining can rise above the band top, e.g. the bottom dish)
+        for ang in (0.0, 180.0):
+            paths, outer = s.boundary_paths(ang)
+            for pth in ([outer] if outer else []) + list(paths):
+                zs_ = [q[1] for q in sample(pth.run(I0, I1))]
+                zlo, zhi = min(zlo, min(zs_)), max(zhi, max(zs_))
+        for side in (1, -1):
+            ang_ref = 0.0 if side == 1 else 180.0
+            paths, outer = s.boundary_paths(ang_ref)
+            T = lambda run: [(axis_x + side * x, Y(z), side * b) for x, z, b in run]
+            P = lambda run: [(axis_x + side * x, Y(z)) for x, z in sample(run)]
+            if outer:
+                self.fill(P(outer.run(I0, I1) + reverse_run(paths[0].run(I0, I1))), 8, "SHELL_FILL")
+            for bi in bis:
+                i0, i1 = s.band_idx[bi]
+                sec = sector_at(s.bands[bi], ang_ref % 360)
+                for j in range(1, L + 1):
+                    if float(sec["layers"][j - 1]["thickness"] or 0) <= 0:
+                        continue
+                    self.fill(P(paths[j - 1].run(i0, i1) + reverse_run(paths[j].run(i0, i1))),
+                              self.gc(sec["layers"][j - 1]["grade"]), "GRADE_FILL")
+            if outer:
+                self.msp.add_lwpolyline(T(outer.run(I0, I1)), format="xyb", dxfattribs={"layer": self.layer("SHELL", 8)})
+            for k in range(L + 1):
+                self.msp.add_lwpolyline(T(paths[k].run(I0, I1)), format="xyb",
+                                        dxfattribs={"layer": self.layer("SHELL" if k == 0 else "LINING", 7)})
+            # zone limits: cut line from the shell to the hot face at the bottom and the top of the zone
+            for e in (0, -1):
+                p_out = (outer or paths[0]).run(I0, I1)[e]
+                p_hot = paths[L].run(I0, I1)[e]
+                if abs(p_out[0] - p_hot[0]) > 1e-6 or abs(p_out[1] - p_hot[1]) > 1e-6:
+                    self.line((axis_x + side * p_out[0], Y(p_out[1])), (axis_x + side * p_hot[0], Y(p_hot[1])), "ZONE_LIMIT")
+                ends[(side, e)] = (p_out, p_hot)
+            R = self.rings or {}
+            rb = next((bi for bi in bis if s.bands[bi]["name"] == R.get("band")), None)
+            if rb is not None and R.get("rings"):    # bottom rings: joint square to the bottom + ring number
+                i0, i1 = s.band_idx[rb]
+                crun, hrun = paths[L - 1].run(i0, i1), paths[L].run(i0, i1)
+                t = sector_at(s.bands[rb], ang_ref % 360)["layers"][L - 1]["thickness"]
+                s0 = s.segs[i0]
+                region = sample(crun + reverse_run(hrun))
+
+                def normal(rad, zc):
+                    if s0.shape == "arc" and s0.C is not None:
+                        dx, dz = s0.C[0] - rad, s0.C[1] - zc
+                        nn = math.hypot(dx, dz) or 1.0
+                        return dx / nn, dz / nn
+                    return 0.0, 1.0
+                for ring in R["rings"]:
+                    rad = ring["r_out"]
+                    zc = z_at_x(crun, rad)
+                    if zc is not None and ring is not R["rings"][-1]:
+                        dx, dz = normal(rad, zc)
+                        xe, ze = _clip_to_region((rad, zc), (rad + dx * t, zc + dz * t), region)
+                        self.line((axis_x + side * rad, Y(zc)), (axis_x + side * xe, Y(ze)), "BOTTOM_RINGS")
+                    rm = (ring["r_in"] + ring["r_out"]) / 2
+                    zm = z_at_x(crun, rm)
+                    if zm is not None:
+                        dx, dz = normal(rm, zm)
+                        self.text(axis_x + side * (rm + dx * 0.5 * t), Y(zm + dz * 0.5 * t), str(ring["ring"]),
+                                  min(0.45 * th, 0.6 * (ring["r_out"] - ring["r_in"])), "center", "RING_NO")
+            for no, rs in rows_by_course.items():
+                r = next((x for x in rs if _in_sector(ang_ref, x["sector"])), rs[0])
+                if r.get("r_cold") is None:
+                    continue
+                y = Y(r["z0"])
+                lay = "COURSES_FLAG" if r.get("flag") else "COURSES"
+                self.layer("COURSES_FLAG", CUT_ACI)
+                self.line((axis_x + side * r["r_cold"], y), (axis_x + side * (r["r_hot"] or 0), y), lay)
+                self.text(axis_x + side * (r["r_cold"] + 0.6 * th), y + 0.5 * min(r["h"], th), str(no),
+                          min(0.45 * th, 0.8 * r["h"]), "mleft" if side == 1 else "mright", "COURSE_NO")
+        self.line((axis_x, Y(zlo) - 2 * th), (axis_x, Y(zhi) + 2 * th), "CENTER")
+        # dimensions: zone height (left), elevations, inside (hot-face) and shell diameters at both ends
+        xd = axis_x - rz - 4 * th
+        self.dim((xd, Y(z0)), (xd, Y(z1)), (xd - 2 * th, Y(z0)), 90, v=z1 - z0)
+        for z in (z0, z1):
+            self.text(axis_x + rz + 1.0 * th, Y(z), f"EL {z:,.0f}".replace(",", " "), 0.8 * th, "mleft", "ELEVATIONS")
+        for e, sgn in ((0, -1), (-1, 1)):
+            (o_r, h_r), (o_l, h_l) = ends[(1, e)], ends[(-1, e)]
+            if h_r[0] > 1 and h_l[0] > 1:
+                yb = Y(zhi if e == -1 else zlo) + sgn * 2.5 * th
+                self.dim((axis_x + h_r[0], Y(h_r[1])), (axis_x - h_l[0], Y(h_l[1])), (axis_x, yb), 0, v=h_r[0] + h_l[0])
+                self.text(axis_x - h_l[0] - 0.8 * th, yb, "inside dia. (hot face)", 0.6 * th, "mright", "DIMS_TEXT")
+            if o_r[0] > 1 and o_l[0] > 1:
+                yb = Y(zhi if e == -1 else zlo) + sgn * 5.5 * th
+                self.dim((axis_x + o_r[0], Y(o_r[1])), (axis_x - o_l[0], Y(o_l[1])), (axis_x, yb), 0, v=o_r[0] + o_l[0])
+                self.text(axis_x - o_l[0] - 0.8 * th, yb, "shell outside dia.", 0.6 * th, "mright", "DIMS_TEXT")
+        # layer build-up of every sector of the zone (right of the section)
+        lx, ly = axis_x + rz + 9 * th, Y(z1) - th
+        self.text(lx, ly, "LINING BUILD-UP (shell -> hot face)", 0.9 * th, layer="BUILD_UP")
+        for bi in bis:
+            for sec in s.bands[bi]["sectors"]:
+                ly -= 1.5 * th
+                lays = [f"{self.s.layers[j]} {l['grade']} {float(l['thickness']):g}" for j, l in enumerate(sec["layers"])
+                        if float(l["thickness"] or 0) > 0]
+                self.text(lx, ly, f"{s.bands[bi]['name']} {sec.get('from', 0):g}-{sec.get('to', 360):g}°"
+                          f" {sec.get('name', '')}: " + " + ".join(lays), 0.65 * th, layer="BUILD_UP")
+        done = set()
+        for r in self.courses:
+            if r["band"] not in bnames or (r["band"], r["sector"]) in done or not r.get("pair"):
+                continue
+            done.add((r["band"], r["sector"]))
+            ly -= 1.5 * th
+            self._balls_then_text(lx, ly, [r["A"], r["B"]], 0.65 * th,
+                                  f"{r['sector']}° {r.get('zone', '')}: {r['grade']}, L {r['L']:g} -> pair {r['pair']}",
+                                  "BUILD_UP", right=False)
+        # TRL detail, same routines as the GA: permanent bricks, length tags, course numbers, mark call-outs,
+        # MHP surround rings, taphole set; MHP plug drawn in place (only what is entered for this job)
+        det = getattr(self, "detail", None)
+        if det:
+            try:
+                dv = _DetailInto(s, self, axis_x, Y(s.zmin))
+                dv.zone_z = (z0, z1)
+                LiningSheet.draw_trl_detail(dv, self.courses, self.rings, det.get("mhp"), det.get("perm"), det.get("th_set"),
+                                            only_bands=set(bis), ring_numbers=False)
+                m = det.get("mhp")
+                rb_ = next((bi for bi in bis if s.bands[bi]["name"] == (self.rings or {}).get("band")), None)
+                if m and rb_ is not None:
+                    for n in s._stirring():
+                        cnt, rp = int(n["count"]), float(n["pcd"]) / 2
+                        angs = [(float(n.get("start_angle") or 0) + k * 360.0 / cnt) % 360 for k in range(cnt)]
+                        for side, a_ in ((1, 0.0), (-1, 180.0)):
+                            if min(abs(((e - a_ + 180) % 360) - 180) for e in angs) > 1.0:
+                                continue
+                            paths_, _ = s.boundary_paths(a_)
+                            i0_, i1_ = s.band_idx[rb_]
+                            mhp_in_section(dv, m, side, axis_x, Y, paths_[L].run(i0_, i1_), rp, True, dv.dim_h)
+            except Exception as e:                          # the zone drawing without the extra detail is still made
+                self.text(axis_x, Y(zlo) - 11 * th, f"(detail not drawn: {type(e).__name__}: {e})", 0.6 * th, "center")
+        self.text(axis_x, Y(zlo) - 9 * th, f"{name.upper()} - VERTICAL SECTION (right 0° / left 180°), "
+                                          f"EL {z0:.0f} - {z1:.0f}, every course / ring numbered", 1.0 * th, "center")
+        return axis_x, rz, Y(zlo), Y(zhi)
+
+    # ------------------------------------------------------------ course summary of the zone
+    def draw_zone_courses(self, ox, oy, bnames):
+        th = 0.7 * self.th
+        groups = []
+        for r in sorted((r for r in self.courses if r["band"] in bnames), key=lambda r: (r["band"], r["sector"], r["course"])):
+            key = (r["band"], r["sector"], r.get("zone", ""), r["grade"], r["L"], r.get("pair"), r.get("A"), r.get("B"))
+            if groups and groups[-1]["key"] == key and groups[-1]["last"] == r["course"] - 1:
+                g = groups[-1]
+            else:
+                g = {"key": key, "first": r["course"], "nA": 0, "nB": 0, "cut": 0, "flag": 0}
+                groups.append(g)
+            g["last"] = r["course"]
+            g["nA"] += r["nA"] or 0
+            g["nB"] += r["nB"] or 0
+            g["cut"] += r["nCut"] or 0
+            g["flag"] += 1 if r.get("flag") else 0
+        if not groups:
+            return 0
+        cols = [("Courses", 6), ("Band", 10), ("Sector", 6), ("Zone", 11), ("Grade", 8), ("L", 4), ("Pair", 9),
+                ("A", 6), ("Pcs A", 4), ("B", 6), ("Pcs B", 4), ("Cut", 3), ("Flagged", 4)]
+        self.text(ox, oy + 2.2 * th, "COURSE SUMMARY (consecutive courses with the same bricks; every course in "
+                                     "course_schedule.csv and on the layers drawing)", 1.3 * th, layer="ZONE_TABLE")
+        y, x = oy, ox
+        for c, w in cols:
+            self.text(x, y, c, th, layer="ZONE_TABLE")
+            x += w * th * 1.9
+        for g in groups:
+            band, sector, zone, grade, L, pair, A, B = g["key"]
+            y -= 1.5 * th
+            vals = [f"{g['first']}-{g['last']}" if g["last"] != g["first"] else str(g["first"]), band, sector, zone, grade,
+                    f"{L:g}", pair or "-", A or "", g["nA"] or "", B or "", g["nB"] or "", g["cut"] or "", g["flag"] or ""]
+            x = ox
+            for (c, w), v in zip(cols, vals):
+                self.text(x, y, str(v)[:int(w * 1.9)], th, layer="ZONE_TABLE_FLAG" if (c == "Flagged" and v) else "ZONE_TABLE")
+                x += w * th * 1.9
+        self.layer("ZONE_TABLE_FLAG", CUT_ACI)
+        return oy - y + 4 * th
+
+    # ------------------------------------------------------------ BOM of the zone
+    def draw_zone_bom(self, ox, oy, lines):
+        th = 0.7 * self.th
+        cols = [("Group", 12), ("Zone", 17), ("Grade", 8), ("Mark", 9), ("Size (mm)", 14), ("Qty", 4), ("Order qty", 5),
+                ("Tonnes", 5)]
+        self.text(ox, oy + 2.2 * th, "ZONE BOM (lines of the full BOM that belong to this zone)", 1.3 * th, layer="ZONE_BOM")
+        y, x = oy, ox
+        for c, w in cols:
+            self.text(x, y, c, th, layer="ZONE_BOM")
+            x += w * th * 1.9
+        tot_t, tot_q = 0.0, 0
+        for o in lines:
+            y -= 1.5 * th
+            vals = [o.get("group", ""), o.get("zone", ""), o.get("grade", ""), o.get("mark", ""), o.get("size", ""),
+                    "" if o.get("qty") is None else o["qty"], "" if o.get("order_qty") is None else o["order_qty"],
+                    "" if o.get("total_t") is None else f"{o['total_t']:.2f}"]
+            x = ox
+            for (c, w), v in zip(cols, vals):
+                self.text(x, y, str(v)[:int(w * 1.9)], th, layer="ZONE_BOM")
+                x += w * th * 1.9
+            tot_t += float(o.get("total_t") or 0)
+            tot_q += int(o.get("order_qty") or 0)
+        y -= 1.8 * th
+        self.text(ox, y, f"ZONE TOTAL: {tot_q} pieces to order, {tot_t:.2f} t"
+                         + ("" if lines else "  (no BOM line found for this zone)"), 1.1 * th, layer="ZONE_BOM")
+        return oy - y + 4 * th
+
+    # ------------------------------------------------------------ one page per zone
+    def draw_zone(self, ox, oy, name, bis):
+        s, th = self.s, self.th
+        bnames = {s.bands[b]["name"] for b in bis}
+        axis_x, rz, yb, yt = self.draw_zone_section(ox, oy, name, bis)
+        px = axis_x + rz + 75 * th                 # right of the section and its build-up labels
+        R = self.rings or {}
+        if R.get("rings") and R.get("band") in bnames:
+            rmax = R["rings"][-1]["r_out"]
+            self.draw_bottom(px + 40 * th + rmax, (yb + yt) / 2)
+            right = px + 2 * rmax + 85 * th
+        else:
+            rows = [r for r in self.courses if r["band"] in bnames and r.get("pair") and not r.get("flag")]
+            rows = rows or [r for r in self.courses if r["band"] in bnames and r.get("pair")]
+            right = px
+            if rows:
+                mid_no = rows[len(rows) // 2]["course"]
+                group = [r for r in self.courses if r["course"] == mid_no]
+                self.draw_ring_plan(px + rz, (yb + yt) / 2, group, rz)
+                self.text(px + rz, (yb + yt) / 2 + rz + 3 * th, f"BRICK LAYOUT OF COURSE {mid_no} (plan)", 1.0 * th, "center")
+                right = px + 2 * rz + 30 * th
+        ty = min(yb - 14 * th, (yb + yt) / 2 - rz - 10 * th)
+        h = self.draw_zone_courses(ox, ty, bnames)
+        self.draw_zone_bom(ox if not h else ox + 155 * 0.7 * th, ty, self.bom_lines(name, bis))
+        self.text(ox, yt + 10 * th, f"ZONE DRAWING - {name.upper()}  ({self.job})", 1.6 * th)
+        return right
+
+    def build(self):
+        ox = 0.0
+        zs = self.zones()
+        for k, (name, bis) in enumerate(zs, 1):
+            right = self._view(f"ZONE {k}/{len(zs)} - {name.upper()}", self.draw_zone, ox, 0.0, name, bis)
+            ox = max(right or 0, ox) + 40 * self.th
+        return self.doc
+
+
+# ============================================================================ DETAIL BRICK SHAPES
+_RE_WALL = re.compile(r"^\s*([\d.]+)\s*x\s*([\d.]+)\s*/\s*([\d.]+)\s*x\s*([\d.]+)\s*$")
+_RE_RECT = re.compile(r"^\s*([\d.]+)\s*x\s*([\d.]+)\s*x\s*([\d.]+)\s*$")
+_RE_KEY = re.compile(r"^\s*D\s*([\d.]+)\s*/\s*([\d.]+)\s*x\s*([\d.]+)\s*$")
+
+
+class BottomLayoutSheet(ZoneSheet):
+    """CIRCULAR BOTTOM BRICK LAYOUT in TRL's format (REF sheet 3): bottom section with every ring numbered, the
+    MHPs, permanent bricks and dimensions; plan with every bottom brick; ring x mark BOQ - one sheet."""
+
+    def draw_all(self, rb):
+        s, th, R = self.s, self.th, self.rings
+        axis_x, rz, ylo, yhi = self.draw_zone_section(0.0, 0.0, s.bands[rb]["name"], [rb])
+        t = float(sector_at(s.bands[rb], 0.0)["layers"][s.L - 1]["thickness"] or 0)
+        rc = R.get("cold_sphere_radius")
+        notes = []
+        if rc:
+            notes.append(f"COLD FACE (WORKING LINING) R{float(rc):.0f}")
+            if t:
+                notes.append(f"HOT FACE R{float(rc) - t:.0f}   WORKING LINING {t:g} MM")
+        if R.get("key"):
+            km = R["key"]["mark"]
+            notes.append(("KEY" if km.upper() == "KEY" else f"KEY {km}") + f" - RADIUS {float(R['key']['r']):g} MM")
+        for k, txt in enumerate(notes):
+            self.text(axis_x - rz, yhi + (4 + 1.6 * (len(notes) - k)) * th, txt, 0.9 * th, layer="BOTTOM_NOTES")
+        rmax = float(R["rings"][-1]["r_out"])
+        self.boq_matrix(axis_x + rz + 50 * th, yhi + 2 * th)        # row 1: section | ring x mark BOQ
+        cx, cy = 34 * th + rmax, ylo - 22 * th - rmax                # row 2: plan with every brick + ring table
+        self.draw_bottom(cx, cy)
+
+    def build(self):
+        R = self.rings or {}
+        rb = next((bi for bi, b in enumerate(self.s.bands) if b["name"] == R.get("band")), None)
+        if rb is None or not R.get("rings"):
+            return self.doc
+        self._view(f"CIRCULAR BOTTOM BRICK LAYOUT - {self.s.bands[rb]['name'].upper()}", self.draw_all, rb)
+        return self.doc
+
+
+def shape_marks(bom, lib):
+    """Every brick mark of the design (from the BOM), once, with its dimensions, quantity, grades and zones."""
+    libd = {b["mark"]: b for b in (lib or {}).get("bricks", [])}
+    out = {}
+    for o in (bom or {}).get("lines", []):
+        mark = str(o.get("mark") or "").strip()
+        if not mark or mark.endswith("(cut)") or str(o.get("group", "")).startswith("Monolithic") or o.get("qty") is None:
+            continue
+        m = out.setdefault(mark, {"mark": mark, "size": o.get("size") or "", "family": o.get("family") or "",
+                                  "qty": 0, "order_qty": 0, "grades": [], "zones": [], "vol_bom": o.get("unit_vol_dm3"),
+                                  "unit_wt": o.get("unit_wt_kg"), "group": o.get("group", ""), "lib": libd.get(mark)})
+        cut = next((x for x in bom["lines"] if x.get("mark") == mark + " (cut)" and x.get("zone") == o.get("zone")), None)
+        m["qty"] += int(o.get("qty") or 0) + int((cut or {}).get("qty") or 0)
+        m["order_qty"] += int(o.get("order_qty") or 0) + int((cut or {}).get("order_qty") or 0)
+        for k, v in (("grades", o.get("grade")), ("zones", o.get("zone"))):
+            if v and v not in m[k]:
+                m[k].append(v)
+    return list(out.values())
+
+
+def shape_geometry(m):
+    """Decide how a mark is drawn and with which dimensions: wall wedge, bottom wedge, centre key, rectangular."""
+    size, lib = m["size"], (m.get("lib") or {})
+    d = lib.get("dimensions_mm") or {}
+    if lib.get("shape_family") == "bottom_dish_wedge" and all(k in d for k in ("A", "B", "C", "D", "overall_length")):
+        return {"kind": "bottom_wedge", "L": float(d["overall_length"]), "ft": float(d["face_width_top"]),
+                "fb": float(d["face_width_bottom"]), "A": float(d["A"]), "B": float(d["B"]), "C": float(d["C"]), "D": float(d["D"])}
+    g = _RE_KEY.match(size)
+    if g:
+        return {"kind": "key", "d1": float(g[1]), "d2": float(g[2]), "L": float(g[3])}
+    g = _RE_WALL.match(size)
+    if g:
+        return {"kind": "wall_wedge", "L": float(g[1]), "wc": float(g[2]), "wh": float(g[3]), "h": float(g[4])}
+    g = _RE_RECT.match(size)
+    if g:
+        return {"kind": "rect", "w": float(g[1]), "t": float(g[2]), "h": float(g[3])}
+    return {"kind": "unknown"}
+
+
+def shape_volume(g):
+    """Volume in dm3 from the drawn dimensions (to compare with the BOM's unit volume)."""
+    k = g["kind"]
+    if k == "wall_wedge":
+        return (g["wc"] + g["wh"]) / 2 * g["L"] * g["h"] / 1e6
+    if k == "rect":
+        return g["w"] * g["t"] * g["h"] / 1e6
+    if k == "key":
+        return math.pi * g["L"] / 12 * (g["d1"] ** 2 + g["d1"] * g["d2"] + g["d2"] ** 2) / 1e6
+    if k == "bottom_wedge":
+        ah, ac = (g["A"] + g["B"]) / 2 * g["ft"], (g["C"] + g["D"]) / 2 * g["fb"]
+        return g["L"] * (ah + ac) / 2 / 1e6
+    return None
+
+
+class ShapeSheet(Doc):
+    """DETAIL BRICK SHAPES in TRL's format: for every brick mark of the design a small dimensioned drawing
+    (side view + face view(s), red dimensions, centre line, mark name underlined) - 8 marks per A3 sheet."""
+    COLS, ROWS = 4, 2
+    CELL_W = 1350.0
+
+    def __init__(self, bom, lib, job=""):
+        super().__init__(28.0)
+        self.marks = shape_marks(bom, lib)
+        self.job = job
+
+    # ------------------------------------------------------------ red dimension like TRL's sheets
+    def rdim(self, p1, p2, base, angle, text=None):
+        th = self.th
+        v = math.dist(p1, p2) if angle not in (0, 90) else abs((p2[0] - p1[0]) if angle == 0 else (p2[1] - p1[1]))
+        ov = {"dimtxt": th * 0.85, "dimasz": th * 0.6, "dimexe": th * 0.35, "dimexo": th * 0.25, "dimgap": th * 0.2,
+              "dimdec": decimals(v), "dimlfac": 1, "dimclrd": 1, "dimclre": 5, "dimclrt": 7, "dimtad": 1}
+        kw = {"text": text} if text else {}
+        self.msp.add_linear_dim(base=base, p1=p1, p2=p2, angle=angle, override=ov,
+                                dxfattribs={"layer": self.layer("SHAPE_DIMS", 1)}, **kw).render()
+
+    def cline(self, p, q):
+        self.layer("SHAPE_CENTER", 6)
+        self.msp.add_line(p, q, dxfattribs={"layer": "SHAPE_CENTER", "linetype": "CENTER", "ltscale": 0.4})
+
+    def trap(self, x, y, wb, wt, hgt, lay="SHAPE_OUTLINE"):
+        """Symmetric trapezoid, centre x, bottom y: bottom width wb, top width wt, height hgt."""
+        pts = [(x - wb / 2, y), (x + wb / 2, y), (x + wt / 2, y + hgt), (x - wt / 2, y + hgt)]
+        self.poly(pts, lay)
+        return pts
+
+    # ------------------------------------------------------------ one mark
+    def draw_mark(self, ox, oy, m, cell_h):
+        th, g = self.th, shape_geometry(m)
+        self.layer("SHAPE_OUTLINE", 7)
+        y0 = oy + 330                             # views stand on this line; texts below it
+        k = g["kind"]
+        if k == "wall_wedge":                     # side view (course height x length) + face view (cold / hot face)
+            L, wc, wh, h = g["L"], g["wc"], g["wh"], g["h"]
+            x1 = ox + 180
+            self.poly([(x1, y0), (x1 + h, y0), (x1 + h, y0 + L), (x1, y0 + L)], "SHAPE_OUTLINE")
+            self.rdim((x1, y0 + L), (x1 + h, y0 + L), (x1, y0 + L + 2.2 * th), 0)
+            self.rdim((x1 + h, y0), (x1 + h, y0 + L), (x1 + h + 2.2 * th, y0), 90)
+            xc = x1 + h + 260 + max(wc, wh) / 2
+            self.trap(xc, y0, wh, wc, L)
+            self.cline((xc, y0 - 0.8 * th), (xc, y0 + L + 0.8 * th))
+            self.rdim((xc - wc / 2, y0 + L), (xc + wc / 2, y0 + L), (xc, y0 + L + 2.2 * th), 0)
+            self.rdim((xc - wh / 2, y0), (xc + wh / 2, y0), (xc, y0 - 2.2 * th), 0)
+            self.text(xc, y0 + L + 4.4 * th, "cold face", 0.6 * th, "center", "SHAPE_NOTE")
+            self.text(xc, y0 - 4.4 * th, "hot face", 0.6 * th, "center", "SHAPE_NOTE")
+        elif k == "bottom_wedge":                 # radial section + hot face + cold face
+            L, ft, fb = g["L"], g["ft"], g["fb"]
+            xs = ox + 150 + fb / 2
+            self.trap(xs, y0, fb, ft, L)
+            self.cline((xs, y0 - 0.8 * th), (xs, y0 + L + 0.8 * th))
+            self.rdim((xs - ft / 2, y0 + L), (xs + ft / 2, y0 + L), (xs, y0 + L + 2.2 * th), 0)
+            self.rdim((xs - fb / 2, y0), (xs + fb / 2, y0), (xs, y0 - 2.2 * th), 0)
+            self.rdim((xs + fb / 2, y0), (xs + ft / 2, y0 + L), (xs + fb / 2 + 2.6 * th, y0), 90)
+            for j, (wo, wi, dep, lab) in enumerate(((g["A"], g["B"], ft, "hot face"), (g["C"], g["D"], fb, "cold face"))):
+                xc = xs + fb / 2 + 330 + j * 330 + max(wo, wi) / 2
+                yb = y0 + L / 2 - dep / 2 + (j * 0)
+                self.trap(xc, yb, wi, wo, dep)
+                self.rdim((xc - wo / 2, yb + dep), (xc + wo / 2, yb + dep), (xc, yb + dep + 2.2 * th), 0)
+                self.rdim((xc - wi / 2, yb), (xc + wi / 2, yb), (xc, yb - 2.2 * th), 0)
+                self.text(xc, yb + dep + 4.6 * th, lab, 0.6 * th, "center", "SHAPE_NOTE")
+        elif k == "key":                          # elevation + plan
+            L, d1, d2 = g["L"], g["d1"], g["d2"]
+            xc = ox + 150 + d2 / 2
+            self.trap(xc, y0, d2, d1, L)
+            self.cline((xc, y0 - 0.8 * th), (xc, y0 + L + 0.8 * th))
+            self.rdim((xc - d1 / 2, y0 + L), (xc + d1 / 2, y0 + L), (xc, y0 + L + 2.2 * th), 0, f"Ø{d1:g}")
+            self.rdim((xc - d2 / 2, y0), (xc + d2 / 2, y0), (xc, y0 - 2.2 * th), 0, f"Ø{d2:g}")
+            self.rdim((xc + d2 / 2, y0), (xc + d1 / 2, y0 + L), (xc + d2 / 2 + 2.6 * th, y0), 90)
+            pc = (xc + d2 / 2 + 220 + d2 / 2, y0 + L / 2)
+            self.msp.add_circle(pc, d2 / 2, dxfattribs={"layer": "SHAPE_OUTLINE"})
+            self.msp.add_circle(pc, d1 / 2, dxfattribs={"layer": self.layer("SHAPE_HIDDEN", 8)})
+            self.cline((pc[0] - d2 / 2 - 40, pc[1]), (pc[0] + d2 / 2 + 40, pc[1]))
+            self.cline((pc[0], pc[1] - d2 / 2 - 40), (pc[0], pc[1] + d2 / 2 + 40))
+            self.text(pc[0], pc[1] + d2 / 2 + 1.5 * th, "plan", 0.6 * th, "center", "SHAPE_NOTE")
+        elif k == "rect":                         # face (width x height) + side (thickness x height)
+            w, t, h = g["w"], g["t"], g["h"]
+            x1 = ox + 200
+            self.poly([(x1, y0), (x1 + w, y0), (x1 + w, y0 + h), (x1, y0 + h)], "SHAPE_OUTLINE")
+            self.rdim((x1, y0 + h), (x1 + w, y0 + h), (x1, y0 + h + 2.2 * th), 0)
+            self.rdim((x1, y0), (x1, y0 + h), (x1 - 2.2 * th, y0), 90)
+            x2 = x1 + w + 250
+            self.poly([(x2, y0), (x2 + t, y0), (x2 + t, y0 + h), (x2, y0 + h)], "SHAPE_OUTLINE")
+            self.rdim((x2, y0 + h), (x2 + t, y0 + h), (x2, y0 + h + 2.2 * th), 0)
+            self.text(x1 + w / 2, y0 - 2 * th, "face", 0.6 * th, "center", "SHAPE_NOTE")
+            self.text(x2 + t / 2, y0 - 2 * th, "side (thickness)", 0.6 * th, "center", "SHAPE_NOTE")
+        else:
+            self.text(ox + 100, y0 + 300, f"No drawing rule for size '{m['size']}' - shape dimensions needed", 0.8 * th,
+                      layer="SHAPE_NOTE")
+        # mark name (underlined, like TRL) + data
+        tx, ty = ox + 100, oy + 210
+        self.text(tx, ty, m["mark"], 1.7 * th, layer="SHAPE_MARK")
+        self.line((tx, ty - 0.35 * th), (tx + 1.05 * th * len(m["mark"]), ty - 0.35 * th), "SHAPE_MARK")
+        v = shape_volume(g)
+        vb = m.get("vol_bom")
+        vtxt = f"vol {v:.2f} dm3" if v else "vol -"
+        if v and vb:
+            dv = abs(v - vb) / vb if vb else 0
+            vtxt += f" (BOM {vb:.2f}{'' if dv <= 0.02 else ' - CHECK'})"
+        wt = f" · {m['unit_wt']:.1f} kg" if m.get("unit_wt") else ""
+        self.text(tx, ty - 1.6 * th, f"{', '.join(m['grades'])} · {m['size']}"[:60], 0.65 * th, layer="SHAPE_NOTE")
+        self.text(tx, ty - 2.6 * th, f"{vtxt}{wt}"[:60], 0.65 * th,
+                  layer="SHAPE_CHECK" if "CHECK" in vtxt else "SHAPE_NOTE")
+        self.text(tx, ty - 3.6 * th, f"qty {m['qty']:,} · order {m['order_qty']:,}".replace(",", " ")
+                  + f" · {', '.join(m['zones'])}"[:40], 0.65 * th, layer="SHAPE_NOTE")
+        self.layer("SHAPE_CHECK", 1)
+        self.layer("SHAPE_MARK", 7)
+
+    # ------------------------------------------------------------ one sheet = 8 marks
+    def draw_page(self, ox, oy, marks, cell_h):
+        th = self.th
+        W, H = self.COLS * self.CELL_W, self.ROWS * cell_h
+        self.poly([(ox, oy - H), (ox + W, oy - H), (ox + W, oy + 3 * th), (ox, oy + 3 * th)], "SHAPE_FRAME")
+        self.text(ox + 2 * th, oy - 1.2 * th, f"DETAIL BRICK SHAPES - {self.job}", 1.5 * th, layer="SHAPE_MARK")
+        sx = ox + W - 19 * th                    # stamp, as on TRL's sheets
+        self.poly([(sx, oy - 2.2 * th), (ox + W - th, oy - 2.2 * th), (ox + W - th, oy + 1.8 * th), (sx, oy + 1.8 * th)],
+                  "SHAPE_FRAME")
+        self.text((sx + ox + W - th) / 2, oy - 0.2 * th, "FOR CUSTOMER APPROVAL", 0.9 * th, "center", "SHAPE_MARK")
+        for i, m in enumerate(marks):
+            c, r = i % self.COLS, i // self.COLS
+            self.draw_mark(ox + c * self.CELL_W, oy - (r + 1) * cell_h, m, cell_h)
+        if getattr(self, "skipped", None) and marks is self._last:
+            self.text(ox + 2 * th, oy - H + 2.4 * th, "Not drawn on these sheets (separate assembly drawings): "
+                      + ", ".join(self.skipped), 0.6 * th, layer="SHAPE_NOTE")
+        self.text(ox + 2 * th, oy - H + 1.2 * th, "All dimensions in mm. Red = dimensions. vol = from the drawn dimensions; "
+                                                  "BOM = unit volume used in the BOM (CHECK if they differ by more than 2 %).",
+                  0.6 * th, layer="SHAPE_NOTE")
+
+    def build(self):
+        order = {"Working lining - bottom": 0, "Working lining - wall": 1, "Permanent lining": 2}
+        marks = sorted(self.marks, key=lambda m: (order.get(m["group"], 3), m["mark"]))
+        self.skipped = [m["mark"] for m in marks if shape_geometry(m)["kind"] == "unknown"]   # assemblies
+        marks = [m for m in marks if m["mark"] not in self.skipped]
+        per = self.COLS * self.ROWS
+        Lmax = 0.0
+        for m in marks:
+            g = shape_geometry(m)
+            Lmax = max(Lmax, g.get("L") or g.get("h") or 300)
+        cell_h = Lmax + 650
+        pages = [marks[i:i + per] for i in range(0, len(marks), per)] or [[]]
+        self._last = pages[-1]
+        for p, chunk in enumerate(pages):
+            oy = -p * (self.ROWS * cell_h + 600)
+            self._view(f"DETAIL BRICK SHAPES {p + 1}/{len(pages)} - " + ", ".join(m["mark"] for m in chunk[:4])
+                       + (" ..." if len(chunk) > 4 else ""), self.draw_page, 0.0, oy, chunk, cell_h)
+        return self.doc
+
+
+def _stir_label(n):
+    """Short label of a stirring element on the GA: the MHP mark when given, else STIR."""
+    lab = str(n.get("label") or "")
+    return "STIR" if not lab or lab.lower().startswith("stirring") else lab
 
 
 def _in_sector(a, sector):

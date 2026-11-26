@@ -105,8 +105,8 @@ def _load_pdf(path: Path) -> list[np.ndarray]:
     # Open document
     doc = fitz.open(str(path))
     
-    # 130-150 DPI equivalent matrix (1 scale = 72 DPI, 130/72 = 1.8) - memory efficient & accurate
-    zoom = 1.8
+    # 250-260 DPI equivalent matrix (1 scale = 72 DPI, 260/72 = 3.6) so stroked CAD text is crisp for OCR
+    zoom = 3.6
     mat = fitz.Matrix(zoom, zoom)
     
     for i, page in enumerate(doc):
@@ -170,51 +170,85 @@ def _load_dxf(path: Path) -> list[np.ndarray]:
     return [img_bgr]
 
 
+def get_dwg_converter_status() -> dict[str, str | bool | None]:
+    """
+    Detect installed DWG -> DXF converters on the host / target server (FR-01.5).
+    Checks:
+      1. ODA File Converter (`ODAFileConverter` / `odafc`)
+      2. LibreDWG CLI (`dwg2dxf`) - open-source headless Linux/Windows converter
+      3. LibreCAD CLI (`librecad`)
+    """
+    oda = shutil.which("ODAFileConverter") or shutil.which("odafc")
+    for win_cand in (
+        r"C:\Program Files\ODA\ODAFileConverter\ODAFileConverter.exe",
+        r"C:\Program Files (x86)\ODA\ODAFileConverter\ODAFileConverter.exe",
+        "/usr/bin/ODAFileConverter",
+        "/usr/local/bin/ODAFileConverter",
+    ):
+        if not oda and Path(win_cand).exists():
+            oda = win_cand
+    dwg2dxf = shutil.which("dwg2dxf")
+    librecad = shutil.which("librecad")
+    active = "oda" if oda else ("libredwg" if dwg2dxf else ("librecad" if librecad else None))
+    return {
+        "dwg_supported": active is not None,
+        "active_converter": active,
+        "oda_path": oda,
+        "libredwg_dwg2dxf_path": dwg2dxf,
+        "librecad_path": librecad,
+        "install_hint": (
+            "Install LibreDWG on Ubuntu/AWS ('sudo apt-get install -y libredwg-tools') "
+            "or ODA File Converter ('deploy/install_oda_converter.sh')."
+        ),
+    }
+
+
 def _load_dwg(path: Path) -> list[np.ndarray]:
     """
-    Convert DWG → DXF using ODA File Converter (free, must be installed),
+    Convert DWG → DXF using ODA File Converter or LibreDWG (`dwg2dxf` fallback, FR-01.5),
     then load the DXF.
-
-    ODA File Converter download:
-    https://www.opendesign.com/guestfiles/oda_file_converter
-
-    Falls back to a warning if ODA Converter is not available.
     """
-    oda_path = shutil.which("ODAFileConverter") or shutil.which("odafc")
+    st = get_dwg_converter_status()
+    oda_path = st["oda_path"]
+    dwg2dxf_path = st["libredwg_dwg2dxf_path"]
 
-    if oda_path is None:
+    if not oda_path and not dwg2dxf_path:
         logger.warning(
-            "ODA File Converter not found. DWG → DXF conversion skipped. "
-            "Please install from https://www.opendesign.com/guestfiles/oda_file_converter"
+            "Neither ODA File Converter nor LibreDWG (dwg2dxf) found. DWG → DXF conversion skipped."
         )
         raise RuntimeError(
-            "DWG format requires ODA File Converter. "
-            "See README for installation instructions."
+            "DWG format requires ODA File Converter or LibreDWG (dwg2dxf). "
+            "Run deploy/install_oda_converter.sh on the target server."
         )
 
     with tempfile.TemporaryDirectory() as tmp_dir:
         tmp_out = Path(tmp_dir)
-        cmd = [
-            oda_path,
-            str(path.parent),   # input folder
-            str(tmp_out),        # output folder
-            "ACAD2018",          # output DXF version
-            "DXF",               # output type
-            "0",                 # recurse
-            "1",                 # audit
-            str(path.name),      # specific file
-        ]
-        logger.debug(f"Running ODA converter: {' '.join(cmd)}")
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
-
-        if result.returncode != 0:
-            raise RuntimeError(
-                f"ODA DWG→DXF conversion failed: {result.stderr}"
-            )
+        if oda_path:
+            cmd = [
+                str(oda_path),
+                str(path.parent),   # input folder
+                str(tmp_out),        # output folder
+                "ACAD2018",          # output DXF version
+                "DXF",               # output type
+                "0",                 # recurse
+                "1",                 # audit
+                str(path.name),      # specific file
+            ]
+            logger.debug(f"Running ODA converter: {' '.join(cmd)}")
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+            if result.returncode != 0:
+                raise RuntimeError(f"ODA DWG→DXF conversion failed: {result.stderr}")
+        else:
+            out_dxf = tmp_out / f"{path.stem}.dxf"
+            cmd = [str(dwg2dxf_path), "-o", str(out_dxf), str(path)]
+            logger.debug(f"Running LibreDWG converter: {' '.join(cmd)}")
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+            if result.returncode != 0 and not out_dxf.exists():
+                raise RuntimeError(f"LibreDWG DWG→DXF conversion failed: {result.stderr}")
 
         dxf_files = list(tmp_out.glob("*.dxf"))
         if not dxf_files:
-            raise RuntimeError("ODA Converter produced no DXF output.")
+            raise RuntimeError("DWG Converter produced no DXF output.")
 
         return _load_dxf(dxf_files[0])
 

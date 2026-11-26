@@ -115,17 +115,16 @@ def main() -> None:
     ui_dir = resolve_ui_dir()
     local_app_html = ui_dir / "app.html"
 
-    # Decide URL to open in native desktop shell:
-    # 1. If --local-ui is requested or remote server isn't reachable yet, load bundled ui/app.html?api=<server_url>
-    # 2. Otherwise load directly from central server or bundled UI with ?api= parameter
-    if not args.local_ui and check_server_reachable(server_url):
-        target_url = f"{server_url}/app"
-        print(f"[Desktop] Connected to Central Server: {server_url}")
-    elif local_app_html.exists():
+    # Privacy-first client architecture:
+    # Always run the UI, 14-step workflow state, formula engine (fx.js), and local session storage
+    # directly from the client's local disk (file:///.../ui/app.html?api=<server_url>).
+    # The remote server is only invoked for backend model inference (/api/v1/extraction/process and /api/v1/lining/generate).
+    if local_app_html.exists():
         target_url = f"{local_app_html.as_uri()}?api={server_url}"
-        print(f"[Desktop] Loading local Desktop UI bound to API: {server_url}")
+        print(f"[Desktop] Running Local Client UI (Private Local Storage) -> Backend Model API: {server_url}")
     else:
         target_url = f"{server_url}/app"
+        print(f"[Desktop] Fallback to Remote Server UI: {server_url}")
 
     try:
         import webview  # pywebview (uses native Windows Edge WebView2)

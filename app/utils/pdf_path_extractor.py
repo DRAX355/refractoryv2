@@ -41,6 +41,8 @@ class PDFPathProfile:
     page_width_pt: float = 0.0
     page_height_pt: float = 0.0
     taphole_inclination_deg: float | None = None
+    lower_cone_angle_deg: float | None = None
+    top_cone_angle_deg: float | None = None
     success: bool = False
 
 
@@ -74,9 +76,26 @@ def extract_pdf_path_profile(pdf_path: str | Path, text_polygons: list = None) -
 
             # Collect all line segments from PDF paths
             # pdfplumber exposes: page.lines, page.curves, page.rects
+            # If the CAD PDF separates structural shell lines (black/gray) from dimension/extension lines (red/blue),
+            # filter out the colored annotation layers and tiny stroked text glyphs so only the structural shell is traced.
+            def _is_neutral_stroke(col) -> bool:
+                if col in (None, 0, 0.0, (0,), (0.0,), (0, 0, 0), (0.0, 0.0, 0.0)):
+                    return True
+                if isinstance(col, (list, tuple)) and len(col) == 3:
+                    return (max(col) - min(col)) < 0.2 and max(col) < 0.65
+                return False
+
+            raw_lines = page.lines or []
+            neutral_lines = [
+                l for l in raw_lines
+                if _is_neutral_stroke(l.get("stroking_color"))
+                and math.hypot(float(l.get("x1", 0)) - float(l.get("x0", 0)), float(l.get("y1", 0)) - float(l.get("y0", 0))) >= 10.0
+            ]
+            use_neutral_only = len(neutral_lines) >= 8 and len(neutral_lines) < len(raw_lines)
+
             segments: list[tuple[float, float, float, float]] = []
 
-            for line in (page.lines or []):
+            for line in (neutral_lines if use_neutral_only else raw_lines):
                 try:
                     x1 = float(line["x0"])
                     y1 = float(line["y0"])
@@ -89,8 +108,15 @@ def extract_pdf_path_profile(pdf_path: str | Path, text_polygons: list = None) -
             for curve in (page.curves or []):
                 # Approximate the Bezier curve with straight line segments
                 try:
+                    if use_neutral_only and not _is_neutral_stroke(curve.get("stroking_color")):
+                        continue
                     pts = curve.get("pts", [])
                     if len(pts) >= 2:
+                        xs = [float(p[0]) for p in pts]
+                        ys = [float(p[1]) for p in pts]
+                        # Skip tiny stroked text character glyphs (< 14 pt bounding box)
+                        if use_neutral_only and max(max(xs) - min(xs), max(ys) - min(ys)) < 14.0:
+                            continue
                         for i in range(len(pts) - 1):
                             x1, y1 = pts[i]
                             x2, y2 = pts[i + 1]
@@ -170,7 +196,7 @@ def extract_pdf_path_profile(pdf_path: str | Path, text_polygons: list = None) -
                 for p in profile_pts
             ]
 
-            # Detect taphole centerline inclination from magenta centerline segments (CAD convention)
+            # Detect taphole centerline inclination from magenta (1,0,1) or red (1,0,0) centerline segments (CAD convention)
             mag_angles_h: list[float] = []
             mag_angles_v: list[float] = []
             has_horiz_cl = False
@@ -178,21 +204,25 @@ def extract_pdf_path_profile(pdf_path: str | Path, text_polygons: list = None) -
             for line in (page.lines or []):
                 try:
                     col = line.get("stroking_color")
-                    if col == (1, 0, 1) or (isinstance(col, (list, tuple)) and len(col) == 3 and col[0] > 0.8 and col[1] < 0.2 and col[2] > 0.8):
+                    is_cl_color = (
+                        col in ((1, 0, 1), (1, 0, 0), (1.0, 0.0, 1.0), (1.0, 0.0, 0.0))
+                        or (isinstance(col, (list, tuple)) and len(col) == 3 and col[0] > 0.8 and col[1] < 0.2)
+                    )
+                    if is_cl_color:
                         dx = float(line["x1"]) - float(line["x0"])
                         dy = float(line["y1"]) - float(line["y0"])
                         ln = math.hypot(dx, dy)
-                        if ln > 10.0:
+                        if ln > 3.0:
                             ang = abs(math.degrees(math.atan2(dy, dx)))
                             if ang > 90.0:
                                 ang = 180.0 - ang
-                            if ang < 1.0:
+                            if ang < 1.0 and ln > 8.0:
                                 has_horiz_cl = True
-                            elif ang > 89.0:
+                            elif ang > 89.0 and ln > 8.0:
                                 has_vert_cl = True
-                            elif 55.0 <= ang <= 88.5:
+                            elif 58.0 <= ang <= 85.0:
                                 mag_angles_h.append(90.0 - ang)
-                            elif 1.5 <= ang <= 35.0:
+                            elif 5.0 <= ang <= 35.0:
                                 mag_angles_v.append(ang)
                 except (KeyError, TypeError):
                     pass
@@ -201,6 +231,25 @@ def extract_pdf_path_profile(pdf_path: str | Path, text_polygons: list = None) -
                 incls.sort()
                 result.taphole_inclination_deg = round(incls[len(incls) // 2], 1)
                 logger.info(f"[PDF-Paths] Extracted taphole inclination from centerline: {result.taphole_inclination_deg}°")
+
+            # Also extract exact lower cone and top cone half-angles directly from the long structural black cone lines (>80 pt)
+            cone_lines: list[tuple[float, float]] = []  # (x_mid, angle_deg)
+            for x1, y1, x2, y2 in segments:
+                ln = math.hypot(x2 - x1, y2 - y1)
+                if ln >= 80.0:
+                    ang = abs(math.degrees(math.atan2(abs(y2 - y1), abs(x2 - x1))))
+                    if 16.0 <= ang <= 42.0:
+                        cone_lines.append(((x1 + x2) / 2.0, round(ang, 1)))
+            if cone_lines:
+                cone_lines.sort(key=lambda t: t[0])
+                left_angs = [a for x, a in cone_lines if x < result.page_width_pt * 0.5]
+                right_angs = [a for x, a in cone_lines if x >= result.page_width_pt * 0.5]
+                if left_angs:
+                    left_angs.sort()
+                    result.lower_cone_angle_deg = left_angs[len(left_angs) // 2]
+                if right_angs:
+                    right_angs.sort()
+                    result.top_cone_angle_deg = right_angs[len(right_angs) // 2]
 
             result.points = profile_mm
             result.total_height_mm = profile_mm[-1].y_mm - profile_mm[0].y_mm if profile_mm else 0.0

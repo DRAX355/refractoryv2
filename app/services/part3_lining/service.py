@@ -5,7 +5,8 @@ Part 3 - Lining Designer service.
 
 Input  : the values the user confirmed in the wizard (vessel profile from teammate 1's extraction,
          design basis, lining concept zones, nozzles) + the brick library.
-Output : DXF drawings (lining GA with nozzles, brick shapes, layers/brick layout) with PNG/PDF
+Output : DXF drawings (lining GA with nozzles, brick shapes, layers/brick layout, zone drawings,
+         bottom brick layout, detail brick shapes, MHP drawings, taphole drawings) with PNG/PDF
          previews, the course schedule, bottom ring table, volumes and checks.
 """
 from __future__ import annotations
@@ -20,14 +21,18 @@ from pathlib import Path
 from .lining.adapter import build_engine_inputs
 from .lining.bom import build_bom
 from .lining.checks import run_checks
-from .lining.bricks import band_kind, bottom_rings, course_schedule, quantities
-from .lining.drawings import BrickSheet, LayerSheet, LiningSheet, aci_hex, assign_mark_colors, mark_info, save_previews
+from .lining.bricks import band_kind, bottom_rings, course_schedule, design_mhp_and_taphole_assemblies, quantities
+from .lining.assemblies import MhpSheet, TapholeSheet, mhp_inputs, taphole_inputs
+from .lining.drawings import (BottomLayoutSheet, BrickSheet, LayerSheet, LiningSheet, ShapeSheet, ZoneSheet,
+                              aci_hex, assign_mark_colors, mark_info, save_previews)
 from .lining import pages as _pages
 from .lining.geometry import region_area_moment, reverse_run, sample
 from .lining.model import angle_breaks, validate
 from .lining.report import build_report
 
-LIB_PATH = Path(__file__).parent / "data" / "brick_library_mock.json"
+LIB_PATH = Path(__file__).parent / "data" / "trl_brick_library.json"
+LEGACY_MOCK_LIB_PATH = Path(__file__).parent / "data" / "brick_library_mock.json"
+CLIENT_ASSEMBLIES_PATH = Path(__file__).parent / "data" / "client_assemblies.json"
 
 
 class LiningInputError(ValueError):
@@ -39,7 +44,21 @@ class LiningInputError(ValueError):
 def load_library(payload_lib=None):
     if payload_lib and payload_lib.get("bricks"):
         return payload_lib
-    return json.loads(LIB_PATH.read_text(encoding="utf-8"))
+    try:
+        from refractory_core import get_core
+        return get_core().shapes.get_library()
+    except Exception:
+        p = LIB_PATH if LIB_PATH.exists() else LEGACY_MOCK_LIB_PATH
+        return json.loads(p.read_text(encoding="utf-8"))
+
+
+def _load_default_client_assemblies():
+    if CLIENT_ASSEMBLIES_PATH.exists():
+        try:
+            return json.loads(CLIENT_ASSEMBLIES_PATH.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+    return {}
 
 
 def add_entered_bricks(lib, payload, st):
@@ -275,6 +294,37 @@ def generate(payload: dict, out_dir: Path, url_prefix: str = "", progress=None) 
         lib, lib_notes = add_entered_bricks(lib, payload, st)
         nozzles = _nozzles(payload.get("nozzles"))
 
+        # Load MHP and taphole set from payload, or default to TRL client_assemblies.json when nozzles are present
+        _client_asm = _load_default_client_assemblies()
+        raw_mhp = payload.get("mhp")
+        if not raw_mhp and any(n["type"] == "stirring" for n in nozzles):
+            mhp_sets = _client_asm.get("mhp_sets") or []
+            if mhp_sets:
+                raw_mhp = dict(mhp_sets[0].get("values") or {})
+        raw_th_set = payload.get("taphole_set")
+        if not raw_th_set and any(n["type"] == "taphole" for n in nozzles):
+            th_sets = _client_asm.get("taphole_sets") or []
+            if th_sets:
+                raw_th_set = dict(th_sets[0].get("values") or {})
+                tap_noz = next((n for n in nozzles if n["type"] == "taphole"), {})
+                if tap_noz.get("diameter") and not raw_th_set.get("opening"):
+                    raw_th_set["opening"] = tap_noz["diameter"]
+                if tap_noz.get("inclination") and not raw_th_set.get("incl"):
+                    raw_th_set["incl"] = tap_noz["inclination"]
+
+        _mhp = mhp_inputs(raw_mhp)
+        _th_set = taphole_inputs(raw_th_set)
+        for n in nozzles:                                      # the stirring elements are the MHPs (TRL name)
+            if n["type"] == "stirring" and _mhp:
+                n["label"] = _mhp["mark"]
+                n["mhp"] = _mhp
+                if not n.get("size_a"):
+                    n["size_a"] = _mhp["coldW"]
+                if not n.get("size_b"):
+                    n["size_b"] = _mhp["hotW"]
+                if not n.get("height"):
+                    n["height"] = _mhp["L"]
+
         payload = dict(payload)
         if (payload.get("design") or {}).get("grade_colors"):
             payload["design"] = {**payload["design"], "grade_colors": _aci_colors(payload["design"]["grade_colors"])}
@@ -293,11 +343,18 @@ def generate(payload: dict, out_dir: Path, url_prefix: str = "", progress=None) 
         n_edited = sum(1 for r in inputs if r.get("edited"))
         set_info = {"project": f"{job}" + (f"  -  {payload.get('customer')}" if payload.get("customer") else ""),
                     "company": "REFRACTORY LINING DESIGN  -  AI LINING COPILOT",
-                    "edited": n_edited}
+                    "edited": n_edited,
+                    # TRL Krosaki title block
+                    "client": " - ".join(str(x) for x in (payload.get("customer"), payload.get("plant")) if x),
+                    "vessel": str(payload.get("vessel_name") or ""),
+                    "prepared": str(payload.get("prepared_by") or ""), "checked": "", "approved": "",
+                    "rev": 0, "rev_kind": "FIRST ISSUE", "issue_status": "FOR APPROVAL"}
 
-    def output(doc, views, name, set_title, code, pct0, pct1):
+    def output(doc, views, name, set_title, code, pct0, pct1, paper="A1"):        # A1 = TRL's drawing size
         """One page per view (PDF + AutoCAD layouts in the DXF), DXF saved, DWG when the converter exists."""
-        info = {**set_info, "set_title": set_title, "drawing_no": f"{safe_name(job)}-{code}"}
+        pre = str(payload.get("file_prefix") or "")
+        info = {**set_info, "set_title": set_title, "drawing_no": f"{safe_name(job)}-{code}",
+                "cad_file": f"{pre + '_' if pre else ''}{name}.dxf", "paper": paper}
         n = len(views)
 
         def page_done(i, n_, title):
@@ -344,11 +401,19 @@ def generate(payload: dict, out_dir: Path, url_prefix: str = "", progress=None) 
         step("Computing course schedule and bottom rings from the brick library", 10)
         courses, course_flags, cone_gaps = course_schedule(sheet, lib, st)
         rings = bottom_rings(sheet, lib, st, nozzles, payload.get("bottom") or {})
+        mhp_taphole = design_mhp_and_taphole_assemblies(lib, nozzles, payload.get("bottom") or {}, payload.get("grade_density") or {})
         step("Drawing every brick joint on the lining GA", 12)
         try:
             sheet.draw_brick_joints(courses, rings)
         except Exception:
             pass
+        step("Adding TRL detail to the lining GA (permanent bricks, course tags, marks, rings, MHP)", 12)
+        try:
+            sheet.draw_trl_detail(courses, rings, _mhp,
+                                  {b.get("name"): b.get("permanent") for b in (payload.get("design") or {}).get("bands", [])},
+                                  _th_set)
+        except Exception as e:                                 # the GA without the extra detail is still delivered
+            step(f"Lining GA detail not added ({type(e).__name__}: {e})", 12)
         qty = quantities(courses, rings)
         bom = build_bom(sheet, lib, courses, rings, vols, nozzles, st, payload.get("grade_density") or {}, cone_gaps,
                         payload.get("monolithic") or {}, payload.get("extra_items") or [], payload.get("junctions") or [])
@@ -356,7 +421,7 @@ def generate(payload: dict, out_dir: Path, url_prefix: str = "", progress=None) 
 
     with timer.step("3.4 Render Lining GA pages & previews (DXF / PNG / PDF)"):
         step(f"Lining GA: {len(sheet.views)} drawings, one page each (PDF + AutoCAD layouts)", 13)
-        files.update(output(sheet.doc, sheet.views, "lining_ga", "LINING GA", "GA", 13, 30))
+        files.update(output(sheet.doc, sheet.views, "lining_ga", "LINING GA", "GA", 13, 30, "A1"))
         ready("Lining GA", "lining_ga.png" if "lining_ga.png" in files else None, 30)
 
     with timer.step("3.5 Run accuracy self-checks"):
@@ -380,8 +445,89 @@ def generate(payload: dict, out_dir: Path, url_prefix: str = "", progress=None) 
         ls = LayerSheet(sheet, courses, rings, nozzles, job, mcol, minfo)
         step("Drawing the layers & brick layout sheet", 60)
         ls.build()
-        files.update(output(ls.doc, ls.views, "lining_layers", "LINING LAYERS & BRICK LAYOUT", "LL", 62, 92))
-        ready("Layers & brick layout", "lining_layers.png" if "lining_layers.png" in files else None, 92)
+        files.update(output(ls.doc, ls.views, "lining_layers", "LINING LAYERS & BRICK LAYOUT", "LL", 62, 86))
+        ready("Layers & brick layout", "lining_layers.png" if "lining_layers.png" in files else None, 86)
+
+    with timer.step("3.7b Build & render Zone drawings - one page per zone (DXF / PNG / PDF)"):
+        try:
+            zs = ZoneSheet(sheet, courses, rings, nozzles, job, mcol, minfo, bom)
+            zs.detail = {"mhp": _mhp, "th_set": _th_set,
+                         "perm": {b.get("name"): b.get("permanent") for b in (payload.get("design") or {}).get("bands", [])}}
+            step("Drawing one zone drawing per zone (section, dimensions, brick layout, zone BOM)", 87)
+            zs.build()
+            files.update(output(zs.doc, zs.views, "zone_drawings", "ZONE DRAWINGS", "ZD", 87, 94))
+            ready("Zone drawings", "zone_drawings.png" if "zone_drawings.png" in files else None, 94)
+        except Exception as e:                                 # the other drawings and the BOM are still delivered
+            step(f"Zone drawings not made ({type(e).__name__}: {e})", 94)
+
+    with timer.step("3.7b2 Build & render Circular bottom brick layout (section + plan + ring BOQ)"):
+        if rings and rings.get("rings"):
+            try:
+                bl = BottomLayoutSheet(sheet, courses, rings, nozzles, job, mcol, minfo, bom)
+                bl.detail = zs.detail if "zs" in locals() else None
+                step("Drawing the circular bottom brick layout (TRL sheet: section, plan, ring BOQ)", 94)
+                bl.build()
+                files.update(output(bl.doc, bl.views, "bottom_layout", "BOTTOM BRICK LAYOUT", "BL", 94, 94, "A1"))
+                ready("Bottom brick layout", "bottom_layout.png" if "bottom_layout.png" in files else None, 94)
+            except Exception as e:                             # the other drawings and the BOM are still delivered
+                step(f"Bottom brick layout not made ({type(e).__name__}: {e})", 94)
+
+    with timer.step("3.7c Build & render Detail brick shapes - one drawing per mark (DXF / PNG / PDF)"):
+        try:
+            ss = ShapeSheet(bom, lib, job)
+            step(f"Drawing the detail brick shapes ({len(ss.marks)} marks of this design)", 94)
+            ss.build()
+            files.update(output(ss.doc, ss.views, "shape_drawings", "DETAIL BRICK SHAPES", "DS", 94, 95))
+            ready("Detail brick shapes", "shape_drawings.png" if "shape_drawings.png" in files else None, 95)
+        except Exception as e:                                 # the other drawings and the BOM are still delivered
+            step(f"Detail brick shapes not made ({type(e).__name__}: {e})", 95)
+
+    with timer.step("3.7d Build & render MHP drawings - MHP & seating block, dummy brick, position plan"):
+        mhp = _mhp
+        stir = next((n for n in nozzles if n["type"] == "stirring"), None)
+        if mhp and stir:
+            try:
+                ms = MhpSheet(mhp, stir, rings, job, str(payload.get("vessel_name") or ""))
+                rc = float((rings or {}).get("cold_sphere_radius") or 0)
+                rb_ = next((bi for bi, b in enumerate(sheet.bands) if b["name"] == (rings or {}).get("band")), None)
+                if rc and rb_ is not None:              # dish radii of this job (foundation sheet)
+                    from .lining.model import sector_at as _sa
+                    lay_ = _sa(sheet.bands[rb_], 0.0)["layers"]
+                    t_w = float(lay_[-1]["thickness"] or 0)
+                    t_p = sum(float(l["thickness"] or 0) for l in lay_[:-1])
+                    ms.radii = {"hot": rc - t_w, "cold": rc, "shell": rc + t_p,
+                                "shell_out": rc + t_p + sheet.shell_t if sheet.shell_t else None,
+                                "edge": float(rings["rings"][-1]["r_out"])}
+                step(f"Drawing the {mhp['mark']} sheets ({stir['count']} on PCD {stir['pcd']:g})", 95)
+                ms.build()
+                files.update(output(ms.doc, ms.views, "mhp_drawings", "MHP DRAWINGS", "MH", 95, 95))
+                ready("MHP drawings", "mhp_drawings.png" if "mhp_drawings.png" in files else None, 95)
+            except Exception as e:                             # the other drawings and the BOM are still delivered
+                step(f"MHP drawings not made ({type(e).__name__}: {e})", 95)
+        elif stir:
+            step("MHP drawings not made - MHP dimensions not entered", 95)
+
+    with timer.step("3.7e Build & render Taphole drawings - assembly & detail of blocks and sleeves"):
+        tap = next((n for n in nozzles if n["type"] == "taphole"), None)
+        if _th_set:
+            try:
+                lin_len = None
+                if tap:
+                    p_s, p_o, p_e = sheet._radial_axis(tap, float(tap["angle"]))
+                    lin_len = math.dist(p_o, p_e) - sheet.shell_t
+                b_len = sum(q["L"] for q in _th_set["pieces"] if q["kind"] == "block")
+                if lin_len and abs(b_len - lin_len) > 0.05 * lin_len:
+                    step(f"WARNING taphole: block set {b_len:g} mm long, lining along the taphole axis {lin_len:.0f} mm "
+                         f"- adjust the taphole set or the top cone lining", 95)
+                ts = TapholeSheet(_th_set, tap, job, lin_len)
+                step("Drawing the taphole assembly & detail sheets (blocks, sleeves)", 95)
+                ts.build()
+                files.update(output(ts.doc, ts.views, "taphole_drawings", "TAPHOLE DRAWINGS", "TH", 95, 95))
+                ready("Taphole drawings", "taphole_drawings.png" if "taphole_drawings.png" in files else None, 95)
+            except Exception as e:                             # the other drawings and the BOM are still delivered
+                step(f"Taphole drawings not made ({type(e).__name__}: {e})", 95)
+        elif tap:
+            step("Taphole drawings not made - taphole set not entered", 95)
 
     # tables
     with timer.step("3.8 Write CSV / XLSX tables and summary"):
@@ -430,6 +576,66 @@ def generate(payload: dict, out_dir: Path, url_prefix: str = "", progress=None) 
         files["vessel.json"] = out_dir / "vessel.json"
         files["design.json"] = out_dir / "design.json"
 
+        # Link every output package to its source document versions and Knowledge Base version
+        from refractory_core import get_core
+        _core = get_core()
+        _src_docs = list(payload.get("source_documents") or [])
+        _ing_job_id = str(payload.get("ingestion_job_id") or payload.get("source_job_id") or "").strip()
+        if _ing_job_id:
+            from app.core.config import settings as _settings
+            _mf = _settings.outputs_dir / _ing_job_id / "source_manifest.json"
+            if _mf.exists():
+                try:
+                    _src_docs.append(json.loads(_mf.read_text(encoding="utf-8")))
+                except Exception:
+                    pass
+        if not _src_docs and isinstance(payload.get("vessel"), dict):
+            _vsrc = payload["vessel"]
+            if _vsrc.get("source_file") or _vsrc.get("drawing_number"):
+                _src_docs.append({
+                    "filename": _vsrc.get("source_file", "shell_drawing"),
+                    "drawing_number": _vsrc.get("drawing_number", ""),
+                    "revision": _vsrc.get("revision", "0"),
+                    "sha256": _vsrc.get("file_hash_sha256", ""),
+                })
+        _used_marks = sorted({m.replace(" (cut)", "") for m in qty if qty[m]})
+        _by_mark = {b["mark"]: b for b in lib.get("bricks", [])}
+        _mark_sources = {}
+        for _m in _used_marks:
+            _b = _by_mark.get(_m, {})
+            _mark_sources[_m] = {
+                "source_ref": _b.get("source_ref") or {"document_no": "TRLK/SS/BOF/06/08.10.2016", "revision": "08.10.2016"},
+                "registered_drawings": _b.get("registered_drawings", []),
+            }
+        _kb_stamp = _core.kb_versions.stamp_design(
+            job_id=str(payload.get("_job_run_id") or job),
+            job_ref=job,
+            output_dir=out_dir,
+            actor=str(payload.get("_actor") or "designer"),
+            source_documents=_src_docs,
+        )
+        package_lineage = {
+            "job": job,
+            "generated_at": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
+            "generated_by": str(payload.get("_actor") or "designer"),
+            "kb_version": _kb_stamp["kb_version"],
+            "kb_sha256": _kb_stamp["kb_sha256"],
+            "kb_snapshot_json": _kb_stamp["kb_snapshot_json"],
+            "source_documents": _src_docs,
+            "shape_library_document": (lib.get("document_metadata") or {}).get("primary_catalog", {
+                "document_no": "TRLK/SS/BOF/06/08.10.2016",
+                "revision": "08.10.2016",
+            }),
+            "safety_brick_document": (lib.get("document_metadata") or {}).get("safety_brick_catalog", {
+                "document_no": "TRLK/SAFETY-BRICK-LIB/BOF-BARREL",
+                "revision": "1.0",
+            }),
+            "used_brick_marks_lineage": _mark_sources,
+        }
+        (out_dir / "package_lineage.json").write_text(json.dumps(package_lineage, indent=2), encoding="utf-8")
+        files["package_lineage.json"] = out_dir / "package_lineage.json"
+        files["kb_stamp.json"] = out_dir / "kb_stamp.json"
+
     txt_path, json_path = timer.finalize()
     files["timings.txt"] = txt_path
     files["timings.json"] = json_path
@@ -454,6 +660,7 @@ def generate(payload: dict, out_dir: Path, url_prefix: str = "", progress=None) 
         "courses": courses,
         "n_courses": n_wall,
         "bottom_rings": rings,
+        "mhp_and_taphole_assemblies": mhp_taphole,
         "quantities": qty,
         "bom": bom,
         "checks": checks,
@@ -463,6 +670,8 @@ def generate(payload: dict, out_dir: Path, url_prefix: str = "", progress=None) 
         "library_gaps": lib_gaps,
         "warnings": warn,
         "engine_vessel": vessel,
+        "kb_stamp": _kb_stamp,
+        "package_lineage": package_lineage,
         "bands": [{"name": b["name"], "kind": band_kind(sheet, i), "z": [round(x, 1) for x in sheet.band_z(i)]}
                   for i, b in enumerate(sheet.bands)],
     }

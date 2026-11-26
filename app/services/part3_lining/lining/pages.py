@@ -12,10 +12,27 @@ them while drawing (see Sheet._view / Doc._view), so a page holds exactly the en
 """
 import datetime
 import math
+import threading as _threading
 
-PAGE_W, PAGE_H = 420.0, 297.0                 # A3 landscape, mm
+PAGE_W, PAGE_H = 420.0, 297.0                 # A3 landscape, mm (default)
+PAPER = "A3"
+PAPERS = {"A3": (420.0, 297.0), "A2": (594.0, 420.0), "A1": (841.0, 594.0)}
+# The paper size lives in module globals while a set is drawn; generations run in background threads, so two
+# jobs at the same time must not change it under each other (that gave mixed A1 / A3 pages). One set at a time.
+_PAPER_LOCK = _threading.RLock()
+
+
+def _set_paper(name):
+    """Sheet size of the drawing set being made (TRL's lining GA is A1); returns the previous size."""
+    global PAGE_W, PAGE_H, PAPER
+    prev = PAPER
+    PAPER = name if name in PAPERS else "A3"
+    PAGE_W, PAGE_H = PAPERS[PAPER]
+    return prev
+
+
 BORDER = 10.0
-TB_H = 30.0                                   # title block height (mm)
+TB_H = 44.0                                   # title block height (mm) - TRL Krosaki standard
 MM = 72.0 / 25.4                              # PDF points per mm
 
 
@@ -138,6 +155,100 @@ def _date():
     return datetime.date.today().strftime("%d-%m-%Y")
 
 
+TB_NOTES = ["1. All dimensions are in mm.", "2. For BOM refer separate sheet attached with this drg.",
+            "3. Bricks to be cut at site if required.", "4. Please do not scale the drg., if in doubt please ask."]
+TB_PROPERTY = ["THE DRAWINGS & IT'S CONTENTS ARE THE PROPERTY OF TRL KROSAKI REFRACTORIES LTD.",
+               "SHOULD NOT BE REPRODUCED, PUBLISHED OR USED IN ANY WAY WITHOUT THE PERMISSION",
+               "OF TRL KROSAKI REFRACTORIES LIMITED."]
+
+
+def title_block(info, i, n, title, scale, note=None):
+    """TRL Krosaki title block (as on TRL's 180 MT reference sheets), laid out in paper mm with the origin at the
+    bottom-left of the sheet. Returns (lines, texts): lines = [(x0, y0, x1, y1, weight)],
+    texts = [(x, y, text, height_mm, bold, rgb)]. Used for the PDF pages and the AutoCAD layouts alike."""
+    L, T = [], []
+    b = BORDER
+    y0, y1 = b, b + TB_H
+    xa, xb, xc, xd = b, b + 118.0, b + 228.0, PAGE_W - b          # notes | revisions + status | identification
+    for x in (xb, xc):
+        L.append((x, y0, x, y1, 0.5))
+    L.append((xa, y1, xd, y1, 1.0))
+    red, grey, blk = (0.75, 0, 0), (0.3, 0.3, 0.3), (0, 0, 0)
+    # --- left: notes, property note, warnings
+    T.append((xa + 2, y1 - 4.5, "NOTE:", 2.4, True, blk))
+    for k, t in enumerate(TB_NOTES):
+        T.append((xa + 2, y1 - 8.5 - k * 3.4, t, 2.0, False, blk))
+    L.append((xa, y1 - 23, xb, y1 - 23, 0.4))
+    for k, t in enumerate(TB_PROPERTY):
+        T.append((xa + 2, y1 - 26.5 - k * 2.8, t, 1.6, False, blk))
+    if info.get("edited"):
+        T.append((xa + 2, y0 + 4.6, f"! {info['edited']} input value(s) EDITED by the designer - see 'DESIGN INPUT VALUES'",
+                  1.7, True, red))
+    if note:
+        T.append((xa + 2, y0 + 1.6, str(note)[:95], 1.6, False, grey))
+    # --- middle: revision table + status boxes
+    cols = [("REV", 9), ("KIND OF REVISION", 31), ("PREPARED", 18), ("CHECKED", 17), ("APPROVED", 18), ("DATE", 17)]
+    rows_y = [y1, y1 - 7, y1 - 14, y1 - 21, y1 - 28]               # header line positions (4 revision rows)
+    for yy in rows_y[1:]:
+        L.append((xb, yy, xc, yy, 0.4))
+    x = xb
+    for k, (c, w) in enumerate(cols):
+        if k:
+            L.append((x, rows_y[-1], x, y1, 0.4))
+        x += w
+    revs = [(str(info.get("rev", 0)), info.get("rev_kind", "FIRST ISSUE"), info.get("prepared", ""),
+             info.get("checked", ""), info.get("approved", ""), info.get("date") or _date())]
+    for r, yy in enumerate([rows_y[2], rows_y[1], rows_y[0]]):   # first issue in the row just above the header
+        vals = revs[r] if r < len(revs) else ("",) * 6
+        x = xb
+        for (c, w), v in zip(cols, vals):
+            T.append((x + 1, yy - 5, str(v)[:int(w / 1.4)], 2.0, False, blk))
+            x += w
+    x = xb
+    for c, w in cols:                                              # header at the bottom of the table, as TRL
+        T.append((x + 1, rows_y[-1] + 2, c, 1.7, True, blk))
+        x += w
+    stat = info.get("issue_status", "FOR APPROVAL")
+    boxes = ["FOR INFORMATION", "FOR ERECTION", "FOR APPROVAL", "FOR PRODUCTION"]
+    bw = (xc - xb) / 2
+    for k, nm in enumerate(boxes):
+        bx, by = xb + (k % 2) * bw, y0 + (1 - k // 2) * 8.0
+        L.append((bx, by + 8, bx + bw, by + 8, 0.4))
+        T.append((bx + 1.5, by + 2.6, nm, 1.9, True, blk))
+        T.append((bx + bw - 8, by + 2.6, "X" if nm == stat else "NA", 2.0, nm == stat, red if nm == stat else grey))
+    L.append((xb + bw, y0, xb + bw, y0 + 16, 0.4))
+    # --- right: identification
+    ry = [y1, y1 - 8, y1 - 20, y1 - 32, y0]
+    for yy in ry[1:-1]:
+        L.append((xc, yy, xd, yy, 0.5))
+    T.append((xc + 1.5, y1 - 3.0, "CLIENT:", 1.8, False, grey))
+    T.append((xc + 16, y1 - 5.6, str(info.get("client") or "")[:70], 3.0, True, blk))
+    T.append((xc + 1.5, ry[1] - 3.0, "TITLE:", 1.8, False, grey))
+    t1 = str(info.get("set_title", "")) + (f" FOR {info['vessel']}" if info.get("vessel") else "")
+    T.append((xc + 16, ry[1] - 5.4, t1[:62], 3.0, True, blk))
+    T.append((xc + 16, ry[1] - 10.2, str(title)[:80], 2.3, False, blk))
+    w3 = (xd - xc)
+    c1, c2 = xc + w3 * 0.58, xc + w3 * 0.76
+    for x in (c1, c2):
+        L.append((x, ry[3], x, ry[2], 0.5))
+    T.append((xc + 1.5, ry[2] - 3.0, "DRG. NO.:", 1.8, False, grey))
+    T.append((xc + 3, ry[2] - 8.5, f"{info.get('drawing_no', 'LINING')}-{i:02d}", 2.8, True, blk))
+    T.append((c1 + 1.5, ry[2] - 3.0, "REV.:", 1.8, False, grey))
+    T.append((c1 + 4, ry[2] - 8.5, str(info.get("rev", 0)), 2.8, True, blk))
+    T.append((c2 + 1.5, ry[2] - 3.0, "SHEET", 1.8, False, grey))
+    T.append((c2 + 4, ry[2] - 8.5, f"{i} OF {n}", 2.8, True, blk))
+    s1, s2 = xc + w3 * 0.18, xc + w3 * 0.40
+    for x in (s1, s2):
+        L.append((x, y0, x, ry[3], 0.5))
+    T.append((xc + 1.5, ry[3] - 3.0, "SIZE:", 1.8, False, grey))
+    T.append((xc + 3, ry[3] - 8.5, PAPER, 2.8, True, blk))
+    T.append((s1 + 1.5, ry[3] - 3.0, "SCALE:", 1.8, False, grey))
+    T.append((s1 + 3, ry[3] - 8.5, f"1:{scale:g}" if scale else "NTS", 2.8, True, blk))
+    T.append((s2 + 1.5, ry[3] - 3.0, "CAD FILE NAME:", 1.8, False, grey))
+    T.append((s2 + 3, ry[3] - 8.5, str(info.get("cad_file", ""))[:46], 2.2, False, blk))
+    return L, T
+
+
 def title_rows(info, i, n, title, scale):
     """Title block content (label, value) for page i of n."""
     return [
@@ -145,7 +256,7 @@ def title_rows(info, i, n, title, scale):
         ("DRAWING", f"{info.get('set_title', '')} - {title}"),
         ("DRG. NO.", f"{info.get('drawing_no', 'LINING')}-{i:02d}"),
         ("SHEET", f"{i} OF {n}"),
-        ("SCALE", f"1:{scale:g} (A3)" if scale else "NTS"),
+        ("SCALE", f"1:{scale:g} ({PAPER})" if scale else "NTS"),
         ("DATE", _date()),
     ]
 
@@ -153,7 +264,16 @@ def title_rows(info, i, n, title, scale):
 # ---------------------------------------------------------------- PDF pages + PNG overview
 def render_pages(doc, views, folder, name, info, dpi=90, progress=None):
     """One PDF page per view. Returns (files, extents) where extents[i] = (x0, y0, x1, y1) in model units
-    of view i (None when the view could not be rendered)."""
+    of view i (None when the view could not be rendered). info["paper"] = A3 (default) / A2 / A1."""
+    with _PAPER_LOCK:
+        prev = _set_paper(info.get("paper") or "A3")
+        try:
+            return _render_pages(doc, views, folder, name, info, dpi, progress)
+        finally:
+            _set_paper(prev)
+
+
+def _render_pages(doc, views, folder, name, info, dpi=90, progress=None):
     try:
         import pymupdf
     except ImportError:                          # older PyMuPDF releases
@@ -197,7 +317,7 @@ def render_pages(doc, views, folder, name, info, dpi=90, progress=None):
     out.save(str(pdf), garbage=1, deflate=True)
     png = folder / f"{name}.png"
     try:
-        _overview(out, png, dpi)
+        _overview(out, png, max(20, int(round(dpi * 420.0 / PAGE_W))))   # same preview size as an A3 page (A1 = half the dpi)
     except Exception:
         png = None
     out.close()
@@ -214,39 +334,11 @@ def _frame(pg, info, i, n, title, scale, note=None):
     k = W / PAGE_W
     b = BORDER * k
     pg.draw_rect(pymupdf.Rect(b, b, W - b, H - b), color=(0, 0, 0), width=1.4)
-    tb_w = 200 * k
-    x0, y0, x1, y1 = W - b - tb_w, H - b - TB_H * k, W - b, H - b
-    pg.draw_rect(pymupdf.Rect(x0, y0, x1, y1), color=(0, 0, 0), width=1.0)
-    rows = title_rows(info, i, n, title, scale)
-    rh = (y1 - y0) / len(rows)
-    lab_w = 28 * k
-    for r, (lab, val) in enumerate(rows):
-        yy = y0 + r * rh
-        if r:
-            pg.draw_line((x0, yy), (x1, yy), color=(0, 0, 0), width=0.5)
-        pg.insert_text((x0 + 1.5 * k, yy + rh * 0.72), lab, fontsize=6.2, fontname="helv", color=(0.3, 0.3, 0.3))
-        fs = 8.5 if r == 1 else 7.5
-        txt = str(val)
-        maxc = int((tb_w - lab_w - 3 * k) / (fs * 0.5))
-        if len(txt) > maxc:
-            txt = txt[:maxc - 1] + "…"
-        pg.insert_text((x0 + lab_w, yy + rh * 0.72), txt, fontsize=fs, fontname="hebo" if r == 1 else "helv")
-    pg.draw_line((x0 + lab_w - 2 * k, y0), (x0 + lab_w - 2 * k, y1), color=(0, 0, 0), width=0.5)
-    # left part of the strip: company / status / edited-input warning
-    lx = b + 3 * k
-    pg.draw_line((b, y0), (x0, y0), color=(0, 0, 0), width=1.0)
-    pg.insert_text((lx, y0 + 7 * k), info.get("company", "REFRACTORY LINING DESIGN"), fontsize=10, fontname="hebo")
-    pg.insert_text((lx, y0 + 13 * k), info.get("subtitle", "Generated by the Lining Copilot from the confirmed inputs. "
-                                       "All dimensions in mm."), fontsize=6.5, fontname="helv")
-    pg.insert_text((lx, y0 + 18.5 * k), info.get("status", "STATUS: FOR CUSTOMER APPROVAL - DRAFT, CHECK BEFORE ISSUE"),
-                   fontsize=7, fontname="hebo", color=(0.75, 0, 0))
-    if info.get("edited"):
-        pg.insert_text((lx, y0 + 24 * k), f"! {info['edited']} input value(s) were EDITED by the designer (not read from "
-                       f"the uploaded drawing) - see sheet 'DESIGN INPUT VALUES' of the lining GA.",
-                       fontsize=6.5, fontname="hebo", color=(0.85, 0, 0))
-    if note:
-        pg.insert_text((lx, y0 + 28.5 * k), str(note)[:150], fontsize=6, fontname="helv", color=(0.25, 0.25, 0.25))
-    # sheet title above the title block, top-left of the drawing area
+    lines, texts = title_block(info, i, n, title, scale, note)
+    for (ax, ay, bx, by, wgt) in lines:                    # paper mm, origin bottom-left -> PDF points, origin top-left
+        pg.draw_line((ax * k, H - ay * k), (bx * k, H - by * k), color=(0, 0, 0), width=wgt * 1.6)
+    for (tx, ty, s, hmm, bold, rgb) in texts:
+        pg.insert_text((tx * k, H - ty * k), s, fontsize=hmm * MM * 1.35, fontname="hebo" if bold else "helv", color=rgb)
     pg.insert_text((b + 4 * k, b + 6 * k), title, fontsize=11, fontname="hebo")
 
 
@@ -283,6 +375,15 @@ def _safe_layout_name(s, used):
 
 
 def add_layouts(doc, views, extents, info):
+    with _PAPER_LOCK:
+        prev = _set_paper(info.get("paper") or "A3")
+        try:
+            return _add_layouts(doc, views, extents, info)
+        finally:
+            _set_paper(prev)
+
+
+def _add_layouts(doc, views, extents, info):
     """One paper-space layout (A3 landscape) per view: border, title block and a viewport showing the
     view at a standard scale. Opening the DXF in AutoCAD shows one layout tab per drawing."""
     used = {lay.name.lower() for lay in doc.layouts}
@@ -308,27 +409,12 @@ def add_layouts(doc, views, extents, info):
         lay.add_viewport(center=((ax0 + ax1) / 2, (ay0 + ay1) / 2), size=(aw, ah),
                          view_center_point=((ext[0] + ext[2]) / 2, (ext[1] + ext[3]) / 2), view_height=ah * scale,
                          dxfattribs={"layer": "SHEET_FRAME"})
-        # title block (bottom right) + left strip
-        tb_w = 200.0
-        x0, y0, x1, y1 = PAGE_W - b - tb_w, b, PAGE_W - b, b + TB_H
-        lay.add_lwpolyline([(x0, y0), (x1, y0), (x1, y1), (x0, y1)], close=True, dxfattribs=attr)
-        lay.add_line((b, y1), (x0, y1), dxfattribs=attr)
-        rows = title_rows(info, i, n, v["title"], scale)
-        rh = TB_H / len(rows)
-        for r, (lab, val) in enumerate(rows):
-            yy = y1 - (r + 1) * rh
-            if r < len(rows) - 1:
-                lay.add_line((x0, yy), (x1, yy), dxfattribs=attr)
-            lay.add_text(lab, height=1.8, dxfattribs={**attr, "insert": (x0 + 1.5, yy + 1.4)})
-            lay.add_text(str(val)[:70], height=2.5 if r == 1 else 2.2, dxfattribs={**attr, "insert": (x0 + 28, yy + 1.2)})
-        lay.add_line((x0 + 26, y0), (x0 + 26, y1), dxfattribs=attr)
-        lay.add_text(info.get("company", "REFRACTORY LINING DESIGN"), height=3.5,
-                     dxfattribs={**attr, "insert": (b + 3, y1 - 7)})
-        lay.add_text(info.get("status", "STATUS: FOR CUSTOMER APPROVAL - DRAFT, CHECK BEFORE ISSUE"), height=2.4,
-                     dxfattribs={**attr, "insert": (b + 3, y1 - 19), "color": 1})
-        if info.get("edited"):
-            lay.add_text(f"! {info['edited']} input value(s) EDITED by the designer - see 'DESIGN INPUT VALUES'",
-                         height=2.2, dxfattribs={**attr, "insert": (b + 3, y1 - 25), "color": 1})
+        # title block: TRL Krosaki standard (same content as the PDF page)
+        lines, texts = title_block(info, i, n, v["title"], scale, v.get("note"))
+        for (ax, ay, bx, by, wgt) in lines:
+            lay.add_line((ax, ay), (bx, by), dxfattribs={**attr, "lineweight": 50 if wgt >= 1 else 25})
+        for (tx, ty, s, hmm, bold, rgb) in texts:
+            lay.add_text(s, height=hmm, dxfattribs={**attr, "insert": (tx, ty), "color": 1 if rgb[0] > 0.5 else 7})
         lay.add_text(v["title"], height=4.0, dxfattribs={**attr, "insert": (b + 4, PAGE_H - b - 7)})
         made += 1
     if made and "Layout1" in doc.layouts:

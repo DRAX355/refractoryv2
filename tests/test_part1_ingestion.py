@@ -172,3 +172,60 @@ class TestIngestionAPI:
     def test_job_status_not_found(self):
         response = client.get("/api/v1/ingestion/nonexistent-job-id/status")
         assert response.status_code == 404
+
+    def test_fr01_1_upload_records_sha256_revision_drawing_no_and_user_details(self, sample_png_bytes):
+        import hashlib
+        expected_hash = hashlib.sha256(sample_png_bytes).hexdigest()
+        response = client.post(
+            "/api/v1/ingestion/upload",
+            files={"file": ("180MT_BOF_Shell_RevB.png", sample_png_bytes, "image/png")},
+            data={
+                "drawing_number": "TRLK-180MT-SHELL-01",
+                "revision": "Rev B",
+                "user_name": "Darshan C M",
+                "user_email": "darshan@trlkrosaki.com",
+                "user_role": "Lead Engineer",
+            },
+        )
+        assert response.status_code == 201
+        data = response.json()
+        assert data["file_hash_sha256"] == expected_hash
+        assert data["drawing_number"] == "TRLK-180MT-SHELL-01"
+        assert data["revision"] == "Rev B"
+        assert data["uploaded_by"] == "Darshan C M"
+        assert data["user_details"]["email"] == "darshan@trlkrosaki.com"
+
+        # Check job status includes source_manifest
+        st_resp = client.get(f"/api/v1/ingestion/{data['job_id']}/status")
+        assert st_resp.status_code == 200
+        manifest = st_resp.json()["source_manifest"]
+        assert manifest["sha256"] == expected_hash
+        assert manifest["drawing_number"] == "TRLK-180MT-SHELL-01"
+
+    def test_fr01_3_register_shape_drawing_against_brick_marks(self, sample_png_bytes):
+        import hashlib
+        expected_hash = hashlib.sha256(sample_png_bytes).hexdigest()
+        resp = client.post(
+            "/api/v1/ingestion/shape-drawing",
+            files={"file": ("SH1_SH2_Shape_Sheet.png", sample_png_bytes, "image/png")},
+            data={
+                "marks": "SH-1, SH-2, TYP1",
+                "drawing_number": "TRLK-BOF-SH-01",
+                "revision": "08.10.2016",
+                "notes": "Bottom working wedge & barrel safety shape sheet",
+            },
+            headers={"X-User": "Darshan"},
+        )
+        assert resp.status_code == 201
+        rjson = resp.json()
+        assert rjson["registered_marks"] == ["SH-1", "SH-2", "TYP1"]
+        assert rjson["drawing"]["sha256"] == expected_hash
+        assert rjson["drawing"]["drawing_number"] == "TRLK-BOF-SH-01"
+
+    def test_fr01_5_dwg_support_endpoint(self):
+        resp = client.get("/api/v1/ingestion/dwg-support")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "dwg_supported" in data
+        assert "install_hint" in data
+

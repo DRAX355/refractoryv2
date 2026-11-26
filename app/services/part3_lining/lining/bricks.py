@@ -1,5 +1,5 @@
 """
-Brick layout from the brick library (brick_library_mock.json until the client's real library arrives).
+Brick layout from the client brick library (trl_brick_library.json - TRL Krosaki BOF standard shapes).
 
   * Wall courses (every band except the bottom): horizontal courses of `course_height`; each course and
     angular sector is closed with a tapered A/B pair of the brick length = working thickness.
@@ -48,6 +48,47 @@ def wall_pairs(lib):
         pairs.append({"id": f"{A['mark']}+{B['mark']}", "family": fam, "L": L, "H": H, "A": A, "B": B,
                       "zone": A["zone"] + " / " + B["zone"]})
     return pairs
+
+
+TRANSITION_FAMILIES = ("key_wedge_series", "beveled_key_ht")
+
+
+def transition_pairs(lib):
+    """Curved transition shapes of the client library as A/B pairs: TSC-1A/1B ... TSC-8A/8B for the
+    lower cone knuckle, TPZ-1/2, TPZ-3/4 for the top cone. Grouped by family + length + zone; A = the gentler taper,
+    B = the steeper one. Single shapes (e.g. BSM-1, a permanent-lining brick) are not wall pairs."""
+    groups = {}
+    for b in lib.get("bricks", []):
+        d = b.get("dimensions_mm", {})
+        if b.get("shape_family") not in TRANSITION_FAMILIES or "transition" not in str(b.get("zone", "")).lower() \
+                or not all(k in d for k in ("length", "width_top", "width_bottom")):
+            continue
+        groups.setdefault((b["shape_family"], float(d["length"]), b.get("zone", "")), []).append(b)
+    out = []
+    for (fam, L, zone), bs in groups.items():
+        shapes = sorted(({"mark": b["mark"], "cold": float(b["dimensions_mm"]["width_top"]),
+                          "hot": float(b["dimensions_mm"]["width_bottom"]), "zone": zone,
+                          "grade": b.get("quality_grade_internal", "")} for b in bs), key=lambda s_: s_["cold"] / s_["hot"])
+        if len(shapes) < 2 or abs(shapes[0]["cold"] / shapes[0]["hot"] - shapes[-1]["cold"] / shapes[-1]["hot"]) < 1e-6:
+            continue
+        A, B = shapes[0], shapes[-1]
+        H = float(bs[0]["dimensions_mm"].get("thickness") or 0)
+        out.append({"id": f"{A['mark']}+{B['mark']}", "family": fam, "L": L, "H": H, "A": A, "B": B, "zone": zone,
+                    "src": "library transition shape"})
+    return out
+
+
+def choose_transition(tpairs, space, band_name, kind):
+    """Longest transition pair that fits the radial room of a knuckle / cone-end course: TPZ in the top cone,
+    TSC elsewhere (lower cone / barrel knuckle). None when no transition shape fits."""
+    top = "top" in band_name.lower() or kind == "mouth"
+    series = ("TPZ",) if top else ("TSC",)            # TRL's own transition series first (REF GA: TSC / TPZ)
+    own = [p for p in tpairs if ("top cone" in p["zone"].lower()) == top]
+    for cands in ([p for p in own if p["A"]["mark"].startswith(series)], own):
+        fit = [p for p in cands if p["L"] <= space]
+        if fit:
+            return max(fit, key=lambda p: p["L"])
+    return None
 
 
 def sector_pairs(sec, kind="wall", course_h=100.0):
@@ -181,6 +222,7 @@ def course_schedule(sheet, lib, st):
     """Course-by-course brick schedule for every non-bottom band."""
     from .geometry import reverse_run, sample
     pairs = wall_pairs(lib)
+    tpairs = transition_pairs(lib)                      # TSC / TPZ curved transition shapes
     joint, min_cut = float(st.get("joint", 0.5)), float(st.get("min_cut", 40))
     L = sheet.L
     rows, flags = [], []
@@ -263,13 +305,21 @@ def course_schedule(sheet, lib, st):
                 f = _f()
                 space = f.evaluate("radial_room", {"r_cold": r_cold, "r_in": r_in})
                 row.update({"r_cold": round(r_cold, 1), "space": round(space, 1)})
+                trans = None
                 if space < Lb - f.evaluate("p_transition_tol", {}):                     # knuckle / cone-end course: shorter brick needed
-                    row["L"] = round(space, 1)
-                    row["flag"] = (f"transition course: only {space:.0f} mm room for a {Lb:g} mm brick - "
-                                   f"needs a shorter / cut-end shape (TSC/TPZ type, not in library)")
-                    row["r_hot"] = round(r_in, 1)
-                    rows.append(row)
-                    continue
+                    trans = choose_transition(tpairs, space, band["name"], kind)
+                    if not trans:
+                        row["L"] = round(space, 1)
+                        row["flag"] = (f"transition course: only {space:.0f} mm room for a {Lb:g} mm brick - "
+                                       f"no TSC/TPZ transition shape of the client library fits")
+                        row["r_hot"] = round(r_in, 1)
+                        rows.append(row)
+                        continue
+                    row["note"] = (f"transition course: {trans['id']} ({trans['L']:g} mm) in {space:.0f} mm room "
+                                   f"- {space - trans['L']:.0f} mm filled with ramming")
+                    row["transition"] = True
+                    Lb = trans["L"]
+                    row["L"] = Lb
                 r_hot = f.evaluate("brick_hot_radius", {"r_cold": r_cold, "brick_len": Lb})
                 row["r_hot"] = round(r_hot, 1)
                 row["gap"] = round(f.evaluate("radial_gap", {"space": space, "brick_len": Lb}), 1)
@@ -282,8 +332,10 @@ def course_schedule(sheet, lib, st):
                 gaps = 0.0
                 p, why, res = None, None, None
                 tol_len = f.evaluate("p_brick_len_match_tol", {})
-                own = [q for q in sector_pairs(sec, kind, ch) if abs(q["L"] - Lb) < tol_len]
-                if sec.get("pairs") and not own:
+                own = [] if trans else [q for q in sector_pairs(sec, kind, ch) if abs(q["L"] - Lb) < tol_len]
+                if trans:
+                    own = [trans]
+                elif sec.get("pairs") and not own:
                     why = (f"none of the brick pairs entered for '{sec.get('name', '')}' is {Lb:g} mm long "
                            f"(pairs: {', '.join(q['id'] + ' L' + format(q['L'], 'g') for q in sector_pairs(sec, kind, ch))})")
                 cands = own or []
@@ -611,3 +663,121 @@ def quantities(courses, rings):
                 k = list(r["marks"])[0] + " (cut)" if r["marks"] else "cut"
                 q[k] = q.get(k, 0) + r["nCut"]
     return q
+
+
+def design_mhp_and_taphole_assemblies(lib, nozzles, bottom=None, densities=None):
+    """Design the MHP (bottom purging plug) lining & surround assembly and Taphole assembly
+    using official TRL Krosaki BOF brick marks (MHP, MHP Seating Block, Triple Tapered PSR/VXC,
+    Double Tapered VCA/VA/PIO, and Taphole blocks TB-1..TB-5 + sleeves TS-1..TS-8)."""
+    from .bom import unit_volume
+    by_mark = {b["mark"]: b for b in lib.get("bricks", [])}
+    bottom = bottom or {}
+    densities = densities or {}
+    work_len = float(bottom.get("brick_length") or 800.0)
+    series_prefix = "100" if work_len >= 950 else ("80" if work_len >= 750 else "70")
+
+    stir_nozzles = [n for n in (nozzles or []) if n.get("type") == "stirring" and int(n.get("count") or 0) > 0]
+    taphole_nozzles = [n for n in (nozzles or []) if n.get("type") != "stirring"]
+
+    mhp_count = sum(int(n.get("count") or 0) for n in stir_nozzles) or int(bottom.get("mhp_count") or 0)
+    mhp_pcd = float(stir_nozzles[0].get("pcd") or bottom.get("pcd") or 2100.0) if stir_nozzles else float(bottom.get("pcd") or 2100.0)
+    mhp_items = []
+    if mhp_count > 0:
+        # 1. Core MHP Plug & Seating Block
+        for core_mark, qty_per_plug, default_grade in (
+            ("MHP", 1, "GRADE-F"),
+            ("MHP Seating Block", 1, "GRADE-G"),
+        ):
+            b = by_mark.get(core_mark, {})
+            v, _ = unit_volume(b) if b else (17.59 if core_mark == "MHP" else 0.85, "reference")
+            rho = float(densities.get(default_grade, 2.95))
+            qty = mhp_count * qty_per_plug
+            mhp_items.append({
+                "mark": core_mark,
+                "role": "Purging Plug" if core_mark == "MHP" else "Seating Block",
+                "series": b.get("trl_series", "MHP Assembly"),
+                "qty_per_plug": qty_per_plug,
+                "total_qty": qty,
+                "unit_vol_dm3": round(v or 0.0, 3),
+                "unit_wt_kg": round((v or 0.0) * rho, 2),
+                "total_tonnes": round(qty * (v or 0.0) * rho / 1000.0, 4),
+            })
+
+        # 2. Triple-Tapered Surround Ring Set (PSR / VXC series matching working thickness)
+        surround_marks = [
+            f"{series_prefix} PSR-1",
+            f"{series_prefix} PSR-2",
+            f"{series_prefix} PSR-3",
+            f"{series_prefix} PSR-4",
+            f"{series_prefix} PSR-5",
+            f"{series_prefix} PSR-6",
+        ]
+        if f"{series_prefix} PSR-1" not in by_mark:
+            surround_marks = ["100 PSR-2", "100 PSR-3", "100 PSR-4", "100 PSR-5", "100 PSR-6"]
+        for sm in surround_marks:
+            b = by_mark.get(sm)
+            if not b:
+                continue
+            v, _ = unit_volume(b)
+            rho = float(densities.get("GRADE-A", 3.05))
+            qty_per_plug = 2
+            qty = mhp_count * qty_per_plug
+            mhp_items.append({
+                "mark": sm,
+                "role": "Triple-Tapered MHP Surround Brick",
+                "series": b.get("trl_series", "TRIPLE TAPERED"),
+                "qty_per_plug": qty_per_plug,
+                "total_qty": qty,
+                "unit_vol_dm3": round(v or 0.0, 3),
+                "unit_wt_kg": round((v or 0.0) * rho, 2),
+                "total_tonnes": round(qty * (v or 0.0) * rho / 1000.0, 4),
+            })
+
+    # 3. Taphole Assembly (TB-1..TB-5 blocks + TS-1..TS-6 sleeves)
+    taphole_count = max(1, len(taphole_nozzles)) if taphole_nozzles else 1
+    taphole_items = []
+    for tb_mark in ("TB-1", "TB-2", "TB-3", "TB-4", "TB-5"):
+        b = by_mark.get(tb_mark)
+        if not b:
+            continue
+        v, _ = unit_volume(b)
+        rho = float(densities.get("GRADE-H", 3.00))
+        taphole_items.append({
+            "mark": tb_mark,
+            "role": "Tap Hole Block",
+            "qty_per_taphole": 1,
+            "total_qty": taphole_count,
+            "unit_vol_dm3": round(v or 0.0, 3),
+            "unit_wt_kg": round((v or 0.0) * rho, 2),
+            "total_tonnes": round(taphole_count * (v or 0.0) * rho / 1000.0, 4),
+        })
+    for ts_mark in ("TS-1", "TS-2", "TS-3", "TS-4", "TS-5", "TS-6"):
+        b = by_mark.get(ts_mark)
+        if not b:
+            continue
+        v, _ = unit_volume(b)
+        rho = float(densities.get("GRADE-I", 3.01))
+        taphole_items.append({
+            "mark": ts_mark,
+            "role": "Tap Hole Sleeve",
+            "qty_per_taphole": 1,
+            "total_qty": taphole_count,
+            "unit_vol_dm3": round(v or 0.0, 3),
+            "unit_wt_kg": round((v or 0.0) * rho, 2),
+            "total_tonnes": round(taphole_count * (v or 0.0) * rho / 1000.0, 4),
+        })
+
+    return {
+        "mhp_assembly": {
+            "plug_count": mhp_count,
+            "pcd_mm": mhp_pcd,
+            "surround_series": f"{series_prefix} PSR Triple-Tapered Series",
+            "items": mhp_items,
+            "total_tonnes": round(sum(i["total_tonnes"] for i in mhp_items), 4),
+        },
+        "taphole_assembly": {
+            "taphole_count": taphole_count,
+            "items": taphole_items,
+            "total_tonnes": round(sum(i["total_tonnes"] for i in taphole_items), 4),
+        },
+    }

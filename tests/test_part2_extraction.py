@@ -205,6 +205,36 @@ class TestGeometryAssembler:
         )
         assert geometry.extraction_confidence < 0.5
 
+    def test_fr02_2_mhp_feature_extraction(self):
+        from app.services.part2_extraction.opencv_processor import OpenCVGeometryResult
+        ocr = OCRResult()
+        ocr.raw_texts = [
+            "180T BOF",
+            "8 NOS MHP PURGING PLUG",
+            "48 HOLES",
+            "P.C.D. 2100",
+            "MHP Seating Block Ø150",
+            "150 x 134",
+            "MHP HEIGHT 885",
+        ]
+        _parse_all_texts(ocr)
+        geometry = assemble_vessel_geometry(
+            ocr_result=ocr,
+            opencv_result=OpenCVGeometryResult(),
+            dino_detections=[],
+            source_file="180MT_BOF_MHP.pdf",
+            source_format=DrawingFormat.PDF,
+        )
+        mhp = geometry.extra_metadata.get("mhp_features")
+        assert mhp is not None and mhp["detected"] is True
+        assert mhp["plug_count"] == 8
+        assert mhp["pcd_mm"] == pytest.approx(2100.0)
+        assert mhp["pipe_count_per_plug"] == 48
+        assert mhp["overall_height_mm"] == pytest.approx(885.0)
+        assert mhp["has_seating_block"] is True
+        assert any("MHP" in n.label for n in geometry.nozzles)
+
+
 
 # ── API Endpoint Tests ────────────────────────────────────────────────────────
 

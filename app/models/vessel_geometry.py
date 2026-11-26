@@ -240,12 +240,18 @@ class VesselGeometry(BaseModel):
 # ── API Response Wrappers ─────────────────────────────────────────────────────
 
 class IngestionResponse(BaseModel):
-    """Part 1 API response after successful drawing upload."""
+    """Part 1 API response after successful drawing upload (FR-01.1)."""
     job_id: str
     filename: str
     format: DrawingFormat
     file_size_bytes: int
     page_count: int = 1
+    file_hash_sha256: str = ""
+    drawing_number: str = ""
+    revision: str = ""
+    uploaded_by: str = "anonymous"
+    user_details: dict[str, Any] = Field(default_factory=dict)
+    uploaded_at: str = ""
     message: str = "Drawing ingested successfully."
 
 

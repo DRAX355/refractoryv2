@@ -43,6 +43,12 @@ class PDFPathProfile:
     taphole_inclination_deg: float | None = None
     lower_cone_angle_deg: float | None = None
     top_cone_angle_deg: float | None = None
+    barrel_span_pt: float | None = None
+    mouth_throat_span_pt: float | None = None
+    mouth_flange_span_pt: float | None = None
+    mouth_throat_to_barrel_ratio: float | None = None
+    mouth_flange_to_barrel_ratio: float | None = None
+    mouth_flange_ratio: float | None = None
     success: bool = False
 
 
@@ -97,11 +103,13 @@ def extract_pdf_path_profile(pdf_path: str | Path, text_polygons: list = None) -
 
             for line in (neutral_lines if use_neutral_only else raw_lines):
                 try:
-                    x1 = float(line["x0"])
-                    y1 = float(line["y0"])
-                    x2 = float(line["x1"])
-                    y2 = float(line["y1"])
-                    segments.append((x1, y1, x2, y2))
+                    x0 = float(line["x0"])
+                    y0 = float(line["y0"])
+                    x1 = float(line["x1"])
+                    y1 = float(line["y1"])
+                    if (abs(x1 - x0) >= result.page_width_pt * 0.72) or (abs(y1 - y0) >= result.page_height_pt * 0.72):
+                        continue
+                    segments.append((x0, y0, x1, y1))
                 except (KeyError, TypeError):
                     pass
 
@@ -114,8 +122,11 @@ def extract_pdf_path_profile(pdf_path: str | Path, text_polygons: list = None) -
                     if len(pts) >= 2:
                         xs = [float(p[0]) for p in pts]
                         ys = [float(p[1]) for p in pts]
-                        # Skip tiny stroked text character glyphs (< 14 pt bounding box)
-                        if use_neutral_only and max(max(xs) - min(xs), max(ys) - min(ys)) < 14.0:
+                        # Skip tiny stroked text character glyphs (< 14 pt bounding box) or full-page border curves
+                        c_dx, c_dy = max(xs) - min(xs), max(ys) - min(ys)
+                        if use_neutral_only and max(c_dx, c_dy) < 14.0:
+                            continue
+                        if c_dx >= result.page_width_pt * 0.72 or c_dy >= result.page_height_pt * 0.72:
                             continue
                         for i in range(len(pts) - 1):
                             x1, y1 = pts[i]
@@ -156,10 +167,15 @@ def extract_pdf_path_profile(pdf_path: str | Path, text_polygons: list = None) -
 
             for rect in (page.rects or []):
                 try:
+                    if use_neutral_only and not _is_neutral_stroke(rect.get("stroking_color")):
+                        continue
                     x0 = float(rect["x0"])
                     y0 = float(rect["y0"])
                     x1 = float(rect["x1"])
                     y1 = float(rect["y1"])
+                    # Skip full-page border frames (> 75% of page width or height)
+                    if (abs(x1 - x0) >= result.page_width_pt * 0.72) or (abs(y1 - y0) >= result.page_height_pt * 0.72):
+                        continue
                     # Add 4 edges of the rectangle
                     segments.extend([
                         (x0, y0, x1, y0),
@@ -176,6 +192,13 @@ def extract_pdf_path_profile(pdf_path: str | Path, text_polygons: list = None) -
 
             logger.info(f"[PDF-Paths] Found {len(segments)} path segments")
 
+            # Cluster segments and pick the dominant vessel view cluster (side view)
+            vessel_cluster = _select_vessel_cluster(
+                segments,
+                page_w=result.page_width_pt,
+                page_h=result.page_height_pt,
+            )
+
             # ── Build radius profile ─────────────────────────────────────────
             # In PDF coordinates, y=0 is at the BOTTOM of the page.
             # The vessel is typically the dominant vertical structure.
@@ -183,6 +206,7 @@ def extract_pdf_path_profile(pdf_path: str | Path, text_polygons: list = None) -
                 segments,
                 page_w=result.page_width_pt,
                 page_h=result.page_height_pt,
+                preselected_cluster=vessel_cluster,
             )
 
             if len(profile_pts) < 3:
@@ -232,24 +256,116 @@ def extract_pdf_path_profile(pdf_path: str | Path, text_polygons: list = None) -
                 result.taphole_inclination_deg = round(incls[len(incls) // 2], 1)
                 logger.info(f"[PDF-Paths] Extracted taphole inclination from centerline: {result.taphole_inclination_deg}°")
 
-            # Also extract exact lower cone and top cone half-angles directly from the long structural black cone lines (>80 pt)
-            cone_lines: list[tuple[float, float]] = []  # (x_mid, angle_deg)
-            for x1, y1, x2, y2 in segments:
+            # Also extract exact lower cone and top cone half-angles directly from the long structural black cone lines (>=65 pt).
+            # When the vessel is drawn horizontally (x_span > y_span), cone wall inclination from the vessel axis is tan^-1(|dy|/|dx|);
+            # when drawn vertically (y_span >= x_span), cone wall inclination from the vertical axis is tan^-1(|dx|/|dy|).
+            # Note: pdfplumber normalizes line coordinates so (y0, y1) = (bottom, top), which means on a sloped line
+            # (x1, y0) and (x2, y1) may be paired in reverse order; we recover the true endpoints below.
+            v_segs = vessel_cluster if vessel_cluster else segments
+            all_xs = [x for x1, y1, x2, y2 in v_segs for x in (x1, x2)]
+            all_ys = [y for x1, y1, x2, y2 in v_segs for y in (y1, y2)]
+            x_span_v = (max(all_xs) - min(all_xs)) if all_xs else 0.0
+            y_span_v = (max(all_ys) - min(all_ys)) if all_ys else 0.0
+            # Determine vessel axis orientation directly from the parallel barrel lines (the longest horizontal or vertical lines >= 100 pt)
+            horiz_bar_len = sum(math.hypot(x2 - x1, y2 - y1) for x1, y1, x2, y2 in v_segs if math.hypot(x2 - x1, y2 - y1) >= 100.0 and abs(y2 - y1) < 2.0)
+            vert_bar_len = sum(math.hypot(x2 - x1, y2 - y1) for x1, y1, x2, y2 in v_segs if math.hypot(x2 - x1, y2 - y1) >= 100.0 and abs(x2 - x1) < 2.0)
+            vessel_horiz = (horiz_bar_len >= vert_bar_len) if (horiz_bar_len > 0 or vert_bar_len > 0) else (x_span_v > y_span_v)
+            cone_lines: list[tuple[float, float]] = []  # (axis_mid, angle_from_axis_deg)
+            for x1, y1, x2, y2 in v_segs:
                 ln = math.hypot(x2 - x1, y2 - y1)
-                if ln >= 80.0:
-                    ang = abs(math.degrees(math.atan2(abs(y2 - y1), abs(x2 - x1))))
+                if ln >= 65.0:
+                    dx_abs, dy_abs = abs(x2 - x1), abs(y2 - y1)
+                    ang = abs(math.degrees(math.atan2(dy_abs, dx_abs) if vessel_horiz else math.atan2(dx_abs, dy_abs)))
                     if 16.0 <= ang <= 42.0:
-                        cone_lines.append(((x1 + x2) / 2.0, round(ang, 1)))
+                        axis_pos = (x1 + x2) / 2.0 if vessel_horiz else (y1 + y2) / 2.0
+                        cone_lines.append((axis_pos, round(ang, 2)))
             if cone_lines:
                 cone_lines.sort(key=lambda t: t[0])
-                left_angs = [a for x, a in cone_lines if x < result.page_width_pt * 0.5]
-                right_angs = [a for x, a in cone_lines if x >= result.page_width_pt * 0.5]
-                if left_angs:
-                    left_angs.sort()
-                    result.lower_cone_angle_deg = left_angs[len(left_angs) // 2]
-                if right_angs:
-                    right_angs.sort()
-                    result.top_cone_angle_deg = right_angs[len(right_angs) // 2]
+                mid_split = (min(t[0] for t in cone_lines) + max(t[0] for t in cone_lines)) * 0.5
+                low_angs = [a for pos, a in cone_lines if pos < mid_split]
+                high_angs = [a for pos, a in cone_lines if pos >= mid_split]
+                if low_angs:
+                    low_angs.sort()
+                    result.lower_cone_angle_deg = round(low_angs[len(low_angs) // 2], 2)
+                if high_angs:
+                    high_angs.sort()
+                    result.top_cone_angle_deg = round(high_angs[len(high_angs) // 2], 2)
+
+            # Extract scale-invariant mouth section ratios (throat opening & mouth flange collar) directly from CAD vector paths:
+            # 1. Measure the parallel barrel lines' transverse span (barrel_span_pt)
+            # 2. At the top-cone / mouth end, measure the cone-tip throat span (mouth_throat_span_pt) and the outer flange face span (mouth_flange_span_pt)
+            axis_min = min(all_xs) if vessel_horiz else min(all_ys)
+            axis_max = max(all_xs) if vessel_horiz else max(all_ys)
+            axis_span = max(axis_max - axis_min, 1.0)
+
+            barrel_trans_coords: list[float] = []
+            barrel_axis_vals: list[float] = []
+            for x1, y1, x2, y2 in v_segs:
+                ln = math.hypot(x2 - x1, y2 - y1)
+                dx_abs, dy_abs = abs(x2 - x1), abs(y2 - y1)
+                ang = abs(math.degrees(math.atan2(dy_abs, dx_abs) if vessel_horiz else math.atan2(dx_abs, dy_abs)))
+                a1, t1 = (x1, y1) if vessel_horiz else (y1, x1)
+                a2, t2 = (x2, y2) if vessel_horiz else (y2, x2)
+                a_mid = (a1 + a2) / 2.0
+                if ln >= 100.0 and ang < 1.5 and (axis_min + 0.12 * axis_span) <= a_mid <= (axis_min + 0.82 * axis_span):
+                    barrel_trans_coords.extend([t1, t2])
+                    barrel_axis_vals.extend([a1, a2])
+
+            if len(barrel_trans_coords) >= 2:
+                b_min, b_max = min(barrel_trans_coords), max(barrel_trans_coords)
+                b_center = (b_min + b_max) / 2.0
+                low_wall = sorted([t for t in barrel_trans_coords if t < b_center])
+                high_wall = sorted([t for t in barrel_trans_coords if t > b_center])
+                if low_wall and high_wall:
+                    inner_span = min(high_wall) - max(low_wall)
+                    outer_span = max(high_wall) - min(low_wall)
+                    result.barrel_span_pt = round(inner_span if inner_span > outer_span * 0.85 else outer_span, 2)
+
+                # For top cone lines (which converge toward b_center as they move away from the barrel),
+                # the mouth-end transverse coordinate of each cone line is ALWAYS the endpoint closer to b_center!
+                bar_a_mid = (min(barrel_axis_vals) + max(barrel_axis_vals)) / 2.0 if barrel_axis_vals else (axis_min + 0.45 * axis_span)
+                top_cone_tip_trans: list[float] = []
+                top_cone_tip_axes: list[float] = []
+                for x1, y1, x2, y2 in v_segs:
+                    ln = math.hypot(x2 - x1, y2 - y1)
+                    dx_abs, dy_abs = abs(x2 - x1), abs(y2 - y1)
+                    ang = abs(math.degrees(math.atan2(dy_abs, dx_abs) if vessel_horiz else math.atan2(dx_abs, dy_abs)))
+                    a1, t1 = (x1, y1) if vessel_horiz else (y1, x1)
+                    a2, t2 = (x2, y2) if vessel_horiz else (y2, x2)
+                    a_mid = (a1 + a2) / 2.0
+                    if ln >= 65.0 and 16.0 <= ang <= 42.0 and a_mid > bar_a_mid:
+                        tip_t = t1 if abs(t1 - b_center) < abs(t2 - b_center) else t2
+                        tip_a = max(a1, a2)
+                        top_cone_tip_trans.append(tip_t)
+                        top_cone_tip_axes.append(tip_a)
+
+                if result.barrel_span_pt and result.barrel_span_pt > 20.0 and len(top_cone_tip_trans) >= 2:
+                    tip_axis = max(top_cone_tip_axes)
+                    low_tips = sorted([t for t in top_cone_tip_trans if t < b_center])
+                    high_tips = sorted([t for t in top_cone_tip_trans if t > b_center])
+                    if low_tips and high_tips:
+                        throat_inner = min(high_tips) - max(low_tips)
+                        throat_outer = max(high_tips) - min(low_tips)
+                        throat_span = throat_inner if throat_inner > throat_outer * 0.80 else throat_outer
+                        if result.barrel_span_pt * 0.35 <= throat_span <= result.barrel_span_pt * 0.88:
+                            result.mouth_throat_span_pt = round(throat_span, 2)
+                            result.mouth_throat_to_barrel_ratio = round(throat_span / result.barrel_span_pt, 5)
+
+                    # Look for perpendicular mouth flange lines at or beyond the top-cone tip
+                    flange_trans: list[float] = []
+                    for x1, y1, x2, y2 in v_segs:
+                        a1, t1 = (x1, y1) if vessel_horiz else (y1, x1)
+                        a2, t2 = (x2, y2) if vessel_horiz else (y2, x2)
+                        if min(a1, a2) >= tip_axis - axis_span * 0.015 and max(a1, a2) <= axis_max + axis_span * 0.02:
+                            if abs(t1 - b_center) <= result.barrel_span_pt * 0.52 and abs(t2 - b_center) <= result.barrel_span_pt * 0.52:
+                                flange_trans.extend([t1, t2])
+                    if len(flange_trans) >= 2:
+                        fl_span = max(flange_trans) - min(flange_trans)
+                        if result.barrel_span_pt * 0.45 <= fl_span <= result.barrel_span_pt * 0.95:
+                            result.mouth_flange_span_pt = round(fl_span, 2)
+                            result.mouth_flange_to_barrel_ratio = round(fl_span / result.barrel_span_pt, 5)
+                            if result.mouth_throat_span_pt and fl_span > result.mouth_throat_span_pt * 1.03:
+                                result.mouth_flange_ratio = round(fl_span / result.mouth_throat_span_pt, 5)
 
             result.points = profile_mm
             result.total_height_mm = profile_mm[-1].y_mm - profile_mm[0].y_mm if profile_mm else 0.0
@@ -269,52 +385,45 @@ def extract_pdf_path_profile(pdf_path: str | Path, text_polygons: list = None) -
     return result
 
 
-def _build_profile_from_segments(
+def _select_vessel_cluster(
     segments: list[tuple[float, float, float, float]],
     page_w: float,
     page_h: float,
-    n_samples: int = 200,
-) -> list[ProfilePoint]:
-    """
-    Scan through the vessel vertically (or horizontally if rotated) and at each 
-    level find the maximum transverse extent of the drawn paths → the vessel outer radius.
-    """
+) -> list[tuple[float, float, float, float]]:
+    """Select the primary vessel view cluster (filtering out title blocks, page borders, and small views)."""
     if not segments or page_h < 1:
         return []
 
-    # Filter to segments that span a meaningful length
     min_seg_len = max(page_w, page_h) * 0.002
     filtered: list[tuple[float, float, float, float]] = []
     for seg in segments:
         x1, y1, x2, y2 = seg
         length = math.hypot(x2 - x1, y2 - y1)
+        # Skip page-border frame lines (>75% of page width or height near the edge)
+        if length >= max(page_w, page_h) * 0.72:
+            continue
         if length >= min_seg_len:
             filtered.append(seg)
 
     if not filtered:
         return []
 
-    # Cluster segments to separate distinct views (e.g., side view vs top view)
-    # using a simple connected-components approach with a distance threshold.
-    distance_threshold = max(page_w, page_h) * 0.05
-    
+    distance_threshold = max(page_w, page_h) * 0.025
     parent = {i: i for i in range(len(filtered))}
+
     def find(i):
         if parent[i] == i:
             return i
         parent[i] = find(parent[i])
         return parent[i]
-    
+
     def union(i, j):
         root_i = find(i)
         root_j = find(j)
         if root_i != root_j:
             parent[root_i] = root_j
 
-    bboxes = []
-    for x1, y1, x2, y2 in filtered:
-        bboxes.append((min(x1, x2), min(y1, y2), max(x1, x2), max(y1, y2)))
-        
+    bboxes = [(min(x1, x2), min(y1, y2), max(x1, x2), max(y1, y2)) for x1, y1, x2, y2 in filtered]
     for i in range(len(filtered)):
         ix_min, iy_min, ix_max, iy_max = bboxes[i]
         for j in range(i + 1, len(filtered)):
@@ -323,38 +432,59 @@ def _build_profile_from_segments(
             dy = max(0, max(iy_min, jy_min) - min(iy_max, jy_max))
             if dx <= distance_threshold and dy <= distance_threshold:
                 union(i, j)
-                
-    clusters_map = {}
+
+    clusters_map: dict[int, list[tuple[float, float, float, float]]] = {}
     for i in range(len(filtered)):
         root = find(i)
-        if root not in clusters_map:
-            clusters_map[root] = []
-        clusters_map[root].append(filtered[i])
-        
-    clusters = list(clusters_map.values())
-    
+        clusters_map.setdefault(root, []).append(filtered[i])
+
     best_cluster = filtered
-    best_score = -1
-    
-    for cluster in clusters:
+    best_score = -1.0
+    for cluster in clusters_map.values():
         ys = [y for seg in cluster for y in (seg[1], seg[3])]
         xs = [x for seg in cluster for x in (seg[0], seg[2])]
         y_span = max(ys) - min(ys)
         x_span = max(xs) - min(xs)
         if y_span < 1 or x_span < 1:
             continue
-            
         area = x_span * y_span
         aspect_ratio = max(x_span, y_span) / min(x_span, y_span)
-        
-        # Penalize perfectly square clusters (likely top view)
-        score = area
-        if aspect_ratio < 1.15:
+        is_h = x_span >= y_span
+        has_cones = sum(
+            1 for x1, y1, x2, y2 in cluster
+            if math.hypot(x2 - x1, y2 - y1) >= 55.0
+            and 16.0 <= abs(math.degrees(math.atan2(abs(y2 - y1), abs(x2 - x1)) if is_h else math.atan2(abs(x2 - x1), abs(y2 - y1)))) <= 42.0
+        )
+        score = area * (1.0 + 0.5 * min(has_cones, 6))
+        if has_cones < 2:
+            score *= 0.05
+        if aspect_ratio > 2.2:
             score *= 0.1
-            
         if score > best_score:
             best_score = score
             best_cluster = cluster
+
+    return best_cluster
+
+
+def _build_profile_from_segments(
+    segments: list[tuple[float, float, float, float]],
+    page_w: float,
+    page_h: float,
+    n_samples: int = 200,
+    preselected_cluster: list[tuple[float, float, float, float]] | None = None,
+) -> list[ProfilePoint]:
+    """
+    Scan through the vessel vertically (or horizontally if rotated) and at each 
+    level find the maximum transverse extent of the drawn paths → the vessel outer radius.
+    """
+    if not segments or page_h < 1:
+        return []
+
+    min_seg_len = max(page_w, page_h) * 0.002
+    best_cluster = preselected_cluster or _select_vessel_cluster(segments, page_w, page_h)
+    if not best_cluster:
+        return []
 
     # Use the best cluster (the side view) for extraction
     ys = [y for seg in best_cluster for y in (seg[1], seg[3])]

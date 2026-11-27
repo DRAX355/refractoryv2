@@ -474,7 +474,14 @@ def bottom_rings(sheet, lib, st, nozzles=(), bottom=None):
     bottom = bottom or {}
     sh = [b for b in lib.get("bricks", []) if b.get("shape_family") == "bottom_dish_wedge"]
     key = next((b for b in lib.get("bricks", []) if b.get("shape_family") == "center_block"), None)
-    out = {"band": band["name"], "grade": work["grade"], "rings": [], "flags": [], "key": None}
+    pat_raw = str(bottom.get("pattern") or "").lower()
+    if "herring" in pat_raw or "herring" in str(sheet.vessel.get("job") or "").lower() or "herring" in str(sheet.design.get("vessel_name") or "").lower():
+        pattern_kind = "herringbone"
+    elif "straight" in pat_raw or "flat" in pat_raw:
+        pattern_kind = "straight"
+    else:
+        pattern_kind = "concentric"
+    out = {"band": band["name"], "grade": work["grade"], "pattern": pattern_kind, "rings": [], "flags": [], "key": None}
     # ring bands entered in the UI (mark per ring range, optional A/B widths for exact closure)
     rbands = []
     for rb in bottom.get("ring_bands") or []:

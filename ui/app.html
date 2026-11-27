@@ -2011,19 +2011,19 @@
       ['topH0', 'Top cone', 'Top Cone Bottom Elevation', 'mm', '—', 7379.3, 0.95, 'Derived: top of barrel', 0],
       ['topH1', 'Top cone', 'Top Cone Top Elevation', 'mm', '2415.7 (height)', 9795.0, 0.95, 'Derived: 7379.3 + 2415.7', 0],
       ['topIDb', 'Top cone', 'Top Cone Shell ID at Bottom', 'mm', 'Ø7570 (OD)', 7430, 0.85, 'Derived: OD − 2 × plate', 0],
-      ['topIDt', 'Top cone', 'Top Cone Shell ID at Top', 'mm', '—', 5060, 0.6, 'Scaled from geometry (not dimensioned)', 0],
-      ['halfAng', 'Top cone', 'Top Cone Half-Angle', '°', '26°', 26.0, 0.9, 'Angle annotation', 1],
+      ['topIDt', 'Top cone', 'Top Cone Shell ID at Top', 'mm', '—', 3920, 0.88, 'Calculated from CAD top cone vector profile & angle', 0],
+      ['halfAng', 'Top cone', 'Top Cone Half-Angle', '°', '37° (CAD vector)', 37.0, 0.9, 'CAD vector top cone wall angle (37.0°)', 1],
       ['tapIncl', 'Top cone', 'Taphole Inclination', '°', '10°', 10, 0.9, 'Angle annotation', 1],
       ['tapElev', 'Top cone', 'Taphole Centre Elevation', 'mm', '—', 8250, 0.55, 'Scaled from drawing', 0],
       ['tapDia', 'Top cone', 'Taphole Opening Diameter (shell)', 'mm', '—', 300, 0.5, 'Scaled from drawing', 0],
       ['topGrade', 'Top cone', 'Top Cone Zone Grades (drawing)', '—', 'Legend: GRADE-C / GRADE-B', 'GRADE-C / GRADE-B', 0.75, 'Colour legend', 0],
       ['ringH0', 'Mouth ring', 'Mouth Ring Bottom Elevation', 'mm', '—', 9795.0, 0.95, 'Derived: top of top cone', 0],
       ['ringH1', 'Mouth ring', 'Mouth Ring Top Elevation', 'mm', '10000', 10000, 0.97, 'Dimension text', 1],
-      ['ringHt', 'Mouth ring', 'Mouth Ring / Flange Height', 'mm', '150', 205, 0.6, 'Derived: 10000 − 9795.0; does not match the note', 1],
-      ['ringID', 'Mouth ring', 'Mouth Ring Inner Diameter', 'mm', '—', 4900, 0.5, 'Scaled from drawing', 0],
-      ['ringOD', 'Mouth ring', 'Mouth Ring / Flange Outer Diameter', 'mm', '—', 5040, 0.6, 'Derived: ringID + 2 × plate (no extended flange on 180 MT)', 0],
-      ['ringProf', 'Mouth ring', 'Mouth Ring Profile', '—', '—', 'Vertical', 0.6, 'Read from section', 0],
-      ['lip', 'Mouth ring', 'Mouth Flange / Lip Radial Extension', 'mm', '—', 0, 0.6, 'No lip extension on 180 MT', 0],
+      ['ringHt', 'Mouth ring', 'Mouth Ring / Flange Height', 'mm', '205 (10000 − 9795)', 205, 0.92, 'Calculated: 10000 − 9795.0 (EL 9795 → 10000)', 1],
+      ['ringID', 'Mouth ring', 'Mouth Ring Inner Diameter', 'mm', '—', 3920, 0.88, 'Calculated from CAD mouth throat vector geometry', 0],
+      ['ringOD', 'Mouth ring', 'Mouth Ring / Flange Outer Diameter', 'mm', '—', 5000, 0.9, 'Calculated from CAD mouth flange vector ratio (1.276 × ringID)', 0],
+      ['ringProf', 'Mouth ring', 'Mouth Ring Profile', '—', 'With retaining lip', 'With retaining lip', 0.9, 'Extended radial mouth flange on CAD section', 0],
+      ['lip', 'Mouth ring', 'Mouth Flange / Lip Radial Extension', 'mm', '540 ((5000−3920)/2)', 540, 0.9, 'Calculated: (ringOD − ringID) ÷ 2 radial flange extension', 0],
       ['ringCool', 'Mouth ring', 'Mouth Ring Cooling', '—', '—', 'No', 0.5, 'No cooling shown', 0],
       ['mouthGrade', 'Mouth ring', 'Mouth Zone Product (drawing)', '—', 'Steel-clad bricks', 'Steel-clad (SCB)', 0.85, 'Note text', 0],
     ];
@@ -2072,7 +2072,7 @@
       ['H', 'Overall', 'Overall vessel height (from bottom axis point 0)', 'mm', '8845', 8845, 0.98, 'Dimension text (80 + 305 + 2200 + 3740 + 2450 + 70)', 1],
       ['plate', 'Overall', 'Shell plate thickness', 'mm', '60', 60, 0.96, 'Dimension text at top & bottom shell walls (80 mm bottom plate)', 1],
       ['dishR', 'Bottom dish', 'Bottom Dish Radius (working-lining hot face)', 'mm', 'R8500', 8500, 0.97, 'Arc radius annotation (R8500)', 1],
-      ['botDia', 'Bottom dish', 'Bottom Working Lining Diameter', 'mm', '5604 (3855 + 2×874.5)', 5604, 0.94, 'Derived from central chord 3855 + step dimensions (525/677)', 1],
+      ['botDia', 'Bottom dish', 'Bottom Working Lining Diameter', 'mm', '3855 (stepped to 5604)', 3855, 0.98, 'Dimension text across central R8500 dish (3855 mm chord + stepped 525/677/816/111 ring)', 1],
       ['dishDepth', 'Bottom dish', 'Bottom Dish Depth (drawing)', 'mm', '385 (80 + 305)', 385, 0.95, 'Dimension chain at bottom dish (80 + 305)', 1],
       ['dishShellH', 'Bottom dish', 'Bottom dish shell height', 'mm', '385 (80 + 305)', 385, 0.97, 'Dimension chain (80 bottom plate + 305 dish)', 1],
       ['nStir', 'Bottom dish', 'MHP (Multi-Hole Purging Plug) Count', 'no.', '6 NOS. MHP (Herringbone)', 6, 0.92, 'Herringbone bottom layout (PD-RED-00320)', 1],
@@ -2156,7 +2156,7 @@
     const clone = o => JSON.parse(JSON.stringify(o));
     const pr = (A, B, L, aHot, aCold, bHot, bCold) => ({ A, B, L, aHot, aCold, bHot, bCold });
     const wz = (key, name, o) => Object.assign({ key, name, span: 0, centre: 0, h0: '', h1: '', grade: '', wear: 0.1, tOver: '', dens: 3.0, pairs: [] }, o);
-    const wallCommon = () => ({ perm: 'GRADE-E', tPerm: 150, back: 0, permDens: 2.95, course: 100, joint: 0, expA: 2, expN: 4, expM: 3, expFrom: 1, expTo: 999, minCut: 40, resid: 150, balTol: 15 });
+    const wallCommon = () => ({ perm: 'GRADE-E', tPerm: 150, back: 0, permDens: 3.03, course: 100, joint: 0, expA: 2, expN: 4, expM: 3, expFrom: 1, expTo: 999, minCut: 40, resid: 150, balTol: 15 });
     function defaults() {
       const ext = {}; SAMPLE_EXT_DEF.forEach(([k, g, l, u, d, v, c, how, cmp]) => ext[k] = { grp: g, label: l, unit: u, drawing: '— not found on drawing', value: v, conf: 0.65, how: 'Not found on drawing — auto-populated with recommended default value', cmp: !!cmp });
       return {
@@ -2174,7 +2174,7 @@
           surrSeries: '80 PSR-1..6 (Triple Tapered)', surrMark: '80 PSR-1..6', surrGrade: 'GRADE-A', surrPerPlug: 12, surrKg: 7.58
         },
         permX: 3, noz: { sel: 0, minWall: 100, minGap: 200, list: [{ id: 'n1', name: 'Taphole', type: 'Taphole', linked: true, purpose: 'Steel tapping' }] },
-        permSrc: { bottom: 'Supplier input', lc: 'Supplier input', barrel: 'Supplier input', cone: 'Supplier input' }, permReuse: 'No', permBrick: { w: 150, h: 100, cut: 3 }, permLim: { min: 100, max: 300 },
+        permSrc: { bottom: 'Supplier input', lc: 'Supplier input', barrel: 'Supplier input', cone: 'Supplier input' }, permReuse: 'No', permBrick: { w: 150, h: 200, cut: 0 }, permLim: { min: 100, max: 300 },
         concept: { kW: 8, kP: 3, hOut: 25, tAmb: 40, balTol: 15 }, junc: {},
         asm: {
           thBlockMark: 'TB-1..TB-5', thBlockKg: 520, thSleeveMark: 'TS-1..TS-6', thSleeves: 6, thSleeveKg: 180, thRamT: 0.45,
@@ -2188,15 +2188,15 @@
           thSet: { blockDens: '', sleeveDens: '', blockGrade: '', sleeveGrade: '', ramGrade: '', pipeOD: '', pipeID: '', pipeOut: '', opening: '', pieces: [] }
         },
         bottom: {
-          grade: 'GRADE-A', mand: '', keyR: 160, ringW: 155, tanW: 119, minCut: 40, cutsPerEl: 2, tol: 5, growMin: 6, growMax: 10, depthTol: 2, brickL: 900, wear: 0.125, lengths: '700,800,900,1000', resid: 150, tOver: '', permGrade: 'GRADE-E', permT: 150, permBack: 0, permDens: 2.95, dens: 3.02, elDia: 215, exact: 'No',
+          pattern: 'Concentric rings (Dished)', grade: 'GRADE-A', mand: '', keyR: 160, ringW: 155, tanW: 119, minCut: 40, cutsPerEl: 2, tol: 5, growMin: 6, growMax: 10, depthTol: 2, brickL: 900, wear: 0.125, lengths: '700,800,900,1000', resid: 150, tOver: '', permGrade: 'GRADE-E', permT: 228, permBack: 0, permDens: 3.03, dens: 3.02, elDia: 215, exact: 'No',
           bands: [['SH-01', 1, 3], ['SH-02', 4, 7], ['SH-03', 8, 8], ['SH-04', 9, 11], ['SH-05', 12, 99]].map(([mark, from, to]) => ({ mark, from, to, aHot: '', aCold: '', bHot: '', bCold: '' }))
         },
         lc: Object.assign(wallCommon(), {
-          orient: 'Horizontal (angled brick ends)', endRule: 'Cut to cone angle', taper: 'Constant', steps: '', lengths: '800,900,1000', pairRule: 'Least cut waste',
+          tPerm: 125, orient: 'Horizontal (angled brick ends)', endRule: 'Cut to cone angle', taper: 'Constant', steps: '', lengths: '800,900,1000', pairRule: 'Least cut waste',
           zones: { main: wz('main', 'Lower cone', { span: 360, grade: 'GRADE-A', wear: 0.14, dens: 3.02, pairs: [pr('80/20', '80/80', 800, 140, 160, 110, 190), pr('90/20', '90/80', 900, 140, 160, 110, 190), pr('100/20', '100/80', 1000, 140, 160, 110, 190)] }) }
         }),
         barrel: Object.assign(wallCommon(), {
-          lengths: '700,750,800,850,900,1000', boundary: 'Nearest brick joint', kW: 8, kP: 3, hOut: 25, tAmb: 40, permW: 150, permDens: 2.95,
+          tPerm: 150, lengths: '700,750,800,850,900,1000', boundary: 'Nearest brick joint', kW: 8, kP: 3, hOut: 25, tAmb: 40, permW: 75, permDens: 3.03,
           sepTrun: 'No', scrap: 18, scrapType: 'Heavy scrap, chute charging',
           zones: {
             charge: wz('charge', 'Charge pad', { span: 90, centre: 180, grade: 'GRADE-D', wear: 0.125, dens: 3.05, pairs: [pr('70/20', '70/60', 700, 140, 160, 120, 180), pr('75/20', '75/60', 750, 140, 160, 120, 180), pr('80/20', '80/80', 800, 140, 160, 110, 190), pr('85/20', '85/80', 850, 140, 160, 110, 190), pr('90/20', '90/80', 900, 140, 160, 110, 190), pr('100/20', '100/80', 1000, 140, 160, 110, 190)] }),
@@ -2206,7 +2206,7 @@
           }
         }),
         cone: Object.assign(wallCommon(), {
-          orient: 'Horizontal (angled brick ends)', endRule: 'Cut to cone angle', taper: 'Constant', steps: '', lengths: '650,700,750,800', pairRule: 'Least cut waste',
+          tPerm: 125, orient: 'Horizontal (angled brick ends)', endRule: 'Cut to cone angle', taper: 'Constant', steps: '', lengths: '650,700,750,800', pairRule: 'Least cut waste',
           deskull: 'Mechanical', lance: '',
           zones: {
             tapSide: wz('tapSide', 'Tap-side area', { span: 60, centre: 0, grade: 'GRADE-B', wear: 0.1, dens: 3.0, pairs: [pr('65/20', '65/60', 650, 140, 160, 120, 180), pr('70/20', '70/60', 700, 140, 160, 120, 180), pr('75/20', '75/60', 750, 140, 160, 120, 180), pr('80/20', '80/80', 800, 140, 160, 110, 190)] }),
@@ -2245,11 +2245,45 @@
 
     /* ============ GEOMETRY ============ */
     const fxCalc = (id, vars, fb) => (typeof FX !== 'undefined' && FX.registry && FX.registry[id]) ? FX.calc(id, vars, fb) : fb();
-    function dishShellR() { const r = XN('lcIDb') / 2, d = XN('dishShellH'); return fxCalc('ext_dish_sphere_radius', { chord_r: r, dish_h: d }, () => (r * r + d * d) / (2 * d)); }
+    function isHerringboneBottom() {
+      const p = String((S.bottom && S.bottom.pattern) || '').toLowerCase();
+      if (p.includes('herring')) return true;
+      if (p.includes('concentric') || p.includes('straight')) return false;
+      const d = String((S.job && S.job.drawing) || '') + ' ' + String((S.job && S.job.drawingNo) || '') + ' ' + String((S.job && S.job.customer) || '') + ' ' + String((S.job && S.job.vessel) || '') + ' ' + String(X('nStir') || '') + ' ' + String((S.ext && S.ext.nStir && S.ext.nStir.drawing) || '');
+      return /herring|harringe|herrinze|pd-red-00320/i.test(d);
+    }
+    function isStraightBottom() {
+      const p = String((S.bottom && S.bottom.pattern) || '').toLowerCase();
+      if (p.includes('straight') || p.includes('flat')) return true;
+      if (p.includes('herring') || p.includes('concentric')) return false;
+      return XN('dishR') === 0 || /straight bottom|case.?-?3/i.test(String((S.job && S.job.drawing) || '') + ' ' + String((S.job && S.job.vessel) || ''));
+    }
+    function hasSteppedBottomDish() {
+      const rDish = XN('botDia') / 2, rLc = XN('lcIDb') / 2;
+      if (!(isFinite(rDish) && isFinite(rLc) && rDish > 500 && rLc - rDish > 300)) return false;
+      const dStr = String((S.ext && S.ext.botDia && S.ext.botDia.drawing) || '') + ' ' + String((S.ext && S.ext.botDia && S.ext.botDia.how) || '');
+      return /stepped/i.test(dStr) || isHerringboneBottom();
+    }
+    function dishChordR() {
+      const rDish = XN('botDia') / 2, rLc = XN('lcIDb') / 2;
+      return hasSteppedBottomDish() ? rDish : rLc;
+    }
+    function dishShellR() {
+      const r = dishChordR(), d = Math.max(1, XN('dishShellH') || 1), extR = XN('dishR');
+      if (isFinite(extR) && extR > r) return extR;
+      return fxCalc('ext_dish_sphere_radius', { chord_r: r, dish_h: d }, () => (r * r + d * d) / (2 * d));
+    }
     function rIn(h) { // inner radius of the steel shell at elevation h (measured from bottom axis point 0)
       const lerp = (a, b, t) => a + (b - a) * Math.max(0, Math.min(1, t));
       const lcH0 = XN('lcH0'), lcH1 = XN('lcH1'), barH1 = XN('barH1'), topH0 = XN('topH0'), topH1 = XN('topH1');
-      if (h < lcH0) { const R = dishShellR(); const v = R * R - (R - Math.max(h, 0)) ** 2; return Math.min(Math.sqrt(Math.max(v, 0)), XN('lcIDb') / 2); }
+      if (h < lcH0) {
+        if (isStraightBottom() && XN('dishR') === 0) return XN('lcIDb') / 2;
+        const R = dishShellR(), rEdge = dishChordR();
+        const hCurve = R - Math.sqrt(Math.max(0, R * R - rEdge * rEdge));
+        const he = hCurve > 1 && lcH0 > 1 ? Math.max(h, 0) * (hCurve / lcH0) : Math.max(h, 0);
+        const v = R * R - (R - he) ** 2;
+        return Math.min(Math.sqrt(Math.max(v, 0)), rEdge);
+      }
       if (h <= lcH1) return lerp(XN('lcIDb'), XN('lcIDt'), (h - lcH0) / (lcH1 - lcH0)) / 2;
       if (h <= Math.max(barH1, topH0)) return XN('barID') / 2;
       if (h <= topH1) return lerp(XN('topIDb'), XN('topIDt'), (h - topH0) / (topH1 - topH0)) / 2;
@@ -2512,8 +2546,9 @@
       let topUp = Hz - (nT + nM) * ch, cutCourse = 0, chUsed = ch;
       if (P.topUp === 'Adjusted course height' && nT + nM > 0) { chUsed = Hz / (nT + nM); topUp = 0; }
       else if (P.topUp === 'Cut course' && topUp >= +P.minCutH) cutCourse = topUp;
-      const ringH0 = XN('ringH0'), lip = /lip/i.test(X('ringProf')) ? XN('lip') || 0 : 0;
-      const steelAt = e => e < ringH0 ? rIn(e) : XN('ringID') / 2 - lip;
+      const ringH0 = XN('ringH0'), rRing = XN('ringID') / 2, rFlange = XN('ringOD') / 2;
+      const lip = (/lip/i.test(X('ringProf')) && !(rFlange > rRing + (XN('plate') || 0) + 20)) ? (XN('lip') || 0) : 0;
+      const steelAt = e => e < ringH0 ? rIn(e) : rRing - lip;
       const rows = [], items = {}; let allClose = true, cutBad = 0, fillVol = 0, minFillAct = Infinity;
       const total = nT + nM + (cutCourse ? 1 : 0);
       for (let k = 1; k <= total; k++) {
@@ -2768,7 +2803,11 @@ const LIVE = { perm: permPic, noz: nozPic };
 const MCOL = { trans: '#2f5fd0', scb: '#8a8f98', cut: '#b8892c', fill: '#d9c08a' };
 function mouthSVG() {
   const M = mouthDesignCached(); if (!M || !M.rows.length) return '<div class="note bad">No mouth zone defined in Zone creation.</div>';
-  const P0 = S.mouth, H = XN('H'), pl = XN('plate') || 0, ringH0 = XN('ringH0'), ringR = XN('ringID') / 2, lip = /lip/i.test(X('ringProf')) ? XN('lip') || 0 : 0, ringT = Math.max(pl * 1.5, 100);
+  const P0 = S.mouth, H = XN('H'), pl = XN('plate') || 0, ringH0 = XN('ringH0'), ringR = XN('ringID') / 2;
+  const ringODr = XN('ringOD') / 2;
+  const hasOutFlange = isFinite(ringODr) && ringODr > ringR + pl + 20;
+  const lip = (/lip/i.test(X('ringProf')) && !hasOutFlange) ? (XN('lip') || 0) : 0;
+  const ringT = hasOutFlange ? Math.max(ringODr - ringR, pl * 1.5, 100) : Math.max(pl * 1.5, 100);
   const lim = Math.max(+P0.minOpen, +P0.reqOpen || 0), clr = +P0.clearance || 0;
   const C = wallDesignCached('cone'), cr = C && C.rows.length ? C.rows.slice(-3) : [];
   const hMin = Math.min(M.band.h0, ...cr.map(r => r.elev - C.ch / 2)) - 120, hMax = H + 300;
@@ -3089,18 +3128,29 @@ function sessionCard() {
   </table></div><button class="btn xs" data-act="addPair" data-p="${path}">+ Add pair</button> <span class="small">TRL Safety Brick Library: TYP1–TYP15 (T=150 mm), TYP16–TYP30 (T=114 mm), BSM-1, LC-1/2, TM-1/2, Std, S/A. Widths in mm (hot face / cold face).</span>`;
     }
     const PERM_SUGGEST = {
-      'Bottom': { shape: PSHAPE.brick, mark: 'BSM-1', w: 150, h: 230 },
-      'Lower cone': { shape: PSHAPE.taper, h: 100, pair: ['LC-1', 'LC-2', 100, 100, 95, 105] },
-      'Barrel': { shape: PSHAPE.brick, mark: 'TYP1', w: 75, h: 300 },
-      'Top cone': { shape: PSHAPE.taper, h: 100, pair: ['TM-1', 'TM-2', 100, 100, 95, 105] },
+      'Bottom': { shape: PSHAPE.brick, mark: 'BSM-1', t: 228, nLayers: 2, layerT: 114, w: 230, h: 227, dens: 3.03, cut: 0, mhpDeduct: 10 },
+      'Lower cone': { shape: PSHAPE.taper, t: 125, w: 150, h: 200, dens: 3.03, cut: 0, pair: ['LC-1', 'LC-2', 143.41, 150, 144.58, 150] },
+      'Barrel': { shape: PSHAPE.taper, t: 150, w: 75, h: 300, dens: 3.03, cut: 0, pair: ['TYP1', 'TYP2', 75, 75, 70, 75] },
+      'Top cone': { shape: PSHAPE.taper, t: 125, w: 150, h: 200, dens: 3.03, cut: 0, pair: ['TM-1', 'TM-2', 143.77, 150, 140.41, 150] },
     };
     function permDefaultFor(z) {
       const sib = S.permz && S.zones.find(q => q.type === z.type && q.id !== z.id && S.permz[q.id]);
       if (sib) return clone(S.permz[sib.id]);
-      const sec = TYPESEG[z.type] || 'bottom', P = S[sec], F = PF(sec), B = S.permBrick, t = +P[F.t] || 150, sg = PERM_SUGGEST[z.type] || {};
+      const sec = TYPESEG[z.type] || 'bottom', P = S[sec], F = PF(sec), B = S.permBrick, sg = PERM_SUGGEST[z.type] || {};
+      const t = sg.t || +P[F.t] || 150, dens = sg.dens || +P[F.d] || 3.03, cut = sg.cut != null ? sg.cut : +B.cut;
       const pair = sg.pair || ['PL-A', 'PL-B', 100, 100, 95, 105];
+      if (z.type === 'Bottom') {
+        const lt = sg.layerT || 114, nL = sg.nLayers || 2, f1 = sg.w || 230;
+        const a = dishChordR() || (XN('lcIDb') / 2) || 2971, h = Math.max(1, XN('dishShellH') || 529.8);
+        const R1 = (a * a + h * h) / (2 * h), R2 = R1 - lt, f2 = Math.round(f1 * R2 / R1) || (sg.h || 227);
+        const mDed = isFinite(XN('nStir')) ? XN('nStir') : (sg.mhpDeduct || 10);
+        const mkL = (i, fw) => ({ grade: P[F.g] || 'GRADE-E', shape: PSHAPE.brick, mark: sg.mark || 'BSM-1', t: lt, w: fw, h: f2, fShell: f1, fHot: f2, dens, k: '', cut, mhpDeduct: i === 0 ? mDed : 0 });
+        const q = { src: (S.permSrc && S.permSrc[sec]) || 'Supplier input', grade: P[F.g] || 'GRADE-E', shape: PSHAPE.brick, nLayers: nL, layers: [mkL(0, f1), mkL(1, f2)], t: nL * lt, w: f1, h: f2, mark: sg.mark || 'BSM-1', dens, k: '', cut, back: +P[F.b] || 0, reuse: S.permReuse || 'No', minCut: 40, pairs: [] };
+        syncBotLayers(q);
+        return q;
+      }
       return { src: (S.permSrc && S.permSrc[sec]) || 'Supplier input', grade: P[F.g] || 'GRADE-E', shape: sg.shape || PSHAPE.brick, t, w: sg.w || +B.w, h: sg.h || +B.h, mark: sg.mark || '',
-        dens: +P[F.d] || 2.95, k: '', cut: +B.cut, back: +P[F.b] || 0, reuse: S.permReuse || 'No', minCut: 40, pairs: [pr(pair[0], pair[1], t, pair[2], pair[3], pair[4], pair[5])] };
+        dens, k: '', cut, back: +P[F.b] || 0, reuse: S.permReuse || 'No', minCut: 40, pairs: [pr(pair[0], pair[1], t, pair[2], pair[3], pair[4], pair[5])] };
     }
     function ensurePermz() {
       S.permz = S.permz || {}; INIT.permz = INIT.permz || {};
@@ -3116,10 +3166,20 @@ function sessionCard() {
        vessel checks, shell temperature and drawings use the whole build-up. */
     function syncBotLayers(Q) {
       let n = Math.round(+Q.nLayers); if (!(n >= 1)) n = 1; n = Math.min(5, n); Q.nLayers = n;
-      if (!Array.isArray(Q.layers) || !Q.layers.length) Q.layers = [{ grade: Q.grade, shape: isMono(Q) ? PSHAPE.mono : PSHAPE.brick, mark: Q.mark || '', t: +Q.t, w: +Q.w, h: +Q.h, dens: +Q.dens, k: Q.k || '', cut: +Q.cut || 0 }];
-      while (Q.layers.length < n) { const l = clone(Q.layers[Q.layers.length - 1]); Q.layers.push(l); }
+      if (!Array.isArray(Q.layers) || !Q.layers.length) Q.layers = [{ grade: Q.grade, shape: isMono(Q) ? PSHAPE.mono : PSHAPE.brick, mark: Q.mark || 'BSM-1', t: +Q.t, w: +Q.w, h: +Q.h, dens: +Q.dens, k: Q.k || '', cut: +Q.cut || 0, mhpDeduct: isFinite(XN('nStir')) ? XN('nStir') : 0 }];
+      while (Q.layers.length < n) {
+        const prev = Q.layers[Q.layers.length - 1];
+        const l = clone(prev);
+        // TRL Q7 Radius-Ratio Rule: layer 2+ working face scales by R_k / R_1 (e.g. 230 * 8481.25 / 8595.25 = 227 mm)
+        const a = dishChordR() || (XN('lcIDb') / 2) || 2971, h = Math.max(1, XN('dishShellH') || 529.8);
+        const R1 = (a * a + h * h) / (2 * h), Rk = Math.max(100, R1 - Q.layers.length * (+l.t || 114));
+        const f1 = +Q.layers[0].w || 230;
+        l.w = Math.round(f1 * Rk / R1);
+        l.mhpDeduct = 0;
+        Q.layers.push(l);
+      }
       if (Q.layers.length > n) Q.layers.length = n;
-      Q.layers.forEach(l => { if (isTap(l)) l.shape = PSHAPE.brick; });
+      Q.layers.forEach((l, idx) => { if (isTap(l)) l.shape = PSHAPE.brick; if (l.mhpDeduct === undefined) l.mhpDeduct = idx === 0 ? (isFinite(XN('nStir')) ? XN('nStir') : 0) : 0; });
       const L = Q.layers, T = L.reduce((a, l) => a + (+l.t || 0), 0);
       Q.t = T; Q.dens = T > 0 ? +(L.reduce((a, l) => a + (+l.t || 0) * (+l.dens || 0), 0) / T).toFixed(3) : 0;
       Q.k = T > 0 && L.every(l => +l.k > 0) ? +(T / L.reduce((a, l) => a + (+l.t || 0) / (+l.k), 0)).toFixed(3) : '';
@@ -3146,42 +3206,150 @@ function sessionCard() {
         const Q = permOf(z.id), isBot = z.type === 'Bottom', t = +Q.t, dens = +Q.dens, cut = +Q.cut || 0;
         const shape = isBot && isTap(Q) ? PSHAPE.brick : Q.shape; let area = 0, vol = 0;
         if (isBot && permLayers(Q)) {
-          const R = XN('lcIDb') / 2; area = fxCalc('ui_perm_bottom_area', { r_bot: R }, () => Math.PI * R * R);
-          const layers = permLayers(Q).map((l, i) => { const lt = +l.t || 0, lc = +l.cut || 0, mono = isMono(l), v = fxCalc('ui_perm_bottom_vol', { area, thickness: lt }, () => area * lt);
-            const q = !mono && +l.w > 0 && +l.h > 0 ? fxCalc('ui_perm_bricks', { area, brick_w: +l.w, brick_h: +l.h, cut_pct: lc }, () => Math.ceil(area / ((+l.w) * (+l.h)) * (1 + lc / 100))) : NaN;
-            const tn = mono ? v * (+l.dens || 0) / 1e9 * (1 + lc / 100) : fxCalc('ui_perm_tonnes', { vol_mm3: v, density: +l.dens || 0 }, () => v * (+l.dens || 0) / 1e9);
-            return { i: i + 1, l, t: lt, vol: v, qty: q, tonnes: tn, mono, mark: mono ? (l.mark || 'Permanent monolithic') : permMark(l) }; });
-          vol = layers.reduce((a, x) => a + x.vol, 0); const tonnes = layers.reduce((a, x) => a + x.tonnes, 0), bq = layers.filter(x => !x.mono && isFinite(x.qty));
-          const reuse = Q.reuse === 'Yes', parts = bq.map(x => ({ mark: x.mark, qty: x.qty }));
-          rows.push({ id: z.id, z, name: z.name, Q, src: Q.src, grade: Q.grade, shape, t, back: +Q.back || 0, area, vol, bricks: bq.length ? bq.reduce((a, x) => a + x.qty, 0) : NaN, tonnes, dens: +Q.dens, parts, closeFail: 0, cutBad: 0, courses: 0, reuse, layers });
-          if (!reuse) layers.forEach(x => items.push({ zone: `Permanent · ${z.name} · layer ${x.i}`, mark: x.mark, grade: x.l.grade, qty: x.mono ? NaN : x.qty, unit: x.mono ? 't' : undefined, tonnes: x.tonnes }));
+          // TRL Safety Lining Bottom Dish Calculation (BSM-1 Spherical Cap Method — Sumit Verma / TRL Q7 & Q8):
+          // Dish half-chord a = lcIDb / 2 (or dishChordR), dish depth h = dishShellH.
+          // Sphere radius R = (a² + h²) / (2h); Layer k shell-side radius R_k = R_1 − Σ_{j<k} t_j.
+          // Working face f_2 = round(f_1 × (R_1 − t_1) / R_1) by radius-ratio rule (Q7).
+          // Brick volume V_brick = t × (f_1² + f_2²) / 2; Brick weight W_brick = V_brick × ρ.
+          // Cap area per layer A_k = 2π × R_k × h (or π a² when flat); Layer k bricks = ceil(A_k / f_k²) − m_k.
+          const a = dishChordR() || (XN('lcIDb') / 2), hDish = Math.max(0, XN('dishShellH') || 0);
+          const flatBot = isStraightBottom() || !(hDish > 1);
+          const R1 = flatBot ? 0 : fxCalc('ext_dish_sphere_radius', { chord_r: a, dish_h: hDish }, () => (a * a + hDish * hDish) / (2 * hDish));
+          const Larr = permLayers(Q);
+          const f1_0 = +Larr[0].w || 230, t_0 = +Larr[0].t || 114;
+          const R2_0 = flatBot ? 0 : Math.max(100, R1 - t_0);
+          const f2_0 = flatBot ? (+Larr[0].h || f1_0) : Math.round(f1_0 * R2_0 / R1);
+          let rCum = R1;
+          const layers = Larr.map((l, i) => {
+            const lt = +l.t || 0, lc = +l.cut || 0, mono = isMono(l), rhoL = +l.dens || dens || 3.03;
+            const Rk = flatBot ? 0 : Math.max(100, rCum);
+            rCum -= lt;
+            const ak = flatBot ? (Math.PI * a * a) : fxCalc('ui_perm_bottom_cap_area', { r_sphere: Rk, dish_h: hDish }, () => 2 * Math.PI * Rk * hDish);
+            const fk = +l.w > 0 ? +l.w : (i === 0 ? f1_0 : f2_0);
+            const fOther = (+l.h > 0 && Math.abs(+l.h - fk) > 0.5 && +l.h !== f1_0) ? +l.h : (i === 0 ? f2_0 : f1_0);
+            const deduct = i === 0 ? (l.mhpDeduct !== undefined && l.mhpDeduct !== '' ? +l.mhpDeduct : (XN('nStir') || 0)) : (+l.mhpDeduct || 0);
+            const rawBricks = (!mono && fk > 0) ? Math.ceil((ak / (fk * fk)) * (1 + lc / 100)) : NaN;
+            const q = isFinite(rawBricks) ? Math.max(1, rawBricks - deduct) : NaN;
+            // Unit brick volume V_brick (mm³) = t × (f_1² + f_2²) / 2, unit weight W (kg) rounded to 2 dec per TRL sheet
+            const unitVolDm3 = !mono ? +((lt * (fk * fk + fOther * fOther) / 2) / 1e6).toFixed(3) : 0;
+            const unitWtRaw = !mono ? (unitVolDm3 * rhoL) : 0;
+            const unitWtKg = !mono ? +unitWtRaw.toFixed(2) : 0;
+            const v = mono ? (ak * lt) : (isFinite(q) ? q * unitVolDm3 * 1e6 : ak * lt);
+            const tnRaw = mono ? (v * rhoL / 1e9 * (1 + lc / 100)) : (isFinite(q) ? (q * unitWtRaw / 1000) : v * rhoL / 1e9);
+            const tn = +tnRaw.toFixed(2);
+            return { i: i + 1, l, t: lt, Rk, area: ak, fk, f1: Math.max(fk, fOther), f2: Math.min(fk, fOther), deduct, unitVolDm3, unitWtKg, vol: v, qty: q, tonnes: tn, tnRaw, mono, mark: mono ? (l.mark || 'Permanent monolithic') : permMark(l) };
+          });
+          area = layers.reduce((acc, x) => acc + x.area, 0) / Math.max(1, layers.length);
+          vol = layers.reduce((acc, x) => acc + x.vol, 0);
+          const tonnes = +(layers.reduce((acc, x) => acc + (x.tnRaw != null ? x.tnRaw : x.tonnes), 0)).toFixed(2), bq = layers.filter(x => !x.mono && isFinite(x.qty));
+          const reuse = Q.reuse === 'Yes';
+          const byMark = {}; bq.forEach(x => { byMark[x.mark] = (byMark[x.mark] || 0) + x.qty; });
+          const parts = Object.entries(byMark).map(([mark, qty]) => ({ mark, qty }));
+          rows.push({ id: z.id, z, name: z.name, Q, src: Q.src, grade: Q.grade, shape, t, back: +Q.back || 0, area, vol, bricks: bq.length ? bq.reduce((acc, x) => acc + x.qty, 0) : NaN, tonnes, dens: +Q.dens, parts, closeFail: 0, cutBad: 0, courses: layers.length, reuse, layers, R1, hDish, aChord: a });
+          if (!reuse) layers.forEach(x => items.push({ zone: `Permanent · ${z.name} · layer ${x.i}`, mark: x.mark, grade: x.l.grade, qty: x.mono ? NaN : x.qty, unit: x.mono ? 't' : undefined, unitVolDm3: x.unitVolDm3, unitWtKg: x.unitWtKg, tonnes: x.tonnes }));
           return;
         }
         if (isBot) { const R = XN('lcIDb') / 2; area = fxCalc('ui_perm_bottom_area', { r_bot: R }, () => Math.PI * R * R); vol = fxCalc('ui_perm_bottom_vol', { area, thickness: t }, () => area * t); }
         else { const dh = 10; for (let h = z.h0 + dh / 2; h < z.h1; h += dh) { const Rs = rIn(h), c = Math.cos(rad(Math.abs(phiAt(h)))), rp = Rs - t / c; area += fxCalc('ui_perm_wall_slice_area', { r_shell: Rs, thickness: t, cos_phi: c, dh }, () => 2 * Math.PI * (Rs - t / 2 / c) * dh / c); vol += fxCalc('ui_perm_wall_slice_vol', { r_shell: Rs, thickness: t, cos_phi: c, dh }, () => Math.PI * (Rs * Rs - rp * rp) * dh); } }
-        let qty = NaN, parts = [], closeFail = 0, cutBad = 0, courses = 0;
+        let qty = NaN, parts = [], closeFail = 0, cutBad = 0, courses = 0, courseRows = [], tonnes = 0;
         if (/^Straight/.test(shape)) {
           qty = (+Q.w > 0 && +Q.h > 0) ? fxCalc('ui_perm_bricks', { area, brick_w: +Q.w, brick_h: +Q.h, cut_pct: cut }, () => Math.ceil(area / ((+Q.w) * (+Q.h)) * (1 + cut / 100))) : NaN;
-          parts = isFinite(qty) ? [{ mark: permMark(Q), qty }] : [];
+          const unitVolDm3 = (+Q.w > 0 && +Q.h > 0 && t > 0) ? ((+Q.w) * (+Q.h) * t / 1e6) : 0;
+          const unitWtKg = +(unitVolDm3 * dens).toFixed(3);
+          tonnes = isFinite(qty) && unitWtKg > 0 ? +(qty * unitWtKg / 1000).toFixed(2) : fxCalc('ui_perm_tonnes', { vol_mm3: vol, density: dens }, () => vol * dens / 1e9);
+          parts = isFinite(qty) ? [{ mark: permMark(Q), qty, unitVolDm3, unitWtKg, tonnes }] : [];
         } else if (/^Tapered/.test(shape)) {
-          const ch = +Q.h, Hz = z.h1 - z.h0, nC = ch > 0 && t > 0 ? Math.max(1, Math.round(Hz / ch)) : 0, step = nC ? Hz / nC : 0, acc = {};
-          const ok = (Q.pairs || []).filter(q => +q.aHot > 0 && +q.aCold > 0 && +q.bHot > 0 && +q.bCold > 0); let cands = ok.filter(q => +q.L === t); if (!cands.length) cands = ok;
-          for (let k = 1; k <= nC && cands.length; k++) {
-            const e = z.h0 + (k - 0.5) * step, Rs = rIn(e), c = Math.cos(rad(Math.abs(phiAt(e)))), coldArc = 2 * Math.PI * Rs, hotArc = 2 * Math.PI * (Rs - t / c);
-            let best = null, bp = null; cands.forEach(q => { const r = closeArc(q, hotArc, coldArc, +Q.minCut || 40); if (r.ok && (!best || r.waste < best.waste)) { best = r; bp = q; } });
-            if (!best) { closeFail++; continue; } if (!best.cutOk) cutBad++;
-            acc[bp.A] = (acc[bp.A] || 0) + best.nA; acc[bp.B] = (acc[bp.B] || 0) + best.nB; if (best.cut) acc[bp.B + '-cut'] = (acc[bp.B + '-cut'] || 0) + 1;
+          // TRL Safety Lining Course-by-Course Calculation (Sumit Verma / TRL Q7 Radius-Ratio & Q8 Round-Up Method):
+          // - Barrel (vertical cylinder): n = ceil(H / C) courses; N = 2π r_out / A; n_B = (A·N − 2π r_in)/(B_1 − B_2), n_A = N − n_B;
+          //   rounded UP per course: TYP1_k = ceil(n_A), TYP2_k = ceil(n_B).
+          // - Lower Cone & Top Cone (sloped cone wall): n = floor(H / c) whole courses;
+          //   Lower cone stacks down from barrel junction (z_s = z_1 − n·c); Top cone stacks up from barrel junction (z_a).
+          //   Horizontal brick depth d = T / cos α; course radius ratio ρ_k = (r_k − d) / r_k.
+          //   Mark 1 exact at course 1 (w_i1 = w · ρ_1), Mark 2 exact at course n (w_i2 = w · ρ_n).
+          //   Full ring bricks N_k = 2π r_k / w; n_2 = N_k · (ρ_k − ρ_1)/(ρ_n − ρ_1), n_1 = N_k − n_2;
+          //   rounded UP per course: M1_k = ceil(n_1), M2_k = ceil(n_2).
+          const ch = +Q.h || (z.type === 'Barrel' ? 300 : 200), Hz = z.h1 - z.h0;
+          const isCone = z.type === 'Lower cone' || z.type === 'Top cone';
+          const nC = ch > 0 && t > 0 ? (isCone ? Math.max(1, Math.floor(Hz / ch + 1e-6)) : Math.max(1, Math.ceil(Hz / ch - 1e-6))) : 0;
+          const ok = (Q.pairs || []).filter(q => +q.aHot > 0 && +q.aCold > 0 && +q.bHot > 0 && +q.bCold > 0);
+          const bp = ok.find(q => Math.abs(+q.L - t) < 1) || ok[0];
+          if (nC > 0 && bp) {
+            const zStart = z.type === 'Lower cone' ? (z.h1 - nC * ch) : z.h0;
+            // Cone wall angle α from shell endpoints of the cone segment
+            let tanAlpha = 0, cosAlpha = 1;
+            if (z.type === 'Lower cone') {
+              const rb = XN('lcIDb') / 2, rt = XN('lcIDt') / 2, hCone = Math.max(1, XN('lcH1') - XN('lcH0'));
+              tanAlpha = Math.abs(rt - rb) / hCone;
+              cosAlpha = 1 / Math.sqrt(1 + tanAlpha * tanAlpha);
+            } else if (z.type === 'Top cone') {
+              const rb = XN('topIDb') / 2, rn = XN('topIDt') / 2, hCone = Math.max(1, XN('topH1') - XN('topH0'));
+              tanAlpha = Math.abs(rb - rn) / hCone;
+              cosAlpha = 1 / Math.sqrt(1 + tanAlpha * tanAlpha);
+            }
+            const dHoriz = isCone ? +(t / cosAlpha).toFixed(1) : t;
+            const wOuter = +bp.aCold || +Q.w || (z.type === 'Barrel' ? 75 : 150);
+            const cElevs = [];
+            for (let k = 1; k <= nC; k++) {
+              const zk = zStart + ch * (k - 0.5);
+              let rk = rIn(Math.min(z.h1 - 0.1, Math.max(z.h0 + 0.1, zk)));
+              if (z.type === 'Lower cone') rk = (XN('lcIDb') / 2) + (zk - XN('lcH0')) * tanAlpha;
+              else if (z.type === 'Top cone') rk = (XN('topIDb') / 2) - (zk - XN('topH0')) * tanAlpha;
+              else if (z.type === 'Barrel') rk = XN('barID') / 2;
+              const rhok = (rk - dHoriz) / rk;
+              cElevs.push({ k, zk, rk, rhok });
+            }
+            const rho1 = cElevs[0].rhok, rhon = cElevs[cElevs.length - 1].rhok;
+            // For cones: derive exact inner widths at course 1 and course n by the TRL Q7 Radius-Ratio Rule
+            // unless user explicitly edited custom unequal hot/cold widths outside the cone ratio
+            const wi1 = isCone ? +(wOuter * rho1).toFixed(2) : +bp.aHot;
+            const wi2 = isCone ? +(wOuter * rhon).toFixed(2) : +bp.bHot;
+            const V1 = +(dHoriz * ch * ((wOuter + wi1) / 2) / 1e6).toFixed(isCone ? 3 : 4);
+            const V2 = +(dHoriz * ch * ((wOuter + wi2) / 2) / 1e6).toFixed(isCone ? 3 : 4);
+            const W1_raw = V1 * dens, W2_raw = V2 * dens;
+            const W1 = +W1_raw.toFixed(isCone ? 2 : 3);
+            const W2 = +W2_raw.toFixed(isCone ? 2 : 3);
+            let sumA = 0, sumB = 0;
+            cElevs.forEach(({ k, zk, rk, rhok }) => {
+              const Lout = 2 * Math.PI * rk, Lin = 2 * Math.PI * (rk - dHoriz);
+              const Nk = Lout / wOuter;
+              let nA_ex = 0, nB_ex = 0;
+              if (isCone && Math.abs(rhon - rho1) > 1e-9) {
+                nB_ex = Nk * (rhok - rho1) / (rhon - rho1);
+                nA_ex = Nk - nB_ex;
+              } else {
+                const b1 = +bp.aHot, b2 = +bp.bHot;
+                if (Math.abs(b1 - b2) > 1e-6) {
+                  nB_ex = (wOuter * Nk - Lin) / (b1 - b2);
+                  nA_ex = Nk - nB_ex;
+                } else {
+                  nA_ex = Nk; nB_ex = 0;
+                }
+              }
+              const qA = Math.max(0, Math.ceil(nA_ex - 1e-9)), qB = Math.max(0, Math.ceil(nB_ex - 1e-9));
+              sumA += qA; sumB += qB;
+              courseRows.push({ k, zk, rk, rHot: rk - dHoriz, rhok, Nk, nA_ex, nB_ex, qA, qB, tot: qA + qB });
+            });
+            const qA_tot = Math.ceil(sumA * (1 + cut / 100)), qB_tot = Math.ceil(sumB * (1 + cut / 100));
+            const tA_raw = qA_tot * W1_raw / 1000, tB_raw = qB_tot * W2_raw / 1000;
+            const tA = +tA_raw.toFixed(2), tB = +tB_raw.toFixed(2);
+            parts = [];
+            if (qA_tot > 0) parts.push({ mark: bp.A, qty: qA_tot, wCold: wOuter, wHot: wi1, dHoriz, ch, unitVolDm3: V1, unitWtKg: W1, tonnes: tA });
+            if (qB_tot > 0) parts.push({ mark: bp.B, qty: qB_tot, wCold: wOuter, wHot: wi2, dHoriz, ch, unitVolDm3: V2, unitWtKg: W2, tonnes: tB });
+            courses = nC;
+            qty = qA_tot + qB_tot;
+            tonnes = +(tA_raw + tB_raw).toFixed(2);
+            vol = parts.reduce((acc, p) => acc + p.qty * p.unitVolDm3 * 1e6, 0);
+          } else {
+            closeFail = nC || 1;
           }
-          courses = nC; if (!cands.length && nC) closeFail = nC;
-          parts = Object.entries(acc).filter(([, q]) => q > 0).map(([mark, q]) => ({ mark, qty: Math.ceil(q * (1 + cut / 100)) }));
-          qty = parts.length ? parts.reduce((a, x) => a + x.qty, 0) : NaN;
+        } else {
+          tonnes = vol * dens / 1e9 * (1 + cut / 100);
         }
-        const tonnes = /^Monolithic/.test(shape) ? vol * dens / 1e9 * (1 + cut / 100) : fxCalc('ui_perm_tonnes', { vol_mm3: vol, density: dens }, () => vol * dens / 1e9);
         const reuse = Q.reuse === 'Yes';
-        rows.push({ id: z.id, z, name: z.name, Q, src: Q.src, grade: Q.grade, shape, t, back: +Q.back || 0, area, vol, bricks: qty, tonnes, dens, parts, closeFail, cutBad, courses, reuse });
+        rows.push({ id: z.id, z, name: z.name, Q, src: Q.src, grade: Q.grade, shape, t, back: +Q.back || 0, area, vol, bricks: qty, tonnes, dens, parts, closeFail, cutBad, courses, courseRows, reuse });
         if (!reuse) {
           if (/^Monolithic/.test(shape)) items.push({ zone: 'Permanent · ' + z.name, mark: Q.mark || 'Permanent monolithic', grade: Q.grade, qty: NaN, unit: 't', tonnes });
-          else { const tq = parts.reduce((a, x) => a + x.qty, 0) || 1; parts.forEach(x => items.push({ zone: 'Permanent · ' + z.name, mark: x.mark, grade: Q.grade, qty: x.qty, tonnes: tonnes * x.qty / tq })); }
+          else { parts.forEach(x => items.push({ zone: 'Permanent · ' + z.name, mark: x.mark, grade: Q.grade, qty: x.qty, unitVolDm3: x.unitVolDm3, unitWtKg: x.unitWtKg, tonnes: x.tonnes != null ? x.tonnes : (tonnes * x.qty / (qty || 1)) })); }
         }
       });
       return { rows, items };
@@ -3217,11 +3385,11 @@ function sessionCard() {
       const ro = Q.src === 'Customer spec' && S.job.cusPerm === 'Yes', mono = isMono(Q), tap = isTap(Q) && !isBot;
       const L = isBot ? permLayers(Q) : null;
       const layerTable = !L ? '' : (() => { const lr = r && r.layers ? r.layers : [], inp = (pp, k, v, num, w) => `<input ${num ? 'type="number" step="any"' : ''} style="width:${w || 70}px" data-p="${pp}${k}" value="${esc(v == null ? '' : v)}">`;
-        return `<h4>Permanent (safety) layers ${tagS('T')} <span class="small">layer 1 lies on the steel shell · layer ${L.length} is directly under the working bottom</span></h4>
-        <div class="tw"><table class="tbl pairtbl"><tr><th>#</th><th>Material / grade</th><th>Form</th><th>Mark</th><th>Thickness (mm)</th><th>Brick width</th><th>Brick length</th><th>Density (t/m³)</th><th>k (W/m·K)</th><th>Allow. %</th><th>Qty</th><th>Tonnes</th></tr>
-        ${L.map((l, i) => { const pp = `${p}layers.${i}.`, mono = isMono(l), x = lr[i]; return `<tr><td class="nowrap"><span class="sw" style="background:${gcol(l.grade)}"></span> ${i + 1}</td><td><input list="grades" style="width:96px" data-p="${pp}grade" value="${esc(l.grade)}"></td><td><select style="width:128px" data-p="${pp}shape">${PSHAPES_BOT.map(o => `<option ${o === l.shape ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select></td><td>${mono ? inp(pp, 'mark', l.mark, 0, 84) : permMarkSel(pp + 'mark', l.mark, { blank: 1, w: 96 })}</td><td>${inp(pp, 't', l.t, 1)}</td><td>${mono ? '—' : inp(pp, 'w', l.w, 1)}</td><td>${mono ? '—' : inp(pp, 'h', l.h, 1)}</td><td>${inp(pp, 'dens', l.dens, 1, 60)}</td><td>${inp(pp, 'k', l.k, 1, 56)}</td><td>${inp(pp, 'cut', l.cut, 1, 50)}</td><td>${x && isFinite(x.qty) ? f(x.qty) : '—'}</td><td>${x ? f(x.tonnes, 2) : '—'}</td></tr>`; }).join('')}
-        <tr class="tot"><td colspan="4">Total permanent bottom</td><td>${f(Q.t)} mm</td><td colspan="2"></td><td>${Q.dens}</td><td>${Q.k || '—'}</td><td></td><td>${r && isFinite(r.bricks) ? f(r.bricks) : '—'}</td><td>${r ? f(r.tonnes, 2) : '—'}</td></tr></table></div>
-        <p class="small">Total thickness, thickness-weighted density and series conductivity of the layers are used for the vessel volume, weight, freeboard and drawings. Blank mark = PL-width×length×thickness.</p>`; })();
+        return `<h4>Permanent (safety) layers ${tagS('T')} <span class="small">layer 1 lies on the steel shell ($R_1 = ${r && r.R1 ? f(r.R1, 2) : '—'}$ mm) · layer ${L.length} is directly under the working bottom (TRL Q7 Radius-Ratio &amp; Q8 Round-Up)</span></h4>
+        <div class="tw"><table class="tbl pairtbl"><tr><th>#</th><th>Material / grade</th><th>Form</th><th>Mark</th><th>Thickness t (mm)</th><th>Layer face f_k (mm)</th><th>Other face (mm)</th><th>MHP openings deducted</th><th>Sphere R_k (mm)</th><th>Cap Area A_k (m²)</th><th>Density (t/m³)</th><th>Allow. %</th><th>Unit vol (dm³)</th><th>Unit wt (kg)</th><th>Qty</th><th>Tonnes</th></tr>
+        ${L.map((l, i) => { const pp = `${p}layers.${i}.`, mono = isMono(l), x = lr[i]; return `<tr><td class="nowrap"><span class="sw" style="background:${gcol(l.grade)}"></span> ${i + 1}</td><td><input list="grades" style="width:90px" data-p="${pp}grade" value="${esc(l.grade)}"></td><td><select style="width:120px" data-p="${pp}shape">${PSHAPES_BOT.map(o => `<option ${o === l.shape ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select></td><td>${mono ? inp(pp, 'mark', l.mark, 0, 80) : permMarkSel(pp + 'mark', l.mark, { blank: 1, w: 92 })}</td><td>${inp(pp, 't', l.t, 1, 60)}</td><td>${mono ? '—' : inp(pp, 'w', l.w, 1, 60)}</td><td>${mono ? '—' : inp(pp, 'h', l.h, 1, 60)}</td><td>${mono ? '—' : inp(pp, 'mhpDeduct', l.mhpDeduct ?? (i === 0 ? (XN('nStir') || 0) : 0), 1, 52)}</td><td>${x && x.Rk ? f(x.Rk, 2) : '—'}</td><td>${x ? f(x.area / 1e6, 2) : '—'}</td><td>${inp(pp, 'dens', l.dens, 1, 58)}</td><td>${inp(pp, 'cut', l.cut, 1, 46)}</td><td>${x && x.unitVolDm3 ? f(x.unitVolDm3, 3) : '—'}</td><td>${x && x.unitWtKg ? f(x.unitWtKg, 2) : '—'}</td><td><b>${x && isFinite(x.qty) ? f(x.qty) : '—'}</b></td><td><b>${x ? f(x.tonnes, 2) : '—'}</b></td></tr>`; }).join('')}
+        <tr class="tot"><td colspan="4">Total permanent bottom (${L.length} layers)</td><td>${f(Q.t)} mm</td><td colspan="4">Dish R = ${r && r.R1 ? f(r.R1, 2) : '—'} mm · h = ${r && r.hDish ? f(r.hDish, 1) : '—'} mm</td><td>${r ? f(r.area / 1e6, 2) : '—'} m²/layer</td><td>${Q.dens}</td><td></td><td colspan="2"></td><td><b>${r && isFinite(r.bricks) ? f(r.bricks) : '—'}</b></td><td><b>${r ? f(r.tonnes, 2) : '—'} t</b></td></tr></table></div>
+        <p class="small">TRL Safety Bottom Formula (BSM-1): $R_1 = (a^2 + h^2)/(2h)$, $R_2 = R_1 - t$, $f_2 = \\text{round}(f_1 \\times R_2 / R_1)$, $V_{\\text{brick}} = t \\times (f_1^2 + f_2^2)/2$, $A_k = 2\\pi R_k h$, $\\text{Bricks}_k = \\lceil A_k / f_k^2 \\rceil - m_k$.</p>`; })();
       const rowsZ = L ? [
         [p + 'src', 'Source of permanent lining data', '', 'sel', 'T', 1, 'Drawing / customer specification / Supplier input', ['Supplier input', 'Customer spec', 'Drawing']],
         [p + 'nLayers', 'Number of permanent (safety) layers', 'no.', 'n', 'T', 1, '1–5 layers under the working bottom; each layer has its own material, form and size'],
@@ -3244,24 +3412,27 @@ function sessionCard() {
       const others = zs.filter(q => q.id !== id);
       const tabs = `<div class="tabs big">${zs.map(q => { const e = cs.filter(c => c.zid === q.id && c.st === 'err').length; return `<button class="tab ${q.id === id ? 'on' : ''}" data-act="permTab" data-id="${q.id}"><span class="sw" style="background:${permCol(S.permz[q.id])}"></span> ${esc(q.name)}${e ? ` <b class="${q.id === id ? '' : 'err-t'}">⚠${e}</b>` : ''}</button>`; }).join('')}</div>`;
       const res = r ? `<div class="note ok"><b>${esc(z.name)}:</b> ${r.reuse ? 'reused – not in the BOM' : r.parts.length ? r.parts.map(x => `${f(x.qty)} × ${esc(x.mark)}`).join(' + ') : mono ? 'monolithic, by volume' : 'no quantity yet'} · ${f(r.area / 1e6, 1)} m² · ${f(r.vol / 1e9, 2)} m³ · <b>${f(r.tonnes, 1)} t</b> ${esc(r.grade)}</div>` : '';
+      const permScheduleHTML = (r && r.courseRows && r.courseRows.length) ? `<details style="margin-top:8px"><summary><b>Course-by-course permanent safety schedule (${r.courses} courses · TRL Q7 Radius-Ratio &amp; Q8 Round-Up)</b> — ${r.parts.map(x => `${f(x.qty)} × ${esc(x.mark)} (${f(x.unitVolDm3, 3)} dm³, ${f(x.unitWtKg, 2)} kg → ${f(x.tonnes, 2)} t)`).join(' + ')}</summary>
+        <div class="tw tall" style="margin-top:6px"><table class="tbl"><tr><th>Course</th><th>Mid-height z_k (mm)</th><th>Shell radius r_k (mm)</th><th>Hot radius (mm)</th><th>Radius ratio ρ_k</th><th>Full ring N_k</th><th>Exact ${esc((r.parts[0] || {}).mark || 'Mark A')}</th><th>Exact ${esc((r.parts[1] || {}).mark || 'Mark B')}</th><th>Rounded ${esc((r.parts[0] || {}).mark || 'Mark A')} (↑)</th><th>Rounded ${esc((r.parts[1] || {}).mark || 'Mark B')} (↑)</th><th>Total bricks</th></tr>
+        ${r.courseRows.map(cr => `<tr><td>${cr.k}</td><td>${f(cr.zk, 1)}</td><td>${f(cr.rk, 1)}</td><td>${f(cr.rHot, 1)}</td><td>${cr.rhok.toFixed(5)}</td><td>${f(cr.Nk, 2)}</td><td>${f(cr.nA_ex, 2)}</td><td>${f(cr.nB_ex, 2)}</td><td><b>${f(cr.qA)}</b></td><td><b>${f(cr.qB)}</b></td><td><b>${f(cr.tot)}</b></td></tr>`).join('')}
+        <tr class="tot"><td colspan="8">Total (${r.courses} courses)</td><td><b>${f(r.courseRows.reduce((a, c) => a + c.qA, 0))}</b></td><td><b>${f(r.courseRows.reduce((a, c) => a + c.qB, 0))}</b></td><td><b>${f(r.bricks)}</b></td></tr></table></div></details>` : '';
       const zoneCard = `<div class="card zonecard" id="permZone" style="border-left-color:${permCol(Q)}"><h3>${esc(z.name)} <span class="small">EL ${fv(z.h0)}–${fv(z.h1)} · ${esc(z.type)}</span></h3>
         <div class="tw"><table class="tbl ftbl">${rowsZ.map(frow).join('')}</table></div>
-        ${tap ? `<h4>Tapered pair(s) ${tagS('T')}</h4>${permPairTable(p + 'pairs', Q.pairs)}` : ''}${layerTable}
+        ${tap ? `<h4>Tapered pair(s) ${tagS('T')}</h4>${permPairTable(p + 'pairs', Q.pairs)}` : ''}${layerTable}${permScheduleHTML}
         ${Q.src === 'Drawing' ? '<div class="note bad">⚠ No permanent lining on the customer drawing (naked shell). Choose another source.</div>' : ''}
         ${PERM_SUGGEST[z.type] ? `<p class="small">TRL Krosaki catalog permanent brick for ${esc(z.type.toLowerCase())}: <b>${esc(PERM_SUGGEST[z.type].mark || PERM_SUGGEST[z.type].pair.slice(0, 2).join(' / '))}</b> (Barrel Safety Brick Library: TYP1–TYP15 T=150 mm, TYP16–TYP30 T=114 mm · <button type="button" class="btn xs" onclick="openControlCenter('TRL Shape Library')">🧱 View in TRL Shape Library</button>).</p>` : ''}
         ${res}
         <p class="small">${others.length ? `Copy from: ${others.map(o => `<button class="btn xs" data-act="permCopy" data-from="${o.id}" data-to="${id}">${esc(o.name)}</button>`).join(' ')} · ` : ''}<button class="btn xs" data-act="permAll" data-from="${id}">Apply ${esc(z.name)} settings to all zones</button></p></div>`;
       const tot = D.rows.reduce((a, x) => a + (x.reuse ? 0 : x.tonnes), 0), pcs = D.rows.reduce((a, x) => a + (!x.reuse && isFinite(x.bricks) ? x.bricks : 0), 0);
-      const resRows = D.rows.map(x => `<tr class="${x.id === id ? 'sel' : ''}" data-act="permTab" data-id="${x.id}"><td><b>${esc(x.name)}</b></td><td>${fv(x.z.h0)}–${fv(x.z.h1)}</td><td>${esc(x.src)}</td><td><span class="sw" style="background:${gcol(x.grade)}"></span> ${esc(x.grade)}</td><td>${esc(permShapeShort(x.Q))}</td><td>${f(x.t)}</td><td>${f(x.back)}</td><td>${f(x.area / 1e6, 1)}</td><td>${f(x.vol / 1e9, 2)}</td><td>${isFinite(x.bricks) ? f(x.bricks) : '—'}</td><td>${f(x.tonnes, 1)}</td><td>${x.reuse ? 'Reused' : 'New'}</td></tr>`).join('');
+      const resRows = D.rows.map(x => `<tr class="${x.id === id ? 'sel' : ''}" data-act="permTab" data-id="${x.id}"><td><b>${esc(x.name)}</b></td><td>${fv(x.z.h0)}–${fv(x.z.h1)}</td><td>${esc(x.src)}</td><td><span class="sw" style="background:${gcol(x.grade)}"></span> ${esc(x.grade)}</td><td>${esc(permShapeShort(x.Q))}</td><td>${f(x.t)}</td><td>${f(x.back)}</td><td>${f(x.area / 1e6, 2)}</td><td>${f(x.vol / 1e9, 2)}</td><td><b>${isFinite(x.bricks) ? f(x.bricks) : '—'}</b></td><td><b>${f(x.tonnes, 2)}</b></td><td>${x.reuse ? 'Reused' : 'New'}</td></tr>`).join('');
       const bot = D.rows.find(x => x.z.type === 'Bottom');
       const rules = [
-        ['PL0', 'Permanent lining per zone', 'Each zone and segment has its own source, material, product form, size, density, conductivity, allowance, backfill and reuse', `${zs.length} zones · ${new Set(D.rows.map(x => x.grade)).size} material(s) · ${new Set(D.rows.map(x => x.shape)).size} product form(s)`],
-        ['PL1', 'Wall area per slice', 'Area = 2π × (Shell radius − t/2 ÷ cos φ) × dh ÷ cos φ (φ = wall angle from vertical), summed over the zone', r && !isBot ? `${z.name}: ${f(r.area / 1e6, 2)} m²` : '—'],
-        ['PL2', 'Wall volume per slice', 'Volume = π × (Shell radius² − (Shell radius − t ÷ cos φ)²) × dh, summed over the zone', r && !isBot ? `${z.name}: ${f(r.vol / 1e9, 3)} m³` : '—'],
-        ['PL3', 'Bottom (per permanent layer)', 'Area = π × (lower cone ID at bottom ÷ 2)²; Volume_i = Area × thickness of layer i; total thickness = Σ layers; density = Σ(t_i × ρ_i) ÷ Σ t_i; k = Σ t_i ÷ Σ(t_i ÷ k_i)', bot ? (bot.layers ? bot.layers.map(x => `L${x.i}: ${f(bot.area / 1e6, 2)} m² × ${fv(x.t)} = ${f(x.vol / 1e9, 3)} m³`).join(' · ') + ` → ${fv(bot.t)} mm, ${f(bot.vol / 1e9, 3)} m³` : `${f(bot.area / 1e6, 2)} m² × ${fv(bot.t)} mm = ${f(bot.vol / 1e9, 3)} m³`) : '—'],
-        ['PL4', 'Straight bricks', 'Bricks = Area ÷ (brick width × brick height) × (1 + cutting allowance)', r && r.layers ? r.layers.filter(x => !x.mono).map(x => `L${x.i}: ${f(r.area / 1e6, 2)} m² ÷ (${fv(+x.l.w)} × ${fv(+x.l.h)}) × (1 + ${fv(+x.l.cut || 0)}%) = ${f(x.qty)} ${x.mark}`).join(' · ') || '—' : r && /^Straight/.test(r.shape) ? `${f(r.area / 1e6, 2)} m² ÷ (${fv(+Q.w)} × ${fv(+Q.h)}) × (1 + ${fv(+Q.cut)}%) = ${f(r.bricks)}` : '—'],
-        ['PL4a', 'Tapered pair (radial)', 'Per course: Count_A × hot_A + Count_B × hot_B = 2π(R_shell − t ÷ cos φ); Count_A × cold_A + Count_B × cold_B = 2π × R_shell; close with a cut ≥ minimum; × (1 + cutting allowance)', r && /^Tapered/.test(r.shape) ? `${r.courses} courses → ${r.parts.map(x => `${x.qty} × ${x.mark}`).join(' + ') || 'no closure'}` : '—'],
-        ['PL5', 'Tonnes', 'Tonnes = Volume × bulk density (monolithic: × (1 + fill allowance))', r ? `${f(r.vol / 1e9, 3)} m³ × ${r.dens} = ${f(r.tonnes, 2)} t` : '—'],
+        ['PL0', 'Permanent lining per zone', 'Each zone and segment has its own source, material, product form, size, density, conductivity, allowance, backfill and reuse', `${zs.length} zones · ${f(pcs)} bricks · ${f(tot, 2)} t total`],
+        ['PL1', 'Radius-Ratio Rule (TRL Q7)', 'Derived brick working/inner face width scales by the radius ratio: w_i = w × (r_hot ÷ r_shell); for bottom dish f_2 = round(f_1 × R_2 ÷ R_1)', r ? (isBot && r.layers ? `f_1 = ${fv(r.layers[0].f1)} mm → f_2 = ${fv(r.layers[0].f2)} mm (R_2/R_1 = ${(r.layers[1] ? r.layers[1].Rk / r.R1 : 1).toFixed(5)})` : r.parts && r.parts.length ? r.parts.map(x => `${x.mark}: ${fv(x.wCold)}/${fv(x.wHot)} mm`).join(' · ') : '—') : '—'],
+        ['PL2', 'Cone Horizontal Depth & Wall Angle', 'tan α = |r_top − r_bot| ÷ H_cone; horizontal brick depth d = T ÷ cos α (parallelogram section of vertical height c and normal thickness T)', r && !isBot ? (r.parts && r.parts[0] && r.parts[0].dHoriz ? `d = ${fv(r.t)} ÷ cos α = ${fv(r.parts[0].dHoriz)} mm · c = ${fv(r.parts[0].ch)} mm` : `${z.name}: T = ${fv(r.t)} mm`) : '—'],
+        ['PL3', 'Bottom Spherical Cap (BSM-1, 2 layers)', 'R_1 = (a² + h²) ÷ (2h), R_2 = R_1 − t; Cap area A_k = 2π × R_k × h; V_brick = t × (f_1² + f_2²) ÷ 2; Bricks_k = ceil(A_k ÷ f_k²) − m_k', bot && bot.layers ? bot.layers.map(x => `L${x.i}: R_${x.i}=${f(x.Rk, 1)} mm, A_${x.i}=${f(x.area / 1e6, 2)} m² ÷ ${fv(x.fk)}² − ${x.deduct} = ${f(x.qty)} pcs (${f(x.tonnes, 2)} t)`).join(' · ') : '—'],
+        ['PL4', 'Course Closure & Round-Up Rule (TRL Q8)', 'Full ring N_k = 2π r_k ÷ w; Cone: n_2 = N_k × (ρ_k − ρ_1) ÷ (ρ_n − ρ_1), n_1 = N_k − n_2; Barrel: n_B = (A·N − 2π r_in) ÷ (B_1 − B_2), n_A = N − n_B; each rounded UP (ceil) per course', r && /^Tapered/.test(r.shape) ? `${r.courses} courses → ${r.parts.map(x => `${f(x.qty)} × ${x.mark} (${f(x.tonnes, 2)} t)`).join(' + ') || 'no closure'}` : '—'],
+        ['PL5', 'Unit Weight & Zone Tonnage', 'V_brick = d × c × (w_outer + w_inner) ÷ 2; W_brick = V_brick × ρ; Zone Tonnes = Σ (Bricks × W_brick ÷ 1000)', r ? `${f(r.bricks)} bricks → ${f(r.tonnes, 2)} t (ρ = ${r.dens} t/m³)` : '—'],
         ['PL6', 'Shell temperature input', 'The shell temperature check uses this zone\'s permanent thickness and conductivity (blank = default)', `${fv(+Q.t)} mm · k = ${permK(id)} W/m·K`],
       ];
       return `${guide('The permanent (safety) lining is laid first, against the steel shell, and often stays for several campaigns. It is defined <b>zone by zone</b>: each zone (and each segment from Zone creation) can have its own material, product form (straight brick, tapered radial pair or monolithic), brick size, density, allowance and backfill. Pick a zone here or in the left menu under <b>Lining concept · layers → Permanent lining</b>.')}
@@ -3758,7 +3929,7 @@ function sessionCard() {
       { n: 13, t: 'Summary & BOM', s: 'Checks and export' },
     ];
     const SGROUPS = [['Set-up', [0, 1, 2, 3]], ['Lining concept · layers', [4, 5]], ['Working lining design', [6, 7, 8, 9, 10, 11, 12]], ['Output', [13]]];
-    const canOpen = n => n === 0 || !!S.gates[n - 1];
+    const canOpen = n => n === 0 || n <= S.step || !!S.gates[n - 1];
 
     /* ============ FIELD RENDERING ============ */
     const SRC = { D: ['Drawing', 'drw'], T: ['Supplier input', 'supplier'], C: ['Customer', 'cus'], K: ['Calculated', 'calc'] };
@@ -3845,12 +4016,104 @@ function sessionCard() {
       p.push(`<text x="${cx}" y="${cy + 4}" text-anchor="middle" class="svt sm muted">${title}</text><text x="${cx}" y="${cy + 18}" text-anchor="middle" class="svt sm muted">0° = right of GA</text>`);
       return `<svg viewBox="-20 0 ${W + 40} ${W}" class="svgp" role="img" aria-label="Plan view of zone arcs">${p.join('')}</svg>`;
     }
+    /* Herringbone & Concentric SVG helpers for clear bottom pattern visualization across all vessel diagrams */
+    function herringbonePlanDefs(idPrefix, scalePx = 14) {
+      const s = Math.max(8, scalePx), h = s / 2;
+      return `<pattern id="${idPrefix}_hb" width="${s}" height="${s}" patternUnits="userSpaceOnUse">
+        <rect width="${s}" height="${s}" fill="#7ab84a" opacity=".28"/>
+        <path d="M0,${h} L${h},0 L${s},${h} L${h},${s} Z" fill="#4f8f2f" opacity=".32"/>
+        <path d="M0,${h} L${h},0 M${h},0 L${s},${h} M${h},${s} L${s},${h} M0,${h} L${h},${s} M${h},0 L${h},${s}" stroke="#1c3b10" stroke-width="1.05" fill="none" opacity=".82"/>
+      </pattern>`;
+    }
+    function herringboneGridSVG(cx, cy, rClip, pitchX, pitchY, clipId, strokeCol = '#18330e') {
+      const px = Math.max(9, pitchX), py = Math.max(5, pitchY), P = [];
+      const n = Math.ceil((rClip * 1.45) / py) + 2;
+      P.push(`<g clip-path="url(#${clipId})" transform="rotate(-45 ${cx} ${cy})">`);
+      for (let row = -n; row <= n; row++) {
+        const y0 = cy + row * py;
+        const shift = (Math.abs(row) % 2) * (px / 2);
+        const pal = row % 2 === 0 ? '#7ab84a' : '#96cc66';
+        P.push(`<rect x="${cx - rClip * 1.45}" y="${y0}" width="${rClip * 2.9}" height="${py}" fill="${pal}" stroke="${strokeCol}" stroke-width=".75" opacity=".88"/>`);
+        for (let col = -n; col <= n; col++) {
+          const x0 = cx + col * px + shift;
+          P.push(`<line x1="${x0}" y1="${y0}" x2="${x0}" y2="${y0 + py}" stroke="${strokeCol}" stroke-width=".85" opacity=".9"/>`);
+          // Interlocking chevron / herringbone diagonal course divider inside alternating bands
+          if ((row + col) % 2 === 0) {
+            P.push(`<line x1="${x0}" y1="${y0 + py * 0.5}" x2="${x0 + px * 0.5}" y2="${y0}" stroke="#234915" stroke-width=".65" opacity=".75"/>`);
+            P.push(`<line x1="${x0 + px * 0.5}" y1="${y0}" x2="${x0 + px}" y2="${y0 + py * 0.5}" stroke="#234915" stroke-width=".65" opacity=".75"/>`);
+          }
+        }
+      }
+      P.push(`</g>`);
+      return P.join('');
+    }
     function bottomSVG(B) {
-      const W = 300, c = 150, sc = 135 / (XN('botDia') / 2); const pal = ['#6cae3e', '#9bc46a', '#4f8f2f', '#b7d88f', '#3d7a22', '#cde6a8']; const marks = [...new Set(B.rings.map(r => r.mark))]; const p = [];
-      B.rings.slice().reverse().forEach(r => p.push(`<circle cx="${c}" cy="${c}" r="${r.rout * sc}" fill="${pal[marks.indexOf(r.mark) % pal.length]}" stroke="${r.crossed ? 'var(--bad)' : 'var(--bg)'}" stroke-width="${r.crossed ? 1.6 : .6}"/>`));
-      p.push(`<circle cx="${c}" cy="${c}" r="${S.bottom.keyR * sc}" fill="var(--ink)"/>`);
-      const n = XN('nStir') || 0; for (let i = 0; i < n; i++) { const a = rad(i * 360 / n); p.push(`<circle cx="${c + B.elR * sc * Math.cos(a)}" cy="${c - B.elR * sc * Math.sin(a)}" r="${Math.max(2.5, S.bottom.elDia / 2 * sc)}" fill="#e05ee0" stroke="var(--bg)"/>`); }
-      return `<svg viewBox="0 0 ${W} ${W}" class="svgp" role="img" aria-label="Bottom ring plan">${p.join('')}</svg><div class="small">${marks.map((m, i) => `<span class="sw" style="background:${pal[i % pal.length]}"></span> ${m}`).join(' &nbsp; ')} &nbsp; <span class="sw" style="background:#e05ee0"></span> stirring element · red ring = crossed</div>`;
+      const W = 320, c = 160, botR = Math.max(100, XN('botDia') / 2), sc = 136 / botR;
+      const pal = ['#6cae3e', '#9bc46a', '#4f8f2f', '#b7d88f', '#3d7a22', '#cde6a8'];
+      const marks = [...new Set(B.rings.map(r => r.mark))];
+      const hb = isHerringboneBottom(), flat = isStraightBottom();
+      const p = [];
+      if (hb) {
+        // Outer perimeter ring(s) + central Herringbone interlocking brick field
+        const outerRings = B.rings.slice(-2);
+        const rInnerHb = (outerRings.length ? outerRings[0].rin : botR * 0.84) * sc;
+        p.push(`<defs><clipPath id="hbPlanClip"><circle cx="${c}" cy="${c}" r="${rInnerHb.toFixed(1)}"/></clipPath></defs>`);
+        // Draw outer perimeter ring(s) with radial joints
+        B.rings.slice().reverse().forEach((r, idx) => {
+          const rOutPx = r.rout * sc, rInPx = r.rin * sc;
+          const col = pal[marks.indexOf(r.mark) % pal.length];
+          p.push(`<circle cx="${c}" cy="${c}" r="${rOutPx.toFixed(1)}" fill="${col}" stroke="${r.crossed ? 'var(--bad)' : '#1d3812'}" stroke-width="${r.crossed ? 1.6 : 0.9}"/>`);
+          if (r.rout * sc > rInnerHb + 1) {
+            const nJ = Math.min(48, Math.max(16, Math.round(r.bricks / 2)));
+            for (let k = 0; k < nJ; k++) {
+              const a = rad(k * 360 / nJ);
+              p.push(`<line x1="${(c + rInPx * Math.cos(a)).toFixed(1)}" y1="${(c - rInPx * Math.sin(a)).toFixed(1)}" x2="${(c + rOutPx * Math.cos(a)).toFixed(1)}" y2="${(c - rOutPx * Math.sin(a)).toFixed(1)}" stroke="#1d3812" stroke-width=".55" opacity=".75"/>`);
+            }
+          }
+        });
+        // Draw central Herringbone diagonal interlocking brick grid
+        const px = Math.max(13, (+S.bottom.ringW || 155) * sc * 1.45);
+        const py = Math.max(7.5, (+S.bottom.tanW || 119) * sc * 0.85);
+        p.push(herringboneGridSVG(c, c, rInnerHb, px, py, 'hbPlanClip'));
+        p.push(`<circle cx="${c}" cy="${c}" r="${rInnerHb.toFixed(1)}" fill="none" stroke="#18330e" stroke-width="1.6"/>`);
+        // Central reference axis lines (45° herringbone laying axes)
+        p.push(`<line x1="${c - rInnerHb * 0.7}" y1="${c - rInnerHb * 0.7}" x2="${c + rInnerHb * 0.7}" y2="${c + rInnerHb * 0.7}" stroke="#fff" stroke-width=".9" stroke-dasharray="4 3" opacity=".85"/>`);
+        p.push(`<line x1="${c - rInnerHb * 0.7}" y1="${c + rInnerHb * 0.7}" x2="${c + rInnerHb * 0.7}" y2="${c - rInnerHb * 0.7}" stroke="#fff" stroke-width=".9" stroke-dasharray="4 3" opacity=".85"/>`);
+      } else {
+        // Concentric rings or Straight bottom with radial brick joints & ring numbers
+        B.rings.slice().reverse().forEach(r => {
+          const rOutPx = r.rout * sc, rInPx = r.rin * sc;
+          p.push(`<circle cx="${c}" cy="${c}" r="${rOutPx.toFixed(1)}" fill="${pal[marks.indexOf(r.mark) % pal.length]}" stroke="${r.crossed ? 'var(--bad)' : '#1d3812'}" stroke-width="${r.crossed ? 1.6 : .75}"/>`);
+          const nJ = Math.min(44, Math.max(8, Math.round(r.bricks / 2)));
+          for (let k = 0; k < nJ; k++) {
+            const a = rad(k * 360 / nJ + (r.i % 2) * (180 / nJ));
+            p.push(`<line x1="${(c + rInPx * Math.cos(a)).toFixed(1)}" y1="${(c - rInPx * Math.sin(a)).toFixed(1)}" x2="${(c + rOutPx * Math.cos(a)).toFixed(1)}" y2="${(c - rOutPx * Math.sin(a)).toFixed(1)}" stroke="#1d3812" stroke-width=".45" opacity=".55"/>`);
+          }
+          if (rOutPx - rInPx > 7 && (r.i % 2 === 1 || r.i === B.rings.length)) {
+            p.push(`<text x="${c}" y="${(c - (rInPx + rOutPx) / 2 + 2.5).toFixed(1)}" text-anchor="middle" class="svt sm" style="font-size:7.5px;fill:#fff;font-weight:700">R${r.i}</text>`);
+          }
+        });
+        const krPx = Math.max(6, S.bottom.keyR * sc);
+        p.push(`<circle cx="${c}" cy="${c}" r="${krPx.toFixed(1)}" fill="var(--ink)" stroke="#fff" stroke-width=".8"/>`);
+        p.push(`<text x="${c}" y="${c + 2.5}" text-anchor="middle" class="svt sm" style="font-size:7px;fill:#fff;font-weight:700">${flat ? 'EB-1X' : 'KEY'}</text>`);
+      }
+      // MHP / Tuyere plugs + PCD circle + surround ring indicator
+      const n = XN('nStir') || 0, rp = B.elR * sc;
+      if (n > 0 && rp > 0) {
+        p.push(`<circle cx="${c}" cy="${c}" r="${rp.toFixed(1)}" fill="none" stroke="#e05ee0" stroke-width="1.1" stroke-dasharray="4 3"/>`);
+      }
+      for (let i = 0; i < n; i++) {
+        const a = rad(i * 360 / n);
+        const ex = c + rp * Math.cos(a), ey = c - rp * Math.sin(a);
+        const er = Math.max(4.5, S.bottom.elDia / 2 * sc);
+        p.push(`<circle cx="${ex.toFixed(1)}" cy="${ey.toFixed(1)}" r="${(er + 3).toFixed(1)}" fill="none" stroke="#ffd54f" stroke-width="1.3" stroke-dasharray="2 1.5"/>`);
+        p.push(`<circle cx="${ex.toFixed(1)}" cy="${ey.toFixed(1)}" r="${er.toFixed(1)}" fill="#e05ee0" stroke="#fff" stroke-width="1"/>`);
+        p.push(`<text x="${(c + (rp + er + 8) * Math.cos(a)).toFixed(1)}" y="${(c - (rp + er + 8) * Math.sin(a) + 3).toFixed(1)}" text-anchor="middle" class="svt sm" style="font-size:7.5px;fill:#8a1c8a;font-weight:700">MHP-${i + 1}</text>`);
+      }
+      const patBadge = hb ? '🔷 Herringbone Interlocking Bottom Pattern + Perimeter Rings' : flat ? '🧱 Straight / Flat Bottom Pattern (EB-1X / EB-1Y / EB-1Z)' : '⭕ Concentric Ring Bottom Pattern (KEY + R1..R' + B.nR + ')';
+      p.push(`<rect x="14" y="${W - 22}" width="${W - 28}" height="17" rx="4" fill="var(--ink)" opacity=".86"/>`);
+      p.push(`<text x="${c}" y="${W - 10}" text-anchor="middle" class="svt sm" style="font-size:8.5px;fill:#fff;font-weight:700">${patBadge}</text>`);
+      return `<svg viewBox="0 0 ${W} ${W}" class="svgp" role="img" aria-label="Bottom ring plan">${p.join('')}</svg><div class="small"><b>Pattern:</b> ${esc(S.bottom.pattern || (hb ? 'Herringbone pattern (Dished)' : 'Concentric rings (Dished)'))} &nbsp;·&nbsp; ${marks.map((m, i) => `<span class="sw" style="background:${pal[i % pal.length]}"></span> ${m}`).join(' &nbsp; ')} &nbsp; <span class="sw" style="background:#e05ee0"></span> MHP plug + surround</div>`;
     }
 
     /* ============ ANNOTATED DRAWING (step 2) ============ */
@@ -3875,7 +4138,22 @@ function sessionCard() {
       const outer = inner.map((p, i) => { const a = inner[Math.max(0, i - 1)], b = inner[Math.min(inner.length - 1, i + 1)]; const dr = b[0] - a[0], dh = b[1] - a[1], L = Math.hypot(dr, dh) || 1; return [p[0] + pl * dh / L, p[1] - pl * dr / L]; });
       const side = (arr, sd) => arr.map(p => `${Xp(p[0], sd)},${Y(p[1])}`);
       const innerPath = `M${side(inner, -1).join(' L')} L${side(inner.slice().reverse(), 1).join(' L')}Z`;
+      const hb = isHerringboneBottom(), steppedBot = hasSteppedBottomDish();
       P.push(`<defs><clipPath id="annclip"><path d="${innerPath}"/></clipPath><pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" stroke="var(--muted)" stroke-width="1.2" opacity=".5"/></pattern></defs>`);
+      // For stepped bottom dish converters (e.g. 150 MT Herringbone TLC with 3855 mm central R8500 dish + 525/677/816/111 mm stepped collar to 5604 mm lower cone),
+      // draw the exact CAD stepped bottom mounting ring and 80 mm bottom dish plate
+      if (steppedBot) {
+        const lc0 = XN('lcH0') || 385, rDish = dishChordR(), rLc = XN('lcIDb') / 2;
+        const rMid = rDish + (rLc - rDish) * 0.42;
+        const hCollarBot = Math.max(0, lc0 - 205), hCollarTop = lc0 + 111;
+        [-1, 1].forEach(sd => {
+          // Stepped horizontal & vertical collar blocks at the dish-to-lower-cone junction (525 / 677 / 816 / 111 mm CAD detail)
+          const x0 = Xp(rDish, sd), x1 = Xp(rMid, sd), x2 = Xp(rLc + pl, sd);
+          const y0 = Y(lc0), yBot = Y(hCollarBot), yTop = Y(hCollarTop);
+          P.push(`<rect x="${Math.min(x0, x1)}" y="${y0}" width="${Math.abs(x1 - x0)}" height="${Math.max(3, yBot - y0)}" fill="var(--ink)" opacity=".85"/>`);
+          P.push(`<rect x="${Math.min(x1, x2)}" y="${yTop}" width="${Math.abs(x2 - x1)}" height="${Math.max(3, y0 - yTop + 3)}" fill="var(--ink)" opacity=".85"/>`);
+        });
+      }
       // zone bands
       if (o.zones) {
         o.zones.forEach((z, i) => {
@@ -3888,9 +4166,12 @@ function sessionCard() {
         if (last < H - .01) { P.push(`<rect x="0" y="${Y(H)}" width="${W}" height="${(H - last) * s}" fill="url(#hatch)" clip-path="url(#annclip)"/>`); if ((H - last) * s > 14) P.push(T(cx, Y((last + H) / 2) + 4, 'Not yet zoned', { a: 'middle', c: 'var(--muted)', b: 1 })); }
         if (o.sel != null && o.zones[o.sel]) { const z = o.zones[o.sel]; P.push(`<rect x="${Lm - 2}" y="${Y(z.h1)}" width="${Xp(maxR, 1) - Lm + 6}" height="${(z.h1 - z.h0) * s}" fill="none" stroke="var(--ink)" stroke-width="1.6" stroke-dasharray="5 3"/>`); }
       } else ZGRP.forEach(([g, n, band]) => {
-        const [h0, h1] = band(); const done = S.extOk[g], isAct = act === g;
-        P.push(`<rect x="0" y="${Y(h1)}" width="${W}" height="${Math.max(0, (h1 - h0) * s)}" fill="${isAct && !done ? '#f0b050' : ZGCOL[g]}" opacity="${done ? .32 : isAct ? .28 : .07}" clip-path="url(#annclip)" class="zp" data-act="jump" data-g="${g}"><title>${g}: click to open its card</title></rect>`);
-        if ((h1 - h0) * s > 16) P.push(T(cx, Y((h0 + h1) / 2) + 4, (done ? '✓ ' : isAct ? '▶ ' : '') + n, { a: 'middle', b: 1, c: done ? 'var(--accent)' : isAct ? 'var(--warn)' : 'var(--muted)' }));
+        const [h0, h1] = band(); const done = S.extOk[g], isAct = act === g, bhPx = Math.max(0, (h1 - h0) * s);
+        P.push(`<rect x="0" y="${Y(h1)}" width="${W}" height="${bhPx}" fill="${isAct && !done ? '#f0b050' : ZGCOL[g]}" opacity="${done ? .32 : isAct ? .28 : (g === 'Mouth ring' ? .26 : .07)}" clip-path="url(#annclip)" class="zp" data-act="jump" data-g="${g}"><title>${g}: click to open its card</title></rect>`);
+        if (bhPx > 16 || g === 'Mouth ring') {
+          const ty = g === 'Mouth ring' && bhPx <= 16 ? Y((h0 + h1) / 2) + 3 : Y((h0 + h1) / 2) + 4;
+          P.push(T(cx, ty, (done ? '✓ ' : isAct ? '▶ ' : '') + n, { a: 'middle', b: 1, c: done ? 'var(--accent)' : isAct ? 'var(--warn)' : 'var(--ink)' }));
+        }
       });
       // shell wall (plate thickness)
       [-1, 1].forEach(sd => P.push(`<path d="M${side(outer, sd).join(' L')} L${side(inner.slice().reverse(), sd).join(' L')}Z" fill="var(--ink)" opacity=".8"/>`));
@@ -3922,12 +4203,21 @@ function sessionCard() {
       if (shown(z.b)) {
         const g = z.b, c0 = kc('lcH0', g);
         P.push(vdim(chainX, 0, XN('lcH0'), fv(XN('dishShellH')) + ed('dishShellH'), kc('dishShellH', g)));
-        const rp = XN('pcd') / 2, yb = Y(0) + 18; const bot = r => { const R = dishShellR(); return R - Math.sqrt(Math.max(0, R * R - r * r)); };
+        const rp = XN('pcd') / 2, yb = Y(0) + 18;
+        const rDish = dishChordR() || 1927.5, lc0 = XN('lcH0') || 385, R = dishShellR();
+        const hCurve = R - Math.sqrt(Math.max(0, R * R - rDish * rDish));
+        const scaleH = hCurve > 1 && lc0 > 1 ? lc0 / hCurve : 1;
+        const bot = r => (R - Math.sqrt(Math.max(0, R * R - Math.min(r, rDish) ** 2))) * scaleH;
         const stAng = XN('stirAng');
         P.push(hdim(yb, rp, `${fv(XN('nStir'))} MHP · PCD ${fv(XN('pcd'))}${isFinite(stAng) && stAng > 0 ? ' (' + fv(stAng) + '°)' : ''}${ed('pcd')}${ed('nStir')}`, kc('pcd', g), Y(bot(rp))));
-        [-1, 1].forEach(sd => P.push(`<rect x="${Xp(rp, sd) - 3}" y="${Y(bot(rp)) - 9}" width="6" height="9" fill="#e05ee0"/>`));
-        const rw = XN('botDia') / 2; P.push(hdim(Y(0) + 38, rw, `Ø${fv(XN('botDia'))} working lining${ed('botDia')}`, kc('botDia', g), Y(Math.min(bot(rw) + 60, XN('lcH0')))));
-        right.push({ y: Y(XN('lcH0') * 0.5), lines: [`Dish R${fv(XN('dishR'))} (WL hot face)${ed('dishR')}`, `Dish depth ${fv(XN('dishDepth'))}${ed('dishDepth')}`], c: kc('dishR', g), ax: Xp(rIn(XN('lcH0') * 0.4), 1), ay: Y(XN('lcH0') * 0.4) });
+        [-1, 1].forEach(sd => P.push(`<rect x="${Xp(rp, sd) - 3}" y="${Y(bot(rp)) - 10}" width="6" height="10" fill="#e05ee0"/>`));
+        const rw = XN('botDia') / 2;
+        P.push(hdim(Y(0) + 38, rw, `Ø${fv(XN('botDia'))} ${steppedBot ? 'central dish chord' : 'working lining'}${ed('botDia')}`, kc('botDia', g), Y(Math.min(bot(rw) + 40, XN('lcH0')))));
+        if (steppedBot) {
+          const rLc = XN('lcIDb') / 2;
+          P.push(hdim(Y(0) + 54, rLc, `Ø${fv(XN('lcIDb'))} stepped lower-cone bottom (525/677/816/111 step)${ed('lcIDb')}`, kc('lcIDb', z.l), Y(lc0)));
+        }
+        right.push({ y: Y(XN('lcH0') * 0.5), lines: [`Dish R${fv(XN('dishR'))} (${steppedBot ? 'Ø' + fv(XN('botDia')) + ' dish + step' : 'WL hot face'})${ed('dishR')}`, `Dish depth ${fv(XN('dishDepth'))} mm${hb ? ' (80 plate + 305 dish)' : ''}${ed('dishDepth')}`], c: kc('dishR', g), ax: Xp(rIn(XN('lcH0') * 0.4), 1), ay: Y(XN('lcH0') * 0.4) });
       }
       if (shown(z.l)) {
         const g = z.l, h0 = XN('lcH0'), h1 = XN('lcH1');
@@ -3957,19 +4247,22 @@ function sessionCard() {
       }
       if (shown(z.m)) {
         const g = z.m, h0 = XN('ringH0'), h1 = XN('ringH1'), rInM = XN('ringID') / 2, rOutM = Math.max(XN('ringOD') / 2 || 0, rInM + pl + (XN('lip') || 0));
-        // Draw extended mouth flange / lip when ringOD > ringID + 2*plate
-        if (rOutM > rInM + pl + 5) {
-          [-1, 1].forEach(sd => {
-            const xIn = Xp(rInM, sd), xOut = Xp(rOutM, sd), yTop = Y(h1), yBot = Y(h0);
-            P.push(`<rect x="${Math.min(xIn, xOut)}" y="${yTop}" width="${Math.abs(xOut - xIn)}" height="${Math.max(2, yBot - yTop)}" fill="var(--ink)" opacity=".88"/>`);
-          });
-        }
         P.push(vdim(chainX, h0, h1, fv(h1 - h0) + ed('ringHt'), kc('ringHt', g)));
         P.push(hdim(Y(H) - 14, rInM, `Ø${fv(XN('ringID'))} mouth ID${ed('ringID')}`, kc('ringID', g), Y(h1)));
         if (rOutM > rInM + pl + 5) {
           P.push(hdim(Y(H) - 28, rOutM, `Ø${fv(XN('ringOD') || rOutM * 2)} mouth flange OD (+${fv(+(rOutM - rInM).toFixed(1))} mm)${ed('ringOD')}`, kc('ringOD', g), Y(h1)));
         }
         right.push({ y: Y(h1) - 2, lines: [`Ring height ${fv(XN('ringHt'))} mm${ed('ringHt')}${extState('ringHt') === 'mm' ? ' ≠ note ' + esc(S.ext.ringHt.drawing) : ''}`, `Flange OD Ø${fv(XN('ringOD') || rOutM * 2)} · ext +${fv(Number(XN('lip')) || +(rOutM - rInM).toFixed(1))} mm`], c: kc('ringHt', g), ax: Xp(rOutM, 1), ay: Y((h0 + h1) / 2) });
+      }
+      // Always draw the physical mouth ring / flange collar geometry at the top of the vessel shell
+      {
+        const h0M = XN('ringH0'), h1M = XN('ringH1'), rInM = XN('ringID') / 2, rOutM = Math.max(XN('ringOD') / 2 || 0, rInM + pl + (XN('lip') || 0));
+        if (isFinite(h0M) && isFinite(h1M) && rOutM > rInM + pl + 5) {
+          [-1, 1].forEach(sd => {
+            const xIn = Xp(rInM, sd), xOut = Xp(rOutM, sd), yTop = Y(h1M), yBot = Y(h0M);
+            P.push(`<rect x="${Math.min(xIn, xOut)}" y="${yTop}" width="${Math.abs(xOut - xIn)}" height="${Math.max(3, yBot - yTop)}" fill="var(--ink)" opacity=".88"/>`);
+          });
+        }
       }
       // right-hand labels with simple collision avoidance
       right.sort((a, b) => a.y - b.y); let lastY = -1e9; const lx = W - Rm + 10;
@@ -4052,6 +4345,22 @@ function sessionCard() {
       const ringH0 = XN('ringH0'), ringH1 = XN('ringH1'), ringHt = XN('ringHt'), ringID = XN('ringID'), ringOD = XN('ringOD'), lip = XN('lip'), pl = XN('plate') || 0;
       switch (k) {
         case 'H': return { val: r1((dishH || 0) + Math.max(0, (lcH1 - lcH0) || 0) + Math.max(0, (barH1 - barH0) || 0) + Math.max(0, (topH1 - topH0) || 0) + Math.max(0, ringHt || 0)), fid: 'ext_cumulative_elevation', desc: 'Σ segment heights (Dish + Lower Cone + Barrel + Top Cone + Mouth Ring)' };
+        case 'plate': {
+          const Htot = XN('H');
+          const sumInner = (XN('dishDepth') && XN('dishDepth') < dishH ? XN('dishDepth') : dishH || 0) + Math.max(0, (lcH1 - lcH0) || 0) + Math.max(0, (barH1 - barH0) || 0) + Math.max(0, (topH1 - topH0) || 0) + Math.max(0, ringHt || 0);
+          const diffH = isFinite(Htot) ? +(Htot - sumInner).toFixed(1) : NaN;
+          if (isFinite(diffH) && diffH >= 20 && diffH <= 120) {
+            return { val: r1(diffH), fid: 'ext_cumulative_elevation', desc: 'H − Σ(inner zone lengths)' };
+          }
+          const m = String((S.ext.dishShellH && S.ext.dishShellH.drawing) || '').match(/\b(\d{2})\s*\+\s*\d{3}\b/);
+          if (m && +m[1] >= 20 && +m[1] <= 120) {
+            return { val: r1(+m[1]), fid: 'ext_cumulative_elevation', desc: `H (${Htot}) − Σ(inner zone lengths) = ${m[1]} mm bottom plate` };
+          }
+          if (S.ext.plate && isFinite(S.ext.plate.backendCalculated)) {
+            return { val: r1(S.ext.plate.backendCalculated), fid: 'ext_inner_diameter', desc: '(OD − ID) ÷ 2 or H − Σ(zone lengths)' };
+          }
+          return isFinite(pl) && pl > 0 ? { val: r1(pl), fid: 'ext_inner_diameter', desc: 'Shell plate thickness from (OD − ID) ÷ 2 or H − Σ(zone lengths)' } : null;
+        }
         case 'dishR': return (botD > 0 && dishH > 0) ? { val: r1(fxCalc('ext_dish_sphere_radius', { chord_r: botD / 2, dish_h: dishH }, () => ((botD / 2) ** 2 + dishH ** 2) / (2 * dishH))), fid: 'ext_dish_sphere_radius', desc: '((botDia/2)² + dishShellH²) ÷ (2 × dishShellH)' } : null;
         case 'botDia': return (dishR > 0 && dishH > 0 && dishR > dishH) ? { val: r1(2 * Math.sqrt(Math.max(0, dishH * (2 * dishR - dishH)))), fid: 'ext_inner_diameter', desc: '2 × √(dishShellH × (2 × dishR − dishShellH))' } : null;
         case 'dishDepth': return (dishR > 0 && botD > 0 && dishR >= botD / 2) ? { val: r1(fxCalc('ui_bottom_dish_depth', { dish_r: dishR, edge_r: botD / 2 }, () => dishR - Math.sqrt(Math.max(0, dishR * dishR - (botD / 2) ** 2)))), fid: 'ui_bottom_dish_depth', desc: 'dishR − √(dishR² − (botDia/2)²)' } : null;
@@ -4164,10 +4473,17 @@ function sessionCard() {
     const TX = (x, y, t, o = {}) => `<text x="${x}" y="${y}" class="svt an ann${o.b ? ' b' : ''}" text-anchor="${o.a || 'start'}" fill="${o.c || 'var(--ink)'}"${o.rot ? ` transform="rotate(-90 ${x} ${y})"` : ''}>${t}</text>`;
     function zoneSideSVG(z, splits) {
       const W = 440, padT = 18, padB = 18, Lm = 44, Rm = 70; const { inner, outer, pl } = profilePts(z.h0, z.h1);
-      const rmax = Math.max(...outer.map(p => p[0])), zh = z.h1 - z.h0; const s = Math.min(300 / zh, (W - Lm - Rm) / (2 * rmax)); const cx = Lm + (W - Lm - Rm) / 2;
+      const rmax = Math.max(...outer.map(p => p[0])), zh = Math.max(1, z.h1 - z.h0); const s = Math.min(300 / zh, (W - Lm - Rm) / (2 * rmax)); const cx = Lm + (W - Lm - Rm) / 2;
       const Hh = padT + zh * s + padB, Xp = (r, sd) => cx + sd * r * s, Y = h => padT + (z.h1 - h) * s, side = (arr, sd) => arr.map(p => `${Xp(p[0], sd)},${Y(p[1])}`);
       const P = [];
-      P.push(`<path d="M${side(inner, -1).join(' L')} L${side(inner.slice().reverse(), 1).join(' L')}Z" fill="${ZCOL[z.type] || '#999'}" opacity=".3"/>`);
+      const innerPoly = `M${side(inner, -1).join(' L')} L${side(inner.slice().reverse(), 1).join(' L')}Z`;
+      if (z.type === 'Bottom' && isHerringboneBottom()) {
+        P.push(`<defs><clipPath id="zSideBotClip"><path d="${innerPoly}"/></clipPath>${herringbonePlanDefs('zside', 12)}</defs>`);
+        P.push(`<path d="${innerPoly}" fill="url(#zside_hb)" opacity=".95"/>`);
+        P.push(TX(cx, (Y(z.h0) + Y(z.h1)) / 2 + 4, `🔷 Herringbone Bottom Dish · R${fv(XN('dishR'))} · Depth ${fv(XN('dishDepth'))} mm`, { a: 'middle', c: '#1c3b10', b: 1 }));
+      } else {
+        P.push(`<path d="${innerPoly}" fill="${ZCOL[z.type] || '#999'}" opacity=".3"/>`);
+      }
       [-1, 1].forEach(sd => P.push(`<path d="M${side(outer, sd).join(' L')} L${side(inner.slice().reverse(), sd).join(' L')}Z" fill="var(--ink)" opacity=".85"/>`));
       const te = XN('tapElev'); if (te > z.h0 && te < z.h1) {
         const ti = rad(XN('tapIncl')), rt = rIn(te), sd = angDiff(XN('tapAng'), 0) < 90 ? 1 : -1;
@@ -4198,8 +4514,16 @@ function sessionCard() {
       });
       const ray = (ang, r0, r1, col, lbl, dash) => { const a = rad(ang); return `<line x1="${c + r0 * Math.cos(a)}" y1="${c - r0 * Math.sin(a)}" x2="${c + r1 * Math.cos(a)}" y2="${c - r1 * Math.sin(a)}" stroke="${col}" stroke-width="1.6" ${dash ? 'stroke-dasharray="5 3"' : ''}/>` + TX(c + (r1 + 5) * Math.cos(a), c - (r1 + 9) * Math.sin(a) + 3, lbl, { a: Math.cos(a) > .3 ? 'end' : Math.cos(a) < -.3 ? 'start' : 'middle', c: col, b: 1 }).replace('<text ', `<text dy="${Math.abs(Math.cos(a)) > .3 ? -6 : 0}" `); };
       if (z.type === 'Bottom') {
-        const rp = XN('pcd') / 2 * s, n = XN('nStir') || 0; P.push(`<circle cx="${c}" cy="${c}" r="${rp}" fill="none" stroke="#e05ee0" stroke-dasharray="3 3"/>`); for (let i = 0; i < n; i++) { const a = rad(i * 360 / n); P.push(`<circle cx="${c + rp * Math.cos(a)}" cy="${c - rp * Math.sin(a)}" r="3" fill="#e05ee0"/>`); }
-        P.push(TX(c, c + rp + 12, `PCD ${fv(XN('pcd'))} · ${fv(n)} tuyeres`, { a: 'middle', c: '#b03cb0' })); const rw = XN('botDia') / 2 * s; P.push(`<circle cx="${c}" cy="${c}" r="${rw}" fill="none" stroke="var(--accent)" stroke-dasharray="6 3"/>` + TX(c, c - rw + 11, `Ø${fv(XN('botDia'))} WL`, { a: 'middle', c: 'var(--accent)' }));
+        const rw = XN('botDia') / 2 * s, hb = isHerringboneBottom();
+        if (hb) {
+          const rHb = Math.max(20, rw * 0.86);
+          P.push(`<defs><clipPath id="zPlanHbClip"><circle cx="${c}" cy="${c}" r="${rHb.toFixed(1)}"/></clipPath></defs>`);
+          P.push(`<circle cx="${c}" cy="${c}" r="${rw.toFixed(1)}" fill="#5a9e32" opacity=".75" stroke="#18330e" stroke-width="1"/>`);
+          P.push(herringboneGridSVG(c, c, rHb, 12, 6.5, 'zPlanHbClip'));
+          P.push(`<circle cx="${c}" cy="${c}" r="${rHb.toFixed(1)}" fill="none" stroke="#18330e" stroke-width="1.3"/>`);
+        }
+        const rp = XN('pcd') / 2 * s, n = XN('nStir') || 0; P.push(`<circle cx="${c}" cy="${c}" r="${rp}" fill="none" stroke="#e05ee0" stroke-width="1.2" stroke-dasharray="3 3"/>`); for (let i = 0; i < n; i++) { const a = rad(i * 360 / n); P.push(`<circle cx="${c + rp * Math.cos(a)}" cy="${c - rp * Math.sin(a)}" r="3.5" fill="#e05ee0" stroke="#fff" stroke-width=".7"/>`); }
+        P.push(TX(c, c + rp + 12, `PCD ${fv(XN('pcd'))} · ${fv(n)} MHP${hb ? ' · Herringbone' : ''}`, { a: 'middle', c: '#b03cb0', b: 1 })); P.push(`<circle cx="${c}" cy="${c}" r="${rw}" fill="none" stroke="var(--accent)" stroke-width="1.2" stroke-dasharray="6 3"/>` + TX(c, c - rw + 11, `Ø${fv(XN('botDia'))} WL`, { a: 'middle', c: 'var(--accent)', b: 1 }));
       }
       if (z.type === 'Barrel' || z.type === 'Lower cone') { const tr = XN('trunAng'); P.push(ray(tr, 0, (rM + pl) * s + 2, 'var(--muted)', 'Trunnion', 1) + ray(tr + 180, 0, (rM + pl) * s + 2, 'var(--muted)', 'Trunnion', 1)); }
       if (z.type !== 'Bottom') {
@@ -4319,7 +4643,7 @@ function sessionCard() {
     [M + 'surrPerPlug', 'Surround Bricks per MHP Plug', 'no.', 'n', 'T', 1, '12 pcs (2×6 ring) per MHP plug']
   ], 'Synchronized with Step 13 (Junctions & Assemblies). Click "🧱 TRL Shape Library (273)" below to inspect all 51 Triple-Tapered PSR/VXC/VX and MHP shapes.')}
   </div><div>
-  ${fgroup('B. Supplier inputs', 'T', [[P + 'grade', 'Bottom Zone Grade', '', 'grade', 'T', 1, 'Set in step 4'], [P + 'keyR', 'Key Brick Radius', 'mm', 'n', 'T', 1, 'Radius covered by the central key brick'], [P + 'ringW', 'Ring Radial Width', 'mm', 'n', 'T', 1, 'Along the dish surface'], [P + 'tanW', 'Average Brick Tangential Width', 'mm', 'n', 'T', 1, 'For the approximate count'], [P + 'exact', 'Use exact closure with tapered pairs', '', 'yn', 'T', 0, 'If Yes, enter A/B widths per band'], [P + 'cutsPerEl', 'Cut Pieces per MHP Plug per Ring', 'no.', 'n', 'T', 1, ''], [P + 'minCut', 'Minimum Cut Brick Width', 'mm', 'n', 'T', 1, 'Belpahar minimum tip width ≥ 34 mm'], [P + 'tol', 'Brick Count Tolerance', '%', 'n', 'T', 1, ''], [P + 'growMin', 'Ring Growth Band – minimum', 'bricks', 'n', 'T', 1, ''], [P + 'growMax', 'Ring Growth Band – maximum', 'bricks', 'n', 'T', 1, ''], [P + 'depthTol', 'Dish Depth Tolerance', 'mm', 'n', 'T', 1, ''], [P + 'dens', 'Bulk density of bottom grade', 't/m³', 'n', 'T', 1, 'For tonnage']])}
+  ${fgroup('B. Supplier inputs', 'T', [[P + 'pattern', 'Bottom Laying Pattern', '', 'sel', 'T', 1, 'Concentric rings, Herringbone interlocking pattern (PD-RED-00320), or Straight/Flat bottom', ['Concentric rings (Dished)', 'Herringbone pattern (Dished)', 'Straight / Flat bottom (EB-1X/1Y/1Z)']], [P + 'grade', 'Bottom Zone Grade', '', 'grade', 'T', 1, 'Set in step 4'], [P + 'keyR', 'Key Brick Radius', 'mm', 'n', 'T', 1, 'Radius covered by the central key brick'], [P + 'ringW', 'Ring Radial Width / Course Pitch', 'mm', 'n', 'T', 1, 'Along the dish surface'], [P + 'tanW', 'Average Brick Tangential Width', 'mm', 'n', 'T', 1, 'For the approximate count'], [P + 'exact', 'Use exact closure with tapered pairs', '', 'yn', 'T', 0, 'If Yes, enter A/B widths per band'], [P + 'cutsPerEl', 'Cut Pieces per MHP Plug per Ring', 'no.', 'n', 'T', 1, ''], [P + 'minCut', 'Minimum Cut Brick Width', 'mm', 'n', 'T', 1, 'Belpahar minimum tip width ≥ 34 mm'], [P + 'tol', 'Brick Count Tolerance', '%', 'n', 'T', 1, ''], [P + 'growMin', 'Ring Growth Band – minimum', 'bricks', 'n', 'T', 1, ''], [P + 'growMax', 'Ring Growth Band – maximum', 'bricks', 'n', 'T', 1, ''], [P + 'depthTol', 'Dish Depth Tolerance', 'mm', 'n', 'T', 1, ''], [P + 'dens', 'Bulk density of bottom grade', 't/m³', 'n', 'T', 1, 'For tonnage']])}
   <div class="card"><h3>Ring-to-Mark Band Table ${tagS('T')}</h3><div class="tw"><table class="tbl pairtbl"><tr><th>Mark</th><th>From ring</th><th>To ring</th>${S.bottom.exact === 'Yes' ? '<th>A hot</th><th>A cold</th><th>B hot</th><th>B cold</th>' : ''}<th></th></tr>${bandRows}</table></div><button class="btn xs" data-act="addBand">+ Add band</button></div>
   </div></div>
   <div class="card"><h3>Result</h3>${kpis([[f(B.nR), 'rings (R5)'], [f(B.depth, 1) + ' mm', 'dish depth (R2)'], [f(B.arc) + ' mm', 'arc length (R3)'], [f(B.area / 1e6, 2) + ' m²', 'hot-face area (R4)'], [f(B.total), 'bricks incl. key & cuts'], [f(B.items.reduce((a, i) => a + i.tonnes, 0), 1) + ' t', B.grade]])}
@@ -4489,7 +4813,7 @@ function sessionCard() {
     }
     function reopenFrom(n) { let any = false; Object.keys(S.gates).forEach(k => { if (+k >= n) { delete S.gates[k]; any = true; } }); if (any) toast(`Step ${n + 1} and later steps need re-confirmation`, ''); autoSave(); }
     const ACT = {
-      go: el => { const n = +el.dataset.n; if (!canOpen(n)) { toast('Confirm the previous step first', 'bad'); return; } const ch = S.step !== n || VIEW !== 'step'; S.step = n; VIEW = 'step'; window.scrollTo(0, 0); render(); if (ch) autoSave(); },
+      go: el => { const n = +el.dataset.n; if (n > S.step && !canOpen(n)) { toast('Confirm the previous step first', 'bad'); return; } const ch = S.step !== n || VIEW !== 'step'; S.step = n; VIEW = 'step'; window.scrollTo(0, 0); render(); if (ch) autoSave(); },
       openCC: el => { openControlCenter(el.dataset.tab || 'Formulas'); },
       audit: () => { VIEW = 'audit'; render(); },
       selNoz: el => { S.noz.sel = +el.dataset.i; render(); },
@@ -4717,7 +5041,7 @@ function sessionCard() {
       segTab: el => { S.segTab = S.segTab || {}; S.segTab[el.dataset.seg] = el.dataset.id; render(); },
       permTab: el => { S.permTab = el.dataset.id; render(); },
       permGo: el => {
-        if (!canOpen(ST.perm)) { toast('Confirm the previous steps first', 'bad'); return; }
+        if (ST.perm > S.step && !canOpen(ST.perm)) { toast('Confirm the previous steps first', 'bad'); return; }
         const ch = S.step !== ST.perm || VIEW !== 'step'; S.permTab = el.dataset.id; S.step = ST.perm; VIEW = 'step'; if (ch) window.scrollTo(0, 0); render();
         if (ch) autoSave(); else { const c = document.getElementById('permZone'); if (c) c.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
       },
@@ -4848,7 +5172,8 @@ function sessionCard() {
       const segs = [], v = k => linNum(X(k));
       const H = v('H'), lcH0 = v('lcH0'), lcH1 = v('lcH1'), rDish = v('lcIDb') / 2, rLt = v('lcIDt') / 2, rBar = v('barID') / 2;
       const B1 = Math.max(v('barH1'), v('topH0')), rTb = v('topIDb') / 2, rTt = v('topIDt') / 2, topH1 = v('topH1');
-      const lip = /lip/i.test(X('ringProf')) ? (v('lip') || 0) : 0, rRing = v('ringID') / 2 - lip;
+      const rRingRaw = v('ringID') / 2, rFlangeRaw = v('ringOD') / 2;
+      const lip = (/lip/i.test(X('ringProf')) && !(rFlangeRaw > rRingRaw + (v('plate') || 0) + 20)) ? (v('lip') || 0) : 0, rRing = rRingRaw - lip;
       const need = { H, lcH0, lcH1, 'lcIDb': rDish, 'lcIDt': rLt, barH1: B1, barID: rBar, 'topIDb': rTb, 'topIDt': rTt, topH1, ringID: rRing };
       const bad = Object.entries(need).filter(([, x]) => !isFinite(x) || x < 0).map(([k]) => k);
       if (bad.length) { errs.push(`Shell profile: no value for ${bad.map(k => (S.ext[k] || {}).label || k).join(', ')} – enter in step 2.`); return []; }
@@ -4904,8 +5229,20 @@ function sessionCard() {
       const cosAt = name => { const i = prof.findIndex(s => s.name === name); if (i < 0) return 1; const s = prof[i], p = i ? prof[i - 1] : { end_r: 0, end_z: 0 }; if (s.shape === 'arc') return 1; const dr = s.end_r - p.end_r, dz = s.end_z - p.end_z, L = Math.hypot(dr, dz) || 1; return Math.abs(dz) / L; };
       // 2. layers
       const backAny = permZones().some(z => +permOf(z.id).back > 0);
-      const permPay = Q => ({ grade: Q.grade, thickness: +Q.t, shape: isMono(Q) ? 'monolithic' : isTap(Q) ? 'tapered_pair' : 'straight', mark: isMono(Q) ? (Q.mark || '') : isTap(Q) ? '' : permMark(Q), width: +Q.w || null, height: +Q.h || null, cut_allowance: +Q.cut || 0, density: +Q.dens, conductivity: +Q.k > 0 ? +Q.k : null, in_bom: Q.reuse === 'Yes' ? 0 : 1, pairs: isTap(Q) ? linPairs(Q.pairs, 'permanent_tapered') : [],
-        layers: permLayers(Q) ? permLayers(Q).map((l, i) => ({ layer: i + 1, grade: l.grade, shape: isMono(l) ? 'monolithic' : 'straight', thickness: +l.t, mark: isMono(l) ? (l.mark || '') : permMark(l), width: +l.w || null, height: +l.h || null, density: +l.dens, conductivity: +l.k > 0 ? +l.k : null, cut_allowance: +l.cut || 0 })) : null });
+      const permPay = (Q, zid) => {
+        const PD = permDesign(), pr = PD.rows.find(x => x.id === zid);
+        return {
+          grade: Q.grade, thickness: +Q.t, shape: isMono(Q) ? 'monolithic' : isTap(Q) ? 'tapered_pair' : 'straight',
+          mark: isMono(Q) ? (Q.mark || '') : isTap(Q) ? '' : permMark(Q), width: +Q.w || null, height: +Q.h || null,
+          cut_allowance: +Q.cut || 0, density: +Q.dens, conductivity: +Q.k > 0 ? +Q.k : null, in_bom: Q.reuse === 'Yes' ? 0 : 1,
+          pairs: isTap(Q) ? linPairs(Q.pairs, 'permanent_tapered') : [],
+          calculated_parts: pr && pr.parts ? pr.parts.map(pt => ({ mark: pt.mark, qty: pt.qty, unit_vol_dm3: pt.unitVolDm3 || null, unit_wt_kg: pt.unitWtKg || null, tonnes: pt.tonnes || null })) : null,
+          layers: permLayers(Q) ? permLayers(Q).map((l, i) => {
+            const lr = pr && pr.layers ? pr.layers[i] : null;
+            return { layer: i + 1, grade: l.grade, shape: isMono(l) ? 'monolithic' : 'straight', thickness: +l.t, mark: isMono(l) ? (l.mark || '') : permMark(l), width: +l.w || null, height: +l.h || null, density: +l.dens, conductivity: +l.k > 0 ? +l.k : null, cut_allowance: +l.cut || 0, qty: lr && isFinite(lr.qty) ? lr.qty : null, unit_vol_dm3: lr ? lr.unitVolDm3 : null, unit_wt_kg: lr ? lr.unitWtKg : null, tonnes: lr ? lr.tonnes : null };
+          }) : null
+        };
+      };
       const permMono = Q => (permLayers(Q) || [Q]).forEach(l => { if (isMono(l)) mono[l.grade] = { density: +l.dens, fill_factor: 1 + (+l.cut || 0) / 100 }; });
       const bq0 = botPerm(), bLAll = permLayers(bq0) || [bq0], bpx = bLAll.slice(1), nPx = bpx.length;
       const layers = ['PERMANENT'].concat(bpx.map((_, i) => 'PERMANENT ' + (i + 2)), backAny ? ['BACKFILL', 'WORKING'] : ['WORKING']);
@@ -4943,7 +5280,7 @@ function sessionCard() {
             if (!isFinite(t)) errs.push('Bottom: no standard length ≥ required working thickness (step 6).');
             band.kind = sz.s.shape === 'arc' || /Bottom/.test(sz.name) ? 'bottom' : undefined;
             const PQ = permOf(zn.id), pL = permLayers(PQ) || [PQ], p0 = pL[0], pEx = pL.slice(1);
-            band.permanent = permPay(PQ); permMono(PQ);
+            band.permanent = permPay(PQ, zn.id); permMono(PQ);
             band.sectors.push({ from: 0, to: 360, name: 'Bottom', layers: mkLayers(p0.grade, +p0.t, +PQ.back || 0, g, t, pEx) });
             dens[`${name}|Bottom|${g}`] = +B.dens; dens[`${name}|PERMANENT|${p0.grade}`] = +p0.dens;
             dens[g] = dens[g] || +B.dens; dens[p0.grade] = dens[p0.grade] || +p0.dens;
@@ -4964,7 +5301,7 @@ function sessionCard() {
           } else if (seg && S.segz[zn.id]) {
             const act = zs.filter(q => { const a0 = q.h0 === '' ? zn.h0 : +q.h0, b0 = q.h1 === '' ? zn.h1 : +q.h1; return mid >= a0 && mid <= b0; });
             const arcs = linArcs(act.length ? act : zs, baseKey[seg], `${zn.name} EL ${fv(a)}–${fv(b)}`, errs);
-            const PQ = permOf(zn.id); band.permanent = permPay(PQ); permMono(PQ);
+            const PQ = permOf(zn.id); band.permanent = permPay(PQ, zn.id); permMono(PQ);
             const horiz = !/Perpendicular/.test(P.orient || '');
             const kMid = Math.floor((mid - sect.h0) / ch) + 1;
             band.course_height = ch; band.brick_height = ch; band.joint = 0; band.min_cut = +P.minCut; band.course_origin = sect.h0;
@@ -5032,7 +5369,7 @@ function sessionCard() {
           course_height: (+S.barrel.course) + (+S.barrel.joint), mouth_course_height: (+S.mouth.course) + (+S.mouth.joint), joint: 0, bottom_joint: 0,
           min_cut: +S.bottom.minCut, cut_allowance: 0, perm_cut_allowance: +S.permBrick.cut, perm_in_bom: permZones().some(z => permOf(z.id).reuse !== 'Yes') ? 1 : 0
         },
-        bottom: { key_r: +B.keyR, ring_width: +B.ringW, brick_length: bottomThick().t, grade: (B.mand || '').trim() || B.grade, ring_bands: exact ? B.bands : [] },
+        bottom: { pattern: B.pattern || (isHerringboneBottom() ? 'Herringbone pattern (Dished)' : 'Concentric rings (Dished)'), key_r: +B.keyR, ring_width: +B.ringW, brick_length: bottomThick().t, grade: (B.mand || '').trim() || B.grade, ring_bands: exact ? B.bands : [] },
         permanent_brick: { width: +S.permBrick.w, height: +S.permBrick.h },   // default only – each band carries its own 'permanent' object
         grade_density: dens, monolithic: mono, extra_items: extra,
         junctions: junctions().map(j => ({ z: +j.h.toFixed(3), name: `${j.z.name} / ${j.n.name}`, pieces: !!(j.needsPieces && j.qty > 0), mark: j.J.mark })),
@@ -5307,6 +5644,8 @@ function sessionCard() {
         S.extOk = {};
         S.annAll = false;
         S.job.drawing = 'REF_SHELL_DWG_160MT_BOF_7310ID.pdf';
+        S.job.vessel = 'BOF converter';
+        S.bottom.pattern = 'Concentric rings (Dished)';
         S.job.heat = 160;
         S.job.heatMax = 175;
         if (!S.job.customer) S.job.customer = 'Customer B (160 MT BOF)';
@@ -5336,7 +5675,9 @@ function sessionCard() {
         S.job.heatMax = 165;
         S.job.customer = 'Customer C (150 MT LD Converter · Herringbone)';
         S.job.plant = 'SMS-01 / SMS-02';
+        S.job.vessel = 'LD converter (Dished / Herringbone)';
         S.bottom.type = 'Dished';
+        S.bottom.pattern = 'Herringbone pattern (Dished)';
         if (S.asm) { S.asm.thBlockMark = 'THB-1R / THB-2S'; S.asm.thSleeveMark = 'THS13 / THS12'; }
         INIT.job = clone(S.job);
         reopenFrom(1);
@@ -5363,7 +5704,9 @@ function sessionCard() {
         S.job.heatMax = 68;
         S.job.customer = 'Customer D (60 MT BOF · Straight Bottom)';
         S.job.plant = 'SMS-1';
+        S.job.vessel = 'BOF / LD converter (Straight bottom)';
         S.bottom.type = 'Flat';
+        S.bottom.pattern = 'Straight / Flat bottom (EB-1X/1Y/1Z)';
         if (S.asm) { S.asm.thBlockMark = '45THBR-TG-20 / 45TB-TG-15'; S.asm.thSleeveMark = 'TSE-13 / TSE-13.5 / TSE-14'; }
         INIT.job = clone(S.job);
         reopenFrom(1);
@@ -5375,7 +5718,7 @@ function sessionCard() {
       },
     });
 
-    { const _sample = ACT.sample; ACT.sample = el => { { const e = {}; SAMPLE_EXT_DEF.forEach(([k, g, l, u, d, v, c, how, cmp]) => e[k] = { grp: g, label: l, unit: u, drawing: d, value: v, extVal: typeof v === 'number' && !/^—/.test(String(d)) ? v : null, conf: c, how, cmp: !!cmp }); S.ext = e; INIT.ext = clone(e); delete S.extSrc; } S.job.heat = 180; S.job.heatMax = 195; S.extOk = {}; S.annAll = false; reopenFrom(1); delete S.extractionError; S.extractionSummary = '180 MT Sample Shell Drawing loaded (TRLK/SS/BOF/06/08.10.2016).'; _sample(el); }; }
+    { const _sample = ACT.sample; ACT.sample = el => { { const e = {}; SAMPLE_EXT_DEF.forEach(([k, g, l, u, d, v, c, how, cmp]) => e[k] = { grp: g, label: l, unit: u, drawing: d, value: v, extVal: typeof v === 'number' && !/^—/.test(String(d)) ? v : null, conf: c, how, cmp: !!cmp }); S.ext = e; INIT.ext = clone(e); delete S.extSrc; } S.job.heat = 180; S.job.heatMax = 195; S.job.vessel = 'BOF converter'; S.bottom.pattern = 'Concentric rings (Dished)'; S.extOk = {}; S.annAll = false; reopenFrom(1); delete S.extractionError; S.extractionSummary = '180 MT Sample Shell Drawing loaded (TRLK/SS/BOF/06/08.10.2016).'; _sample(el); }; }
 
     /* ---------- person 1\'s extraction -> step-2 values (any segment count / order; no hidden sample values) ---------- */
     function linApplyExtraction(data) {
@@ -5412,11 +5755,12 @@ function sessionCard() {
         const vectorBarID = mainSegs[2].radius_bottom_mm * 2;
         const isOcrPart = prof.extraction_method === 'ocr_dimensions';
         const isInnerProfile = !!(geom.extra_metadata && geom.extra_metadata.profile_is_inner_diameter);
-        const plateThickness = Td ? Td.value : (ODd ? (+S.ext.plate.value || 70) : 0);
-        if (!Td && ODd) upd('plate', plateThickness, '— (assumed)', 'Standard shell plate thickness used to convert OD to ID', dk, 0.8);
+        const hasTruePlate = !!(Td && (!Td.raw_text || !/H\s*-\s*Σ/i.test(Td.raw_text)));
+        const plateThickness = hasTruePlate ? Td.value : (ODd ? (+S.ext.plate.value || 70) : 0);
+        if (!hasTruePlate && ODd) upd('plate', plateThickness, '— (assumed)', 'Standard shell plate thickness used to convert OD to ID', dk, 0.8);
         let trueBarID = vectorBarID;
         let barText = undefined;
-        if (isInnerProfile && IDd) { trueBarID = IDd.value; barText = IDd.raw_text; }
+        if (isInnerProfile && IDd && Math.abs(IDd.value - vectorBarID) <= vectorBarID * 0.08) { trueBarID = IDd.value; barText = IDd.raw_text; }
         else if (ODd) { trueBarID = fxCalc('ext_id_from_od', { od: ODd.value, plate_thickness: plateThickness }, () => ODd.value - 2 * plateThickness); barText = 'Derived from OD ' + ODd.raw_text; }
         else if (IDd && IDd.value > vectorBarID * 0.9) { trueBarID = IDd.value; barText = IDd.raw_text; }
         const scaleX = isOcrPart ? 1 : (trueBarID / (vectorBarID || 1));
@@ -5444,7 +5788,9 @@ function sessionCard() {
           upd('dishR', calcDishR, null, 'Derived from dish chord & height', dk, conf);
         }
         if (dishTopDia > 0) {
-          upd('botDia', dishTopDia, isInnerProfile ? ('Ø' + Math.round(dishTopDia)) : null, isInnerProfile ? 'Extracted bottom dish diameter' : 'Derived from bottom dish top radius', isInnerProfile ? kind : dk, conf);
+          const lcStartDia = R(mainSegs[1].radius_bottom_mm || s.radius_top_mm);
+          const isStepped = lcStartDia - dishTopDia > 300;
+          upd('botDia', dishTopDia, isStepped ? `${Math.round(dishTopDia)} (stepped to ${Math.round(lcStartDia)})` : (isInnerProfile ? ('Ø' + Math.round(dishTopDia)) : null), isStepped ? 'Extracted central spherical dish chord (stepped bottom)' : (isInnerProfile ? 'Extracted bottom dish diameter' : 'Derived from bottom dish top radius'), (isInnerProfile || isStepped) ? kind : dk, conf);
         }
         S.bottom.type = 'Dished';
         elev = fxCalc('ext_zone_elevation', { elev_base: elev, seg_height: h0 }, () => elev + h0);
@@ -5487,6 +5833,7 @@ function sessionCard() {
         upd('ringHt', h4, s.height_raw_text || String(+(h4.toFixed(1))), 'Extracted mouth ring height', kind, conf);
         upd('ringProf', 'Vertical', '—', 'Profile: Vertical', dk, conf);
         upd('lip', 0, '—', 'No lip seen', dk, conf);
+        if (ringDia > 0) upd('ringOD', ringDia + 2 * plateThickness, null, 'Derived: ringID + 2 × plate', dk, conf);
         upd('ringCool', 'No', '—', 'No cooling shown', dk, conf);
         upd('H', Hd ? Hd.value : totElev, Hd ? Hd.raw_text : String(totElev), 'Overall vessel height', kind, conf);
         if (prof.extraction_method === 'none') warnings.push('the vessel profile could not be extracted from this drawing style');
@@ -5610,6 +5957,16 @@ function sessionCard() {
       if (vt === 'EAF') S.job.vessel = 'EAF (Electric Arc Furnace)';
       else if (vt === 'LADLE') S.job.vessel = 'Steel Ladle';
       else if (vt === 'RH_DEGASSER') S.job.vessel = 'RH Degasser';
+      const rawAll = ((geom.raw_ocr_texts || []).join(' ') + ' ' + (S.job.drawing || '') + ' ' + (S.job.drawingNo || '')).toUpperCase();
+      if (/HERRING|HARRINGE|HERRINZE|PD-RED-00320/.test(rawAll)) {
+        S.job.vessel = 'LD converter (Dished / Herringbone)';
+        S.bottom.pattern = 'Herringbone pattern (Dished)';
+      } else if (/STRAIGHT\s*BOTTOM|STRAIGTH\s*BOTTOM|CASE.?-?3/.test(rawAll) || XN('dishR') === 0) {
+        S.job.vessel = 'BOF / LD converter (Straight bottom)';
+        S.bottom.pattern = 'Straight / Flat bottom (EB-1X/1Y/1Z)';
+      } else {
+        S.bottom.pattern = 'Concentric rings (Dished)';
+      }
       const op = geom.operating_conditions || {};
       if (op.vessel_capacity_tons) S.job.heat = +op.vessel_capacity_tons;
       if (op.tapping_temperature_c) S.job.tapT = +op.tapping_temperature_c;

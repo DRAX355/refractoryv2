@@ -517,10 +517,35 @@ class Sheet:
                         continue
                     bi = self.seg_band[sg.name]
                     band = self.bands[bi]
-                    if bi == rb:                      # bottom: ring boundaries + bricks of each ring
+                    if bi == rb:                      # bottom: ring boundaries + bricks of each ring (or herringbone grid)
                         paths, _ = self.boundary_paths(0)
                         r_lim = self._rad(paths[L - 1], z)
-                        for x in rr:
+                        is_hb = str((rings or {}).get("pattern") or "").lower() == "herringbone"
+                        hb_cut = max(1, len(rr) - 2) if is_hb and len(rr) > 3 else 0
+                        if is_hb and hb_cut > 0:
+                            r_hb = min(float(rr[hb_cut - 1]["r_out"]), r_lim)
+                            pw = max(100.0, float(rr[0].get("width") or 155.0))
+                            pl = pw * 1.65
+                            ca, sa = math.cos(math.radians(45.0)), math.sin(math.radians(45.0))
+                            n_r = int(math.ceil(r_hb / pw)) + 1
+                            n_c = int(math.ceil(r_hb / pl)) + 1
+                            self.msp.add_circle((cx, cy), r_hb, dxfattribs=attrs)
+                            for r_i in range(-n_r, n_r + 1):
+                                v0 = r_i * pw
+                                if abs(v0) < r_hb:
+                                    u_max = math.sqrt(max(0.0, r_hb * r_hb - v0 * v0))
+                                    seg((cx - u_max * ca - v0 * sa, cy - u_max * sa + v0 * ca),
+                                        (cx + u_max * ca - v0 * sa, cy + u_max * sa + v0 * ca))
+                                if r_i < n_r:
+                                    v1 = (r_i + 1) * pw
+                                    sh_u = (abs(r_i) % 2) * (pl * 0.5)
+                                    for c_i in range(-n_c, n_c + 1):
+                                        u0 = c_i * pl + sh_u
+                                        p0 = (cx + u0 * ca - v0 * sa, cy + u0 * sa + v0 * ca)
+                                        p1 = (cx + u0 * ca - v1 * sa, cy + u0 * sa + v1 * ca)
+                                        if math.hypot(p0[0] - cx, p0[1] - cy) <= r_hb and math.hypot(p1[0] - cx, p1[1] - cy) <= r_hb:
+                                            seg(p0, p1)
+                        for x in rr[hb_cut:]:
                             ri, ro = float(x["r_in"]), min(float(x["r_out"]), r_lim)
                             if ro - ri < 1.0:
                                 continue
@@ -530,7 +555,7 @@ class Sheet:
                             for k in range(n):
                                 a = 360.0 * k / max(n, 1)
                                 seg(self.polar(cx, cy, ri, a), self.polar(cx, cy, ro, a))
-                        if (rings or {}).get("key") and float(rings["key"]["r"]) <= r_lim:
+                        if not is_hb and (rings or {}).get("key") and float(rings["key"]["r"]) <= r_lim:
                             self.msp.add_circle((cx, cy), float(rings["key"]["r"]), dxfattribs=attrs)
                         continue
                     for sec in band["sectors"]:

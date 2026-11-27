@@ -177,9 +177,45 @@ def build_bom(sheet, lib, courses, rings, vols, nozzles, st, densities, cone_gap
         if not perm_in_bom:
             continue
         band_def = next((b for b in sheet.bands if b["name"] == row["band"]), {})
+        perm_cfg = band_def.get("permanent") or {}
+        if perm_cfg.get("in_bom") == 0:
+            continue
         zone = str(band_def.get("section") or row["band"])          # one line per section (split zones summed)
+        layer_idx = perm_layers.index(row["layer"])
         if len(perm_multi.get(row["band"], ())) > 1:                       # several permanent layers: one line each
-            zone += f" - layer {perm_layers.index(row['layer']) + 1}"
+            zone += f" - layer {layer_idx + 1}"
+        # Check if the band carries exact TRL course/layer-calculated permanent lining quantities (BSM-1, LC-1/2, TYP1/2, TM-1/2)
+        p_layers = perm_cfg.get("layers") or []
+        if layer_idx < len(p_layers) and p_layers[layer_idx].get("qty"):
+            pl_item = p_layers[layer_idx]
+            mk = pl_item.get("mark") or perm_cfg.get("mark") or "BSM-1"
+            add("Permanent lining", zone, pl_item.get("grade") or row["grade"], mk, float(pl_item["qty"]),
+                float(pl_item.get("cut_allowance", perm_allow) or 0),
+                "TRL spherical-cap safety layer calculation (Q7 radius-ratio & Q8 round-up)",
+                where=(row["band"], "PERMANENT" if row["layer"] == sheet.layers[0] else row["layer"]))
+            key = ("Permanent lining", zone, pl_item.get("grade") or row["grade"], mk)
+            if key in lines and pl_item.get("unit_vol_dm3"):
+                lines[key]["unit_vol_dm3"] = round(float(pl_item["unit_vol_dm3"]), 3)
+                lines[key]["vol_method"] = "TRL Q7 radius-ratio spherical-cap brick volume"
+            continue
+        calc_parts = perm_cfg.get("calculated_parts") or []
+        if layer_idx == 0 and calc_parts:
+            # Share across split sub-bands of the same section if needed, or add once per band
+            sec_bands = [b for b in sheet.bands if str(b.get("section") or b["name"]) == str(band_def.get("section") or row["band"])]
+            share = 1.0 / max(1, len(sec_bands))
+            for pt in calc_parts:
+                mk = str(pt.get("mark") or "STD")
+                q_pt = float(pt.get("qty") or 0) * share
+                if q_pt <= 0:
+                    continue
+                add("Permanent lining", zone, row["grade"], mk, q_pt, 0,
+                    "TRL course-by-course safety lining calculation (Q7 radius-ratio & Q8 per-course round-up)",
+                    where=(row["band"], "PERMANENT"))
+                key = ("Permanent lining", zone, row["grade"], mk)
+                if key in lines and pt.get("unit_vol_dm3"):
+                    lines[key]["unit_vol_dm3"] = round(float(pt["unit_vol_dm3"]), 4)
+                    lines[key]["vol_method"] = "TRL Q7 radius-ratio course brick volume"
+            continue
         t = row.get("thickness")
         std = next((b for b in stds if t is not None and abs(float(b["dimensions_mm"].get("length", -1)) - t) < 0.5), None) \
             or (stds[0] if stds else None)

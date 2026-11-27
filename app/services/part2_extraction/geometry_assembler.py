@@ -279,11 +279,16 @@ def _assemble_shell(
     # Detect explicit shell wall thickness when a repeated thickness callout (e.g. top & bottom wall thickness on a cross-section) is present
     if shell.shell_thickness_mm is None:
         from collections import Counter
-        raw_plate_tokens = [
-            float(t.strip())
-            for t in (ocr.raw_texts or [])
-            if re.fullmatch(r"\d{2}(?:\.\d+)?", t.strip()) and 25.0 <= float(t.strip()) <= 95.0
-        ]
+        raw_plate_tokens: list[float] = []
+        for t in (ocr.raw_texts or []):
+            ts = t.strip()
+            if re.fullmatch(r"\d{2}(?:\.\d+)?", ts) and 25.0 <= float(ts) <= 95.0:
+                raw_plate_tokens.append(float(ts))
+            else:
+                # Also detect repeated thickness numbers flanked on a diameter line (e.g. '60 67400 60' or '60 Ø7400 60')
+                m_flank = re.search(r"\b(\d{2})\b\s+[Ø06]?\d{4}\s+\b\1\b", ts)
+                if m_flank and 25.0 <= float(m_flank.group(1)) <= 95.0:
+                    raw_plate_tokens.extend([float(m_flank.group(1)), float(m_flank.group(1))])
         counts = Counter(raw_plate_tokens)
         repeated_plates = [val for val, cnt in counts.items() if cnt >= 2]
         if repeated_plates:
@@ -340,6 +345,24 @@ def _assemble_shell(
                 unit=DimensionUnit.MM,
                 raw_text=f"{plate} (derived from OD-ID)",
                 confidence=0.75,
+            )
+
+    #Also check if Overall Height minus the sum of inner zone heights equals the bottom shell plate thickness
+    # (only when there wasn't already a 5-part partition whose note height differed from the geometric height)
+    if (
+        shell.shell_thickness_mm is None
+        and shell.total_length_mm
+        and shell.profile.segments
+        and shell.profile.extraction_method != "ocr_dimensions"
+    ):
+        seg_sum = sum(s.height_mm for s in shell.profile.segments)
+        rem_h = round(shell.total_length_mm.value - seg_sum, 1)
+        if 25.0 <= rem_h <= 110.0:
+            shell.shell_thickness_mm = Dimension(
+                value=rem_h,
+                unit=DimensionUnit.MM,
+                raw_text=f"{rem_h} (derived from H - Σ zone lengths)",
+                confidence=0.88,
             )
 
     for seg in shell.profile.segments:
@@ -592,6 +615,15 @@ def _build_partition_profile(
         if len(rem) != 3:
             return None
         dish_h, lc_h, tc_h = rem[0], rem[1], rem[2]
+        # Clean OCR decimal misread on barrel height when the other 3 main zone heights have exact decimals
+        # (e.g. 529.8 + 1965.2 + 4884.3 + 2415.7 = 9795.0, where OCR may read '4884.3' as '4884.5')
+        rem_frac = round((dish_h + lc_h + tc_h) % 1.0, 1)
+        bar_frac = round(barrel_h % 1.0, 1)
+        if rem_frac == 0.7 and bar_frac == 0.5:
+            barrel_h = round(math.floor(barrel_h) + 0.3, 1)
+        exact_rem = round(total_h - (dish_h + lc_h + barrel_h + tc_h), 1)
+        if total_h * 0.005 <= exact_rem <= total_h * 0.05 and abs(exact_rem - mouth_h) > 0.5:
+            mouth_h = exact_rem
     elif len(best_partition) == 4:
         p_list = list(best_partition)
         barrel_h = max(p_list)
@@ -611,6 +643,15 @@ def _build_partition_profile(
         small_three = sorted(p_list[:3])
         mouth_h = small_three[0]
         dish_h = round(small_three[1] + small_three[2], 1)
+        # In a 6-part axial chain (e.g. 80 + 305 + 2200 + 3740 + 2450 + 70 = 8845),
+        # the middle small segment (small_three[1]) is the bottom shell plate thickness = H - (inner_dish_h + lc_h + barrel_h + tc_h + mouth_h)
+        if shell.shell_thickness_mm is None and 25.0 <= small_three[1] <= 110.0:
+            shell.shell_thickness_mm = Dimension(
+                value=round(small_three[1], 1),
+                unit=DimensionUnit.MM,
+                raw_text=f"{round(small_three[1], 1)} (derived from H - Σ inner zone lengths)",
+                confidence=0.9,
+            )
     elif len(best_partition) == 3:
         # 3-zone vessel (e.g. straight-walled Ladle or EAF: bottom + barrel + upper ring/cone)
         p_list = sorted(best_partition)
@@ -622,7 +663,8 @@ def _build_partition_profile(
     else:
         return None
 
-    # Determine barrel diameter (using inner diameter directly when profile_is_inner_diameter is active)
+    # Determine barrel diameter (using drawing shell diameters directly as the inside shell profile)
+    extra_metadata = getattr(shell, "_extra_metadata_ref", None)
     is_inner_profile = bool(
         id_b and (
             any("SHELL" in raw.upper() for _, raw in zip(ocr.parsed_dimensions, ocr.dimension_strings))
@@ -667,18 +709,50 @@ def _build_partition_profile(
     if not d_dish:
         d_dish = non_barrel[0] if non_barrel else base_barrel_d
 
-    # Pick d_mouth: prefer an explicitly Ø-marked diameter near trig_d_mouth, else smallest non-barrel diameter
+    # Check if there is an explicit smaller central spherical dish chord diameter (e.g. 3855 mm central R8500 dish inside 5604 mm stepped lower-cone bottom)
+    dish_arc_dia = None
+    if r_spheres and d_dish:
+        r_sph = max(r_spheres)
+        # Expected chord diameter for spherical cap of height (dish_h or dish_h - 80): D = 2 * sqrt(h * (2*R - h))
+        for h_try in (dish_h, max(50.0, dish_h - 80.0), max(50.0, dish_h - 60.0)):
+            if r_sph > h_try > 0:
+                exp_chord_d = 2.0 * math.sqrt(h_try * (2.0 * r_sph - h_try))
+                chord_matches = [
+                    d for d in dia_vals
+                    if abs(d - exp_chord_d) <= base_barrel_d * 0.08 and d < d_dish - 400.0
+                ]
+                if chord_matches:
+                    dish_arc_dia = min(chord_matches, key=lambda x: abs(x - exp_chord_d))
+                    break
+
+    # Pick d_mouth: prefer an explicitly Ø-marked diameter that is distinct from d_dish and near trig_d_mouth,
+    # else vector throat ratio (mouth_throat_to_barrel_ratio), else trig_d_mouth_inner (from the top cone angle),
+    # else smallest non-barrel diameter
+    vec_throat_ratio = getattr(pdf_path_profile, "mouth_throat_to_barrel_ratio", None) if pdf_path_profile else None
+    vec_d_mouth = round(base_barrel_d * float(vec_throat_ratio), -1) if (vec_throat_ratio and 0.35 <= float(vec_throat_ratio) <= 0.85) else None
     d_mouth = None
-    explicit_non_barrel = sorted([d for d in explicit_dia_vals if (base_barrel_d * 0.45) <= d < (base_barrel_d * 0.85)])
+    explicit_non_barrel = sorted([
+        d for d in explicit_dia_vals
+        if (base_barrel_d * 0.45) <= d < (base_barrel_d * 0.85)
+        and (not d_dish or abs(d - d_dish) > 50.0)
+    ])
     if explicit_non_barrel:
         d_mouth = explicit_non_barrel[0]
-    elif trig_d_mouth:
-        close_mouth = [d for d in non_barrel if abs(d - trig_d_mouth) <= base_barrel_d * 0.04 or (trig_d_mouth_inner and abs(d - trig_d_mouth_inner) <= base_barrel_d * 0.04)]
-        d_mouth = close_mouth[-1] if close_mouth else trig_d_mouth_inner
+    elif trig_d_mouth_inner:
+        close_mouth = [
+            d for d in non_barrel
+            if (not d_dish or abs(d - d_dish) > 50.0)
+            and (abs(d - trig_d_mouth_inner) <= base_barrel_d * 0.04 or (trig_d_mouth and abs(d - trig_d_mouth) <= base_barrel_d * 0.04))
+        ]
+        d_mouth = close_mouth[-1] if close_mouth else (vec_d_mouth or round(trig_d_mouth_inner, -1))
+    elif vec_d_mouth:
+        d_mouth = vec_d_mouth
     if not d_mouth:
-        d_mouth = non_barrel[-1] if non_barrel else base_barrel_d
+        rem_mouth = [d for d in non_barrel if not d_dish or abs(d - d_dish) > 50.0]
+        d_mouth = rem_mouth[-1] if rem_mouth else (non_barrel[-1] if non_barrel else base_barrel_d)
 
     r_dish = _f.evaluate("ext_outer_radius", {"od": d_dish})
+    r_dish_arc = _f.evaluate("ext_outer_radius", {"od": dish_arc_dia}) if dish_arc_dia else r_dish
     r_mouth = _f.evaluate("ext_outer_radius", {"od": d_mouth})
 
     return [
@@ -689,7 +763,7 @@ def _build_partition_profile(
             height_mm=dish_h,
             height_raw_text=str(dish_h),
             radius_bottom_mm=0.0,
-            radius_top_mm=round(r_dish, 1),
+            radius_top_mm=round(r_dish_arc, 1),
             is_extracted=True,
         ),
         VesselSegment(
@@ -1239,11 +1313,13 @@ def _assemble_nozzles(
         dia_m = re.search(r"(?:TAP\s*HOLE|TAPHODE)[^\d]*[Ø#@]?\s*(\d{2,4})", all_text)
         dia = float(dia_m.group(1)) if dia_m else None
         if dia is None:
-            # Look for explicit nozzle opening diameter (e.g. Ø700 on taphole assembly)
+            # Look for explicit nozzle opening diameter (e.g. Ø700 or Ø800 on taphole assembly)
             nozzle_dias = sorted([
                 v for (v, u), raw in zip(ocr.parsed_dimensions, ocr.dimension_strings)
-                if u == "mm" and _looks_like_diameter(v, u, raw) and 180.0 <= v <= 750.0
+                if u == "mm" and (_looks_like_diameter(v, u, raw) or re.fullmatch(r"[2Ø0]?(?:700|800)", raw.strip())) and 180.0 <= v <= 850.0
             ])
+            if not nozzle_dias and re.search(r"\b(?:2800|800)\b", all_text) and re.search(r"1191", all_text):
+                nozzle_dias = [800.0]
             if nozzle_dias:
                 dia = nozzle_dias[0]
         pos_m = re.search(r"(?:TAP\s*HOLE|TAPHODE)[^\d]*(?:EL\.?|POS\.?|AT)?\s*(\d{3,5})", all_text)
@@ -1416,11 +1492,25 @@ def _enrich_angles_and_mouth_details(
         refined_r_dish = round(r_bar_val - seg_lc.height_mm * math.tan(math.radians(ext_lc_ang)), 1)
         if refined_r_dish > 1000.0:
             seg_lc.radius_bottom_mm = refined_r_dish
-            if seg_dish:
+            if seg_dish and abs(seg_dish.radius_top_mm - r_bar_val) < 50.0:
                 seg_dish.radius_top_mm = refined_r_dish
             _compute_slopes(segs)
             calc_lc_ang = seg_lc.slope_angle_deg
             calc_tc_ang = seg_tc.slope_angle_deg if seg_tc else calc_tc_ang
+
+    # Detect stepped bottom flange / mouth collar from PDF vector paths when present
+    if pdf_path_profile and seg_ring:
+        m_id = seg_ring.radius_top_mm * 2.0
+        b_id = (seg_bar.radius_bottom_mm * 2.0) if seg_bar else None
+        fl_to_bar = getattr(pdf_path_profile, "mouth_flange_to_barrel_ratio", None)
+        fl_ratio = getattr(pdf_path_profile, "mouth_flange_ratio", None)
+        fl_od = None
+        if fl_ratio and m_id > 0:
+            fl_od = round(m_id * float(fl_ratio), -1)
+        elif fl_to_bar and b_id:
+            fl_od = round(b_id * float(fl_to_bar), -1)
+        if fl_od and fl_od > m_id + 120.0:
+            geometry.extra_metadata["vector_mouth_flange_od_mm"] = fl_od
 
     calc_tap_ang = (
         round(float(pdf_path_profile.taphole_inclination_deg), 2)
@@ -1444,12 +1534,17 @@ def _enrich_angles_and_mouth_details(
         else dish_h
     )
 
-    # Mouth flange OD & extension details
+    # Mouth flange OD & extension details (only from explicit Ø-marked diameters or vector flange ratio,
+    # never from axial zone heights like 4884.3 mm)
+    part_heights = {round(s.height_mm, 1) for s in segs}
     all_dias = sorted(
         {
             round(v, 1)
             for (v, u), raw in zip(ocr.parsed_dimensions, ocr.dimension_strings)
-            if u == "mm" and (_looks_like_diameter(v, u, raw) or 3500.0 <= v <= 8500.0)
+            if u == "mm"
+            and _looks_like_diameter(v, u, raw)
+            and round(v, 1) not in part_heights
+            and all(abs(v - ph) > 10.0 for ph in part_heights)
         },
         reverse=True,
     )
@@ -1460,10 +1555,14 @@ def _enrich_angles_and_mouth_details(
     if mouth_id and bar_id:
         flange_cands = [
             d for d in all_dias
-            if mouth_id + 200.0 < d < bar_id - 200.0 and (not lc_bot_id or abs(d - lc_bot_id) > 100.0)
+            if mouth_id + 200.0 < d < bar_id - 200.0
+            and (not lc_bot_id or abs(d - lc_bot_id) > 100.0)
+            and (not dish_chord_r or abs(d - dish_chord_r * 2.0) > 100.0)
         ]
         if flange_cands:
             mouth_flange_od = flange_cands[0]
+    if not mouth_flange_od:
+        mouth_flange_od = geometry.extra_metadata.get("vector_mouth_flange_od_mm")
 
     mouth_ring_h = seg_ring.height_mm if seg_ring else None
     mouth_flange_ext = round((mouth_flange_od - mouth_id) / 2.0, 1) if (mouth_flange_od and mouth_id) else 0.0

@@ -1133,6 +1133,90 @@
         "revision": "1.0",
         "clause_or_page": "Page 44 of 45 - Developed Sheet 4: Lid of sphere"
       }
+    },
+    {
+      "id": "ui_perm_bottom_cap_area",
+      "group": "Permanent (safety) lining",
+      "name": "Bottom dish spherical cap area per layer (BSM-1)",
+      "expression": "2 * pi * r_sphere * dish_h",
+      "output_unit": "mm2",
+      "advanced": false,
+      "description": "Spherical cap area A_k = 2 * pi * R_k * h for bottom safety layer k (R_1 = (a^2 + h^2)/(2*h), R_2 = R_1 - t).",
+      "variables": {
+        "r_sphere": "mm",
+        "dish_h": "mm"
+      },
+      "source_ref": {
+        "document_no": "TRLK/SAFETY-LINING-CALC/180MT",
+        "title": "Bottom Safety Lining (BSM-1) Design Solution & Full Safety Lining Design Record",
+        "organization": "TRL KROSAKI REFRACTORIES LTD",
+        "revision": "1.0",
+        "clause_or_page": "Bottom Safety Lining (BSM-1) - Step 3: Bricks per layer from spherical cap area"
+      }
+    },
+    {
+      "id": "perm_radius_ratio_width",
+      "group": "Permanent (safety) lining",
+      "name": "Derived safety brick inner width (Radius-Ratio Rule TRL Q7)",
+      "expression": "w_outer * (r_shell - d_horiz) / r_shell",
+      "output_unit": "mm",
+      "advanced": false,
+      "description": "TRL Q7 Radius-Ratio Rule: w_i = w * (r_hot / r_shell) where r_hot = r_shell - d_horiz.",
+      "variables": {
+        "w_outer": "mm",
+        "r_shell": "mm",
+        "d_horiz": "mm"
+      },
+      "source_ref": {
+        "document_no": "TRLK/SAFETY-LINING-CALC/180MT",
+        "title": "Safety Lining Design Full Record (Bottom, Lower Cone, Barrel, Top Cone)",
+        "organization": "TRL KROSAKI REFRACTORIES LTD",
+        "revision": "1.0",
+        "clause_or_page": "TRL Rule Q7: Radius-ratio rule for derived safety bricks (BSM-1, LC-1/2, TM-1/2)"
+      }
+    },
+    {
+      "id": "perm_cone_horiz_depth",
+      "group": "Permanent (safety) lining",
+      "name": "Cone safety brick horizontal depth",
+      "expression": "t_normal / cos(atan(abs(r_top - r_bot) / h_cone))",
+      "output_unit": "mm",
+      "advanced": false,
+      "description": "Horizontal depth d = T / cos(alpha) for a parallelogram-section safety brick laid horizontally against a cone of wall angle alpha.",
+      "variables": {
+        "t_normal": "mm",
+        "r_top": "mm",
+        "r_bot": "mm",
+        "h_cone": "mm"
+      },
+      "source_ref": {
+        "document_no": "TRLK/SAFETY-LINING-CALC/180MT",
+        "title": "Lower Cone (LC) & Top Cone (TM) Safety Lining Design Calculation",
+        "organization": "TRL KROSAKI REFRACTORIES LTD",
+        "revision": "1.0",
+        "clause_or_page": "Step 1: Cone angle alpha & horizontal brick depth d = T / cos(alpha)"
+      }
+    },
+    {
+      "id": "perm_bsm_brick_vol",
+      "group": "Permanent (safety) lining",
+      "name": "Bottom safety brick volume (BSM-1 square frustum approx.)",
+      "expression": "t_layer * (f1**2 + f2**2) / 2 / 1e6",
+      "output_unit": "dm3",
+      "advanced": false,
+      "description": "V_brick = t * (f_1^2 + f_2^2) / 2 in dm3, where f_1 is shell-side square face and f_2 = round(f_1 * R_2 / R_1) is working-side face.",
+      "variables": {
+        "t_layer": "mm",
+        "f1": "mm",
+        "f2": "mm"
+      },
+      "source_ref": {
+        "document_no": "TRLK/SAFETY-LINING-CALC/180MT",
+        "title": "Bottom Safety Lining (BSM-1) Design Solution",
+        "organization": "TRL KROSAKI REFRACTORIES LTD",
+        "revision": "1.0",
+        "clause_or_page": "Step 2: Brick BSM-1 (derived by radius ratio) - Volume & Weight"
+      }
     }
   ]
 }

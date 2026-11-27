@@ -1177,18 +1177,93 @@ class LayerSheet(Doc):
         return y - yy + 2 * th
 
     # ------------------------------------------------------------ bottom rings
+    def _draw_herringbone_grid(self, cx, cy, r_hb, pitch_w=155.0, pitch_l=240.0, col_aci=3, stir=()):
+        """Draws a true 45-degree interlocking herringbone brick course grid clipped inside radius r_hb."""
+        if r_hb <= 50:
+            return
+        ang = math.radians(45.0)
+        ca, sa = math.cos(ang), math.sin(ang)
+        ux, uy = ca, sa
+        vx, vy = -sa, ca
+        pw = max(80.0, float(pitch_w or 155.0))
+        pl = max(140.0, float(pitch_l or 240.0))
+        n_rows = int(math.ceil(r_hb / pw)) + 1
+        n_cols = int(math.ceil(r_hb / pl)) + 1
+        lay_fill = self.layer("BOTTOM_BRICKS", col_aci)
+        lay_line = self.layer("BOTTOM_RINGS", 7)
+        # Base fill circle for the herringbone zone
+        base_pts = [(cx + r_hb * math.cos(k * math.pi / 36), cy + r_hb * math.sin(k * math.pi / 36)) for k in range(72)]
+        self.fill(base_pts, col_aci, lay_fill)
+        self.msp.add_circle((cx, cy), r_hb, dxfattribs={"layer": lay_line, "lineweight": 25})
+
+        def clip_seg(p0, p1):
+            # Clip line segment p0->p1 to circle (cx, cy, r_hb)
+            x0, y0 = p0[0] - cx, p0[1] - cy
+            x1, y1 = p1[0] - cx, p1[1] - cy
+            dx, dy = x1 - x0, y1 - y0
+            a = dx * dx + dy * dy
+            if a < 1e-9:
+                return None
+            b = 2 * (x0 * dx + y0 * dy)
+            c = x0 * x0 + y0 * y0 - r_hb * r_hb
+            disc = b * b - 4 * a * c
+            if disc <= 0:
+                return None
+            sd = math.sqrt(disc)
+            t0 = max(0.0, (-b - sd) / (2 * a))
+            t1 = min(1.0, (-b + sd) / (2 * a))
+            if t0 >= t1 - 1e-6:
+                return None
+            return (cx + x0 + t0 * dx, cy + y0 + t0 * dy), (cx + x0 + t1 * dx, cy + y0 + t1 * dy)
+
+        for r in range(-n_rows, n_rows + 1):
+            v0 = r * pw
+            # Continuous diagonal course line
+            cs = clip_seg((cx - r_hb * 1.2 * ux + v0 * vx, cy - r_hb * 1.2 * uy + v0 * vy),
+                          (cx + r_hb * 1.2 * ux + v0 * vx, cy + r_hb * 1.2 * uy + v0 * vy))
+            if cs:
+                self.line(cs[0], cs[1], lay_line)
+            if r == n_rows:
+                continue
+            v1 = (r + 1) * pw
+            shift = (abs(r) % 2) * (pl * 0.5)
+            for c in range(-n_cols, n_cols + 1):
+                u0 = c * pl + shift
+                p_a = (cx + u0 * ux + v0 * vx, cy + u0 * uy + v0 * vy)
+                p_b = (cx + u0 * ux + v1 * vx, cy + u0 * uy + v1 * vy)
+                cs_j = clip_seg(p_a, p_b)
+                if cs_j:
+                    self.line(cs_j[0], cs_j[1], lay_line)
+                # Herringbone interlocking chevron cross-joint in alternating blocks
+                if (r + c) % 2 == 0:
+                    um = u0 + pl * 0.5
+                    vm = 0.5 * (v0 + v1)
+                    p_c1 = (cx + u0 * ux + vm * vx, cy + u0 * uy + vm * vy)
+                    p_c2 = (cx + um * ux + v0 * vx, cy + um * uy + v0 * vy)
+                    p_c3 = (cx + (u0 + pl) * ux + vm * vx, cy + (u0 + pl) * uy + vm * vy)
+                    for seg_a, seg_b in ((p_c1, p_c2), (p_c2, p_c3)):
+                        cs_c = clip_seg(seg_a, seg_b)
+                        if cs_c:
+                            self.line(cs_c[0], cs_c[1], lay_line)
+
     def draw_bottom(self, cx, cy):
         th, R = self.th, self.rings
         if not R or not R.get("rings"):
             self.text(cx, cy, "No bottom band / bottom wedge shapes", th, "center")
             return
-        if R.get("key"):
+        is_hb = str(R.get("pattern") or "").lower() == "herringbone" or "herring" in str(self.job or "").lower()
+        if R.get("key") and not is_hb:
             rk = R["key"]["r"]
             pts = [(cx + rk * math.cos(a), cy + rk * math.sin(a)) for a in [k * math.pi / 36 for k in range(72)]]
             self.fill(pts, self.gc(R.get("grade")), "BOTTOM_KEY")
             self.msp.add_circle((cx, cy), rk, dxfattribs={"layer": self.layer("BOTTOM_RINGS", 7)})
             self.text(cx, cy, R["key"]["mark"], 0.7 * th, "center")
         stir = [n for n in self.nozzles if n.get("type") == "stirring" and n.get("count") and n.get("pcd")]
+        hb_ring_cutoff = max(1, len(R["rings"]) - 2) if is_hb and len(R["rings"]) > 3 else 0
+        if is_hb and hb_ring_cutoff > 0:
+            r_hb = R["rings"][hb_ring_cutoff - 1]["r_out"]
+            w_avg = R["rings"][0].get("width") or 155.0
+            self._draw_herringbone_grid(cx, cy, r_hb, pitch_w=w_avg, pitch_l=w_avg * 1.65, col_aci=self.gc(R.get("grade")), stir=stir)
         for ring in R["rings"]:
             r1, r2 = ring["r_in"], ring["r_out"]
             seq = []
@@ -1217,6 +1292,18 @@ class LayerSheet(Doc):
                               for k in range(cnt)]
             n_all = len(seq)
             if not n_all:
+                continue
+            if is_hb and ring["ring"] <= hb_ring_cutoff:
+                # In Herringbone mode, central courses are drawn as the 45° herringbone grid above; still draw MHP plugs & left ring list
+                for _, a, w in elems:
+                    pts = _wedge(cx, cy, r1, r2, self.zero + a - math.degrees(w / r1) / 2, self.zero + a + math.degrees(w / r1) / 2)
+                    self.fill(pts, NOZZLE_ACI, "NOZZLES")
+                    self.poly(pts, "NOZZLES")
+                rr = R["rings"][-1]["r_out"]
+                ly = cy + rr - (ring["ring"] - 0.5) * (2 * rr / max(len(R["rings"]), 1))
+                self._balls_then_text(cx - rr - 3 * th, ly, list(ring["marks"]), 0.7 * th,
+                                      f"Course {ring['ring']} (HB): " + " + ".join(f"{m} x {q}" for m, q in ring["marks"].items())
+                                      + (f" + {ring['nCut']} cut" if ring["nCut"] else ""))
                 continue
             # free angular gaps between stirring elements; bricks are spread over them pro rata
             spans = sorted(((a % 360) - math.degrees(w / r1) / 2, (a % 360) + math.degrees(w / r1) / 2) for _, a, w in elems)
@@ -1271,7 +1358,8 @@ class LayerSheet(Doc):
                 rl = rp + float(n.get("size_a") or 150) / 2 + 1.2 * th
                 self.text(cx + rl * math.cos(am), cy + rl * math.sin(am), f"{lab}-{k + 1}", 0.7 * th, "center", "NOZZLES")
         rmax = R["rings"][-1]["r_out"]
-        self.text(cx, cy - rmax - 2.5 * th, f"BOTTOM WORKING LINING - RING LAYOUT ({R['band']}, {R['grade']})",
+        pat_title = "HERRINGBONE & PERIMETER RING LAYOUT" if is_hb else "RING LAYOUT"
+        self.text(cx, cy - rmax - 2.5 * th, f"BOTTOM WORKING LINING - {pat_title} ({R['band']}, {R['grade']})",
                   1.2 * th, "center")
         self.text(cx, cy - rmax - 4.2 * th,
                   f"{len(R['rings'])} rings + key, {R['total']} pieces incl. cut pieces; laid on cold-face sphere "
